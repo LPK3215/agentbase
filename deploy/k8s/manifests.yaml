@@ -1,0 +1,212 @@
+# K8s deployment templates for agentbase
+# These are raw manifests (no Helm templating needed for simple deployments)
+# For Helm-managed deployment, use the Helm chart in this directory.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentbase-api
+  labels:
+    app: agentbase
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agentbase
+      component: api
+  template:
+    metadata:
+      labels:
+        app: agentbase
+        component: api
+    spec:
+      containers:
+        - name: api
+          image: agentbase:0.4.0
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: AGENTBASE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: agentbase-secrets
+                  key: api-key
+            - name: AGENTBASE_CHECKPOINTER__DSN
+              value: "postgresql://agentbase:agentbase@postgres:5432/agentbase"
+            - name: AGENTBASE_STORAGE__DSN
+              value: "postgresql://agentbase:agentbase@postgres:5432/agentbase"
+            - name: AGENTBASE_QUEUE__PROVIDER
+              value: "redis"
+            - name: AGENTBASE_QUEUE__OPTIONS__HOST
+              value: "redis"
+            - name: SILICONFLOW_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: agentbase-secrets
+                  key: siliconflow-api-key
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentbase-api
+  labels:
+    app: agentbase
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: agentbase
+    component: api
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agentbase-secrets
+type: Opaque
+stringData:
+  api-key: ""
+  siliconflow-api-key: ""
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app: agentbase
+    component: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agentbase
+      component: postgres
+  template:
+    metadata:
+      labels:
+        app: agentbase
+        component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          env:
+            - name: POSTGRES_DB
+              value: agentbase
+            - name: POSTGRES_USER
+              value: agentbase
+            - name: POSTGRES_PASSWORD
+              value: agentbase
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+  selector:
+    app: agentbase
+    component: postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    app: agentbase
+    component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agentbase
+      component: redis
+  template:
+    metadata:
+      labels:
+        app: agentbase
+        component: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+  selector:
+    app: agentbase
+    component: redis
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agentbase-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+spec:
+  rules:
+    - host: agentbase.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: agentbase-api
+                port:
+                  number: 8000

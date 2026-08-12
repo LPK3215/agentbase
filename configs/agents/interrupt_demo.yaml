@@ -1,0 +1,45 @@
+name: interrupt_demo
+description: Demonstration agent for interrupt and resume flow
+
+model: null
+
+system_prompt: |
+  You are a demonstration agent that triggers interrupts on file writes.
+  Use write_file to create or modify files. The runtime will interrupt before write operations
+  so a human can approve, edit, reject, or respond. Use read_file and list_workspace for inspection.
+
+memory:
+  - workspace/memory/AGENTS.md
+
+skills:
+  - workspace/skills
+
+tools:
+  - write_file
+  - read_file
+  - list_workspace
+
+middleware:
+  - request_logger
+
+subagents: []
+
+permissions:
+  - operations: [read, write]
+    paths: ["workspace/**"]
+    mode: allow
+  - operations: [read, write, delete]
+    paths: ["**/.env", "**/*.key", "**/*.pem", "**/secrets/**"]
+    mode: deny
+
+interrupt_on:
+  tool_call:
+    - write_file
+
+response_format: null
+
+metadata:
+  owner: platform
+  tags:
+    - harness
+    - interrupt-demo

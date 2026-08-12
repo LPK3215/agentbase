@@ -1,0 +1,133 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agentbase-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agentbase
+      POSTGRES_USER: agentbase
+      POSTGRES_PASSWORD: agentbase
+      # Performance tuning for dev/single-node
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - agentbase_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentbase -d agentbase"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: agentbase-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - agentbase_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  api:
+    build: .
+    container_name: agentbase-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Model API keys (first available is used)
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # API security
+      - AGENTBASE_API_KEY=${AGENTBASE_API_KEY:-}
+      - AGENTBASE_CORS_ORIGINS=${AGENTBASE_CORS_ORIGINS:-*}
+      # JWT auth (optional)
+      - AGENTBASE_AUTH__TYPE=${AGENTBASE_AUTH__TYPE:-api_key}
+      - AGENTBASE_AUTH__SECRET=${AGENTBASE_AUTH__SECRET:-agentbase-default-secret}
+      # Rate limiting
+      - AGENTBASE_RATE_LIMIT__ENABLED=${AGENTBASE_RATE_LIMIT__ENABLED:-true}
+      - AGENTBASE_RATE_LIMIT__MAX_REQUESTS=${AGENTBASE_RATE_LIMIT__MAX_REQUESTS:-60}
+      # PostgreSQL connection (use container hostname 'postgres')
+      - AGENTBASE_CHECKPOINTER__DSN=postgresql://agentbase:agentbase@postgres:5432/agentbase
+      - AGENTBASE_STORAGE__DSN=postgresql://agentbase:agentbase@postgres:5432/agentbase
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=agentbase
+      - POSTGRES_USER=agentbase
+      - POSTGRES_PASSWORD=agentbase
+      # Redis queue
+      - AGENTBASE_QUEUE__PROVIDER=redis
+      - AGENTBASE_QUEUE__OPTIONS__HOST=redis
+      - AGENTBASE_QUEUE__OPTIONS__PORT=6379
+      # Metrics
+      - AGENTBASE_METRICS__ENABLED=${AGENTBASE_METRICS__ENABLED:-true}
+      # Application
+      - AGENTBASE_APP__ENV=${AGENTBASE_APP__ENV:-prod}
+      - AGENTBASE_APP__LOG_LEVEL=${AGENTBASE_APP__LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    volumes:
+      - agentbase_workspace:/app/workspace
+      - agentbase_data:/app/data
+      - ./configs:/app/configs
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    stop_grace_period: 30s
+
+volumes:
+  agentbase_postgres_data:
+  agentbase_redis_data:
+  agentbase_workspace:
+  agentbase_data:

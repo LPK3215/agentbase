@@ -1,0 +1,57 @@
+name: researcher
+description: Research and summarization agent profile
+
+model: null
+
+system_prompt: |
+  You are a research-focused deep agent runtime.
+  Delegate investigation tasks to the researcher subagent when deeper analysis is needed.
+  Use web_search and web_fetch for internet research, and kb_search for internal knowledge.
+  Store key findings with memory_save and return concise, well-structured summaries.
+  Do not invent unavailable tools.
+
+memory:
+  - workspace/memory/AGENTS.md
+
+skills:
+  - workspace/skills
+
+tools:
+  - echo
+  - get_time
+  - list_workspace
+  # memory
+  - memory_save
+  - memory_search
+  - memory_get
+  # knowledge base
+  - kb_search
+  - kb_add
+  - kb_ingest
+  # web
+  - web_search
+  - web_fetch
+
+middleware:
+  - request_logger
+
+subagents:
+  - researcher
+
+permissions:
+  - operations: [read, write]
+    paths: ["workspace/**"]
+    mode: allow
+  - operations: [read, write, delete]
+    paths: ["**/.env", "**/*.key", "**/*.pem", "**/secrets/**"]
+    mode: deny
+
+interrupt_on: {}
+
+response_format: null
+
+metadata:
+  owner: platform
+  tags:
+    - harness
+    - researcher

@@ -1,0 +1,59 @@
+name: coder
+description: Code reading and editing agent profile
+
+model: null
+
+system_prompt: |
+  You are a code-focused deep agent runtime.
+  Use read_file, write_file, and grep to inspect and modify source files within the workspace.
+  Keep edits minimal and scoped. Always verify file contents before modifying.
+  Report concrete diffs and results. Do not invent unavailable tools.
+
+memory:
+  - workspace/memory/AGENTS.md
+
+skills:
+  - workspace/skills
+
+tools:
+  - read_file
+  - write_file
+  - grep
+  - list_workspace
+  - echo
+  - get_time
+  # skill management
+  - skill_list
+  - skill_get
+  - skill_search
+  # memory
+  - memory_save
+  - memory_search
+  # knowledge base
+  - kb_add
+  - kb_search
+  - kb_ingest
+  - kb_list
+
+middleware:
+  - request_logger
+
+subagents: []
+
+permissions:
+  - operations: [read, write]
+    paths: ["workspace/**"]
+    mode: allow
+  - operations: [read, write, delete]
+    paths: ["**/.env", "**/*.key", "**/*.pem", "**/secrets/**"]
+    mode: deny
+
+interrupt_on: {}
+
+response_format: null
+
+metadata:
+  owner: platform
+  tags:
+    - harness
+    - coder

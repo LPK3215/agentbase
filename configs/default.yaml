@@ -1,0 +1,63 @@
+app:
+  name: agentbase
+  env: dev
+  log_level: INFO
+
+model:
+  provider: openai
+  name: deepseek-chat
+  temperature: 0
+  max_tokens: null
+  timeout_seconds: 120
+  base_url: https://api.deepseek.com/v1
+  api_key_env: DEEPSEEK_API_KEY
+  extra: {}
+
+backend:
+  type: filesystem
+  root_dir: workspace
+  options: {}
+
+checkpointer:
+  type: postgres
+  # For local dev: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
+  # For Docker:     postgresql://agentbase:agentbase@postgres:5432/agentbase
+  dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
+  options: {}
+
+storage:
+  # SQLite (dev/single-user) or PostgreSQL (prod/multi-user)
+  type: postgres
+  db_dir: data
+  # For local dev: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
+  # For Docker:     postgresql://agentbase:agentbase@postgres:5432/agentbase
+  dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
+
+embedding:
+  # hash (zero-dep testing) | openai | none (text search only)
+  # Register custom: @register_embedding_provider("name")
+  provider: hash
+  options: {}
+
+web_search:
+  # duckduckgo (no API key) | none (disabled)
+  # Register custom: @register_search_provider("name")
+  provider: none
+  options: {}
+
+runtime:
+  default_agent: default
+  config_dir: configs
+  workspace_dir: workspace
+  stream_modes:
+    - messages
+    - updates
+  recursion_limit: 50
+  max_concurrency: 4
+
+extensions:
+  autodiscover:
+    - agentbase.extensions.tools
+    - agentbase.extensions.middleware
+    - agentbase.extensions.subagents
+  extra_modules: []

@@ -1,0 +1,28 @@
+# ===== 敏感信息（密钥/凭证/证书）=====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+secrets/
+credentials.json
+service_account*.json
+*.p8
+# ===== 虚拟环境 =====
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+data/
+dist/
+build/
+.coverage
+htmlcov/

@@ -1,0 +1,87 @@
+name: default
+description: Default general-purpose deep agent profile
+
+model: null
+
+system_prompt: |
+  You are a general-purpose deep agent runtime.
+  Prefer deterministic tool usage, keep changes scoped, and report concrete results.
+  Use filesystem tools when file inspection or edits are required.
+  Do not invent unavailable tools.
+
+memory:
+  - workspace/memory/AGENTS.md
+
+skills:
+  - workspace/skills
+
+tools:
+  - echo
+  - list_workspace
+  - get_time
+  - read_file
+  - write_file
+  - grep
+  - now_local
+  # skill management
+  - skill_list
+  - skill_get
+  - skill_create
+  - skill_update
+  - skill_delete
+  - skill_search
+  # memory management
+  - memory_save
+  - memory_get
+  - memory_list
+  - memory_search
+  - memory_delete
+  # knowledge base
+  - kb_add
+  - kb_get
+  - kb_list
+  - kb_search
+  - kb_update
+  - kb_delete
+  - kb_ingest
+  - kb_batch_ingest
+  # web search & fetch
+  - web_search
+  - web_fetch
+  # mcp (enabled when mcp_manager is in context)
+  # - mcp_list_tools
+  # - mcp_call_tool
+
+middleware:
+  - request_logger
+  # - summary  # enable for long conversations
+
+subagents: []
+
+permissions:
+  - operations: [read, write]
+    paths: ["workspace/**"]
+    mode: allow
+  - operations: [read, write, delete]
+    paths: ["**/.env", "**/*.key", "**/*.pem", "**/secrets/**"]
+    mode: deny
+
+interrupt_on: {}
+
+response_format: null
+
+metadata:
+  owner: platform
+  tags:
+    - harness
+    - default
+  # summary middleware config (enable middleware: [summary] to use)
+  # summary:
+  #   threshold: 20
+  #   keep_recent: 6
+  #   max_tokens_estimate: 8000
+
+# Agent capability flags (for future UI / API integration)
+capabilities:
+  - file_upload
+  - files

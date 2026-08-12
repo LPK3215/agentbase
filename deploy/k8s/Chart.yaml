@@ -1,0 +1,24 @@
+# agentbase Helm Chart
+# Deploy agentbase to Kubernetes with PostgreSQL + Redis + API
+#
+# Usage:
+#   helm install agentbase ./deploy/k8s
+#   helm install agentbase ./deploy/k8s --set api.apiKey=your-secret
+#
+# Or with values file:
+#   helm install agentbase ./deploy/k8s -f my-values.yaml
+
+apiVersion: v2
+name: agentbase
+description: Deep Agents backend harness - FastAPI + PostgreSQL + Redis
+type: application
+version: 0.4.0
+appVersion: "0.4.0"
+keywords:
+  - ai
+  - agents
+  - llm
+  - rag
+  - fastapi
+maintainers:
+  - name: LPK3215
