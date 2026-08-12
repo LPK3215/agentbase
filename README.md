@@ -303,6 +303,36 @@ docker compose logs -f api
 AGENTBASE_API_KEY="secret" docker compose up -d
 ```
 
+## Documentation
+
+| Guide | Content |
+|-------|---------|
+| [Quick Start](docs/quickstart.md) | End-to-end setup & first agent in 10 steps |
+| [Configuration](docs/configuration.md) | Full config reference (YAML + env vars) |
+| [Core Services](docs/core-services.md) | 13 core services & pluggable provider swaps |
+| [Extensions](docs/extensions.md) | 9 extension registries, tools, middleware |
+| [Error Codes](docs/error-codes.md) | `agentbase_<domain>_<nnn>` structured errors |
+| [Backend Boundaries](docs/backend-boundaries.md) | Architecture & separation of concerns |
+| [Project Positioning](docs/project-positioning.md) | Why agentbase exists, design principles |
+
+## Project Positioning
+
+**AgentBase is a scaffolding layer for building AI Agent backends.** It is not a model, a vector database, or a UI kit — it is the engineering backbone between your LLM and your product. Three things define it:
+
+1. **Configuration-first** — agents, models, storage, embeddings, search, MCP, queue, tracer are all declared in YAML and validated by `agentbase doctor`. No boilerplate.
+2. **Everything is pluggable** — every subsystem is a registered extension. Swap PostgreSQL↔SQLite, OpenAI↔local embeddings, DuckDuckGo↔Tavily with a one-line config change.
+3. **Secondary development ready** — build your own agents, tools, middleware, parsers, providers via simple decorators (`@register_tool`, `@register_parser`, `@register_embedding_provider`, …).
+
+Whether you need an **AI Agent 智能体脚手架**, an **LLM agent framework**, a **RAG-backed intelligent agent system**, or a **FastAPI agent service layer** — AgentBase is designed to be the starting point you extend, not reinvent.
+
+## Contributing
+
+Contributions, issues, and feature requests are welcome. See the [issues page](https://github.com/LPK3215/agentbase/issues) to get started.
+
+- Report bugs / request features via GitHub Issues
+- Check the [ROADMAP](docs/ROADMAP.md) for planned modules
+- Follow the [Backend Boundaries](docs/backend-boundaries.md) for code contributions
+
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © [LPK3215](https://github.com/LPK3215)

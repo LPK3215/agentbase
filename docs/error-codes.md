@@ -1,5 +1,9 @@
 # Error Code Registry
 
+> **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document lists all stable error codes.
+
+**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
+
 All user-facing errors carry a stable error code in the format `agentbase_<domain>_<nnn>`.
 
 ## Domains

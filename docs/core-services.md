@@ -1,5 +1,9 @@
 # Core Services & Pluggable Providers
 
+> **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document covers the 13 core services and their pluggable providers.
+
+**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Extensions](extensions.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
+
 `agentbase` separates **management** (CRUD operations) from **implementation** (how data is stored, parsed, embedded, searched). Management is built-in; implementation is pluggable with zero-config defaults.
 
 ## Architecture

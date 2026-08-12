@@ -1,5 +1,9 @@
 # Quick Start Guide
 
+> **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架 built on deepagents + LangChain + LangGraph. This guide gets a working agent from zero to deployed in 10 steps.
+
+**Documentation index:** [README](../README.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
+
 ## 1. Prerequisites
 
 - Python >= 3.11

@@ -1,5 +1,9 @@
 # Extension Development Guide
 
+> **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document explains how to build tools, middleware, subagents, and parsers.
+
+**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
+
 `agentbase` supports four extension types: **tools**, **middleware**, **subagents**, and **parsers**. All extensions are registered via decorators and automatically discovered from configured modules.
 
 ## Extension Types

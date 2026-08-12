@@ -1,6 +1,8 @@
 # Configuration Reference
 
-This document describes all configuration options for `agentbase`.
+> **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document describes all configuration options for `agentbase`.
+
+**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
 
 ## Application Configuration (`configs/default.yaml`)
 
