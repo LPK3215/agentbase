@@ -2,14 +2,24 @@
 
 [![PyPI](https://img.shields.io/pypi/v/agentbase.svg)](https://pypi.org/project/agentbase/)
 [![Python](https://img.shields.io/pypi/pyversions/agentbase.svg)](https://pypi.org/project/agentbase/)
-[![CI](https://github.com/LPK3215/obsidian-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/LPK3215/obsidian-notes/actions/workflows/ci.yml)
+[![CI](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml/badge.svg)](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-520-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-65%25-green.svg)](#)
 
-Deep Agents backend harness for secondary development.
+**Configuration-driven AI Agent backend for secondary development** — built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade AI agents from YAML configuration, without writing boilerplate.
 
-`agentbase` is a configuration-driven runtime harness built on top of [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). It provides YAML configuration, registries, factories, a CLI, and a FastAPI service layer with 21 routes to assemble and run deep agents without writing boilerplate.
+`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 10-command CLI, and a FastAPI service layer with 21 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
+
+## Key Features
+
+- **Config-driven agent assembly** — agents, models, storage, embeddings defined in YAML, validated by `agentbase doctor`
+- **Pluggable registry system** — 9 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
+- **Full API server** — FastAPI with 21 endpoints: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, Prometheus metrics, OpenAPI docs
+- **RAG knowledge base** — 9 document formats (PDF/DOCX/HTML/XLSX/PPTX…), 3 chunking strategies, pgvector native `<=>` cosine retrieval, in-memory fallback
+- **32 built-in tools** — file ops, skill/memory/knowledge-base CRUD, web search & fetch, MCP client, sandboxed code execution, audio transcription
+- **Enterprise hardening** — API key auth, CORS, rate limiting, request tracing, structured `agentbase_<domain>_<nnn>` error codes, Docker deployment
+- **520 tests, 65% coverage** — full CI pipeline via GitHub Actions
 
 **Why agentbase?** Building an AI Agent backend involves repetitive infrastructure work: model configuration, memory management, knowledge base, document parsing, task queues, API security, tracing, and more. AgentBase handles all of this with sensible defaults — and every component is pluggable via a registry system. Swap databases, embedding models, queues, or tracers by changing one line of config. No rewrite required.
 
