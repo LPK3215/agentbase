@@ -75,6 +75,7 @@ def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
         "metrics": {},
         "runtime": {},
         "audit": {},
+        "redaction": {},
     }
 
     mapping = {
@@ -108,6 +109,8 @@ def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
         ("audit", "provider"): settings.audit_provider,
         ("audit", "db_dir"): settings.audit_db_dir,
         ("audit", "dsn"): settings.audit_dsn,
+        ("redaction", "enabled"): settings.redaction_enabled,
+        ("redaction", "provider"): settings.redaction_provider,
     }
     for (section, key), value in mapping.items():
         if value is not None:

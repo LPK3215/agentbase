@@ -263,6 +263,21 @@ class AuditConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class RedactionConfig(BaseModel):
+    """Sensitive information redaction configuration.
+
+    - ``enabled = false`` (default) → redaction disabled (NullRedactionProvider)
+    - ``enabled = true``             → masks PII/secrets in text
+    - ``provider = regex`` (default) → pure-regex, zero-dependency provider
+    - ``options``: extra kwargs passed to the provider factory
+    - Register custom providers with ``@register_redaction_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "regex"
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MCPConfig(BaseModel):
     """MCP (Model Context Protocol) server configuration.
 
@@ -322,6 +337,7 @@ class AppConfig(BaseModel):
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     extensions: ExtensionsConfig = Field(default_factory=ExtensionsConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
+    redaction: RedactionConfig = Field(default_factory=RedactionConfig)
 
 
 class PermissionRule(BaseModel):

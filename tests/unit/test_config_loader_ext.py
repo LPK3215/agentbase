@@ -66,6 +66,31 @@ runtime:
         assert config.embedding.provider == "hash"
         assert config.web_search.provider == "duckduckgo"
 
+    def test_load_redaction_config(self, tmp_path, isolated_env):
+        """Load config with the redaction section."""
+        configs = tmp_path / "configs"
+        configs.mkdir()
+        (configs / "default.yaml").write_text(
+            "app:\n  name: test\n  env: dev\n"
+            "redaction:\n  enabled: true\n  provider: regex\n",
+            encoding="utf-8",
+        )
+        config = load_app_config(tmp_path)
+        assert config.redaction.enabled is True
+        assert config.redaction.provider == "regex"
+
+    def test_load_redaction_defaults(self, tmp_path, isolated_env):
+        """Redaction section should default to disabled/regex."""
+        configs = tmp_path / "configs"
+        configs.mkdir()
+        (configs / "default.yaml").write_text(
+            "app:\n  name: test\n  env: dev\n",
+            encoding="utf-8",
+        )
+        config = load_app_config(tmp_path)
+        assert config.redaction.enabled is False
+        assert config.redaction.provider == "regex"
+
     def test_load_missing_config_raises(self, tmp_path):
         """Should raise ConfigError when default.yaml doesn't exist."""
         with pytest.raises(ConfigError, match="not found"):

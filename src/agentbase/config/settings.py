@@ -58,6 +58,9 @@ class EnvSettings(BaseSettings):
     audit__db_dir: str | None = None
     audit__dsn: str | None = None
 
+    redaction__enabled: bool | None = None
+    redaction__provider: str | None = None
+
     @property
     def app_env(self) -> str | None:
         return self.app__env
@@ -177,6 +180,14 @@ class EnvSettings(BaseSettings):
     @property
     def audit_dsn(self) -> str | None:
         return self.audit__dsn
+
+    @property
+    def redaction_enabled(self) -> bool | None:
+        return self.redaction__enabled
+
+    @property
+    def redaction_provider(self) -> str | None:
+        return self.redaction__provider
 
 
 def load_dotenv_files(root_dir: Path) -> None:
