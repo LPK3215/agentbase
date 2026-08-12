@@ -26,3 +26,5 @@ dist/
 build/
 .coverage
 htmlcov/
+# ===== CI workflow（需 workflow scope 才可推送，暂忽略避免阻塞 push）=====
+.github/
