@@ -7,7 +7,15 @@
 [![Tests](https://img.shields.io/badge/tests-520-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-65%25-green.svg)](#)
 
-**Configuration-driven AI Agent backend for secondary development** — built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade AI agents from YAML configuration, without writing boilerplate.
+<p align="center">
+  <em>
+    <strong>AI Agent 智能体脚手架</strong> · <strong>Agent 智能体框架</strong> · <strong>AI Agent 项目脚手架</strong> ·
+    <strong>Agent 智能体后端</strong> · <strong>AI 智能体开发平台</strong> ·
+    LLM Agent Framework · Agent Scaffold · LLM 应用脚手架 · Agentic AI Backend
+  </em>
+</p>
+
+**Configuration-driven AI Agent backend for secondary development** — a production-grade **AI Agent framework / LLM agent scaffold** built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade **AI agents / intelligent agent systems** from YAML configuration, without writing boilerplate. Use it as an **agent application scaffolding** layer, an **AI agent service framework**, or an **intelligent agent development starter kit**.
 
 `agentbase` provides YAML configuration, pluggable extension registries, component factories, a 10-command CLI, and a FastAPI service layer with 21 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
 
