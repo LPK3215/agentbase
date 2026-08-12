@@ -53,6 +53,11 @@ class EnvSettings(BaseSettings):
     runtime__config_dir: str | None = None
     runtime__workspace_dir: str | None = None
 
+    audit__enabled: bool | None = None
+    audit__provider: str | None = None
+    audit__db_dir: str | None = None
+    audit__dsn: str | None = None
+
     @property
     def app_env(self) -> str | None:
         return self.app__env
@@ -156,6 +161,22 @@ class EnvSettings(BaseSettings):
     @property
     def runtime_workspace_dir(self) -> str | None:
         return self.runtime__workspace_dir
+
+    @property
+    def audit_enabled(self) -> bool | None:
+        return self.audit__enabled
+
+    @property
+    def audit_provider(self) -> str | None:
+        return self.audit__provider
+
+    @property
+    def audit_db_dir(self) -> str | None:
+        return self.audit__db_dir
+
+    @property
+    def audit_dsn(self) -> str | None:
+        return self.audit__dsn
 
 
 def load_dotenv_files(root_dir: Path) -> None:
