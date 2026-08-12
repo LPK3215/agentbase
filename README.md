@@ -29,6 +29,34 @@
 - **Enterprise hardening** — API key auth, CORS, rate limiting, request tracing, structured `agentbase_<domain>_<nnn>` error codes, Docker deployment
 - **520 tests, 65% coverage** — full CI pipeline via GitHub Actions
 
+## Architecture
+
+```mermaid
+graph TD
+    subgraph "Entry Points (CLI / FastAPI / WebSocket)"
+        A[agentbase CLI<br/>10 commands] --> C[Service Layer<br/>21 REST + WS routes]
+        B[FastAPI App] --> C
+    end
+
+    subgraph "Core (config-driven, pluggable)"
+        C --> D[YAML Config<br/>validated by agentbase doctor]
+        D --> E[Extension Registries<br/>tools · middleware · subagents · parsers<br/>embeddings · search · MCP · queue · tracer]
+        E --> F[Component Factories<br/>deepagents + LangChain + LangGraph]
+    end
+
+    subgraph "Infrastructure Services"
+        F --> G[Agent Runtime]
+        F --> H[Memory Manager]
+        F --> I[RAG Knowledge Base<br/>9 formats · 3 chunkers · pgvector]
+        F --> J[Task Queue]
+        F --> K[Audit & Tracing]
+    end
+
+    style D fill:#fff3cd
+    style E fill:#d1e7dd
+    style F fill:#cfe2ff
+```
+
 **Why agentbase?** Building an AI Agent backend involves repetitive infrastructure work: model configuration, memory management, knowledge base, document parsing, task queues, API security, tracing, and more. AgentBase handles all of this with sensible defaults — and every component is pluggable via a registry system. Swap databases, embedding models, queues, or tracers by changing one line of config. No rewrite required.
 
 ## Requirements

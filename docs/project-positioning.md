@@ -1,7 +1,8 @@
 # Project Positioning
 
-> This document records the core positioning, design philosophy, and boundary principles of `AgentBase`.
-> It helps maintainers and open-source users understand "why this project exists, how it evolves, and what it does not do."
+> **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架 built on deepagents + LangChain + LangGraph. This document records the core positioning, design philosophy, and boundary principles of the project — why it exists, how it evolves, and what it deliberately does not do.
+
+**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md)
 
 ---
 
