@@ -368,7 +368,7 @@ pip install agentbase[all]          # 全部安装
 |------|------|
 | 总测试数 | 1366 |
 | 失败数 | 0 |
-| 覆盖率 | 70% |
+| 覆盖率 | 72% |
 | 覆盖率门槛 | 60%（CI 强制） |
 | ruff lint | 0 errors |
 | isort | 0 errors |
