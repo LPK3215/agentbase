@@ -15,7 +15,7 @@
 | 扩展体系 | done | tools(36) / middleware(8) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 30 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 994 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 1045 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -136,6 +136,16 @@
 - **开关**：config `experiment.enabled=false`（默认关）。
 - **API**：`/experiments` CRUD + `/assign` + `/results` + `/stats`（7 条路由）。
 - **测试**：create / assign（4 种策略）/ record / stats / delete / API 全链路。
+
+#### G2. MongoDB 存储 Provider
+- **状态**：done ｜ **优先级**：P5
+- **定位**：文档型 NoSQL 存储，通过 SQL→MongoDB 适配层实现与 SQLite/PostgreSQL/MySQL 统一接口。
+- **实现**：`MongoDBBackend`（`src/agentbase/core/storage_mongodb.py`），实现 `StorageBackend` Protocol 全部 7 个方法。
+- **适配**：`INSERT` → `insert_one`、`SELECT` → `find`、`UPDATE` → `update_many`、`DELETE` → `delete_many`、`COUNT(*)` → `count_documents`。
+- **注册**：`create_storage(dsn="mongodb://...")` 自动路由。
+- **配置**：`storage.type: mongodb` + `storage.dsn: mongodb://host:port/db`。
+- **依赖**：`pip install agentbase[mongodb]`（`pymongo>=4.6.0`）。
+- **测试**：SQL 解析器（26）+ Protocol 合规（3）+ mock 集成（14）+ 配置（2）+ Row helper（3）= 51 测试。
 
 ---
 

@@ -76,15 +76,17 @@
 | 长期记忆 (Memory) | PostgreSQL | ✅ | ✅ | ✅ | ✅ | `storage.type: postgres` |
 | 长期记忆 (Memory) | SQLite | ✅ | ✅ | — | ✅ | `storage.type: sqlite` |
 | 长期记忆 (Memory) | MySQL | ✅ | ✅ | ✅ | ✅ | `storage.type: mysql` |
+| 长期记忆 (Memory) | MongoDB | ✅ | ✅ | ✅ | ✅ | `storage.type: mongodb` |
 | 知识库 (KB) | PostgreSQL + pgvector | ✅ | ✅ | ✅ | ✅ | `storage.type: postgres` |
 | 知识库 (KB) | SQLite | ✅ | ✅ | — | ✅ | `storage.type: sqlite` |
 | 知识库 (KB) | MySQL | ✅ | ✅ | ✅ | ✅ | `storage.type: mysql` |
+| 知识库 (KB) | MongoDB | ✅ | ✅ | ✅ | ✅ | `storage.type: mongodb` |
 | 技能 (Skills) | 文件系统 | ✅ | — | — | — | `workspace/skills/*.md` |
 | 工作区文件 | 文件系统 | ✅ | — | — | — | `workspace/` 目录 |
 
 ### 自动 SQL 方言转换
 
-PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCREMENT` → `SERIAL`/`AUTO_INCREMENT`，`?` → `%s`），上层代码无需感知数据库类型。
+PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCREMENT` → `SERIAL`/`AUTO_INCREMENT`，`?` → `%s`），上层代码无需感知数据库类型。MongoDB 后端通过内置 SQL→MongoDB 适配层，将 `INSERT`/`SELECT`/`UPDATE`/`DELETE` 翻译为 `insert_one`/`find`/`update_many`/`delete_many`，上层代码同样无需修改。
 
 ### 数据备份/恢复
 
@@ -228,7 +230,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 队列 | MemoryRequestQueue | ✅ | `@register_queue_provider("name")` |
 | 追踪器 | NullTracer | ✅ | `@register_tracer_provider("name")` |
 | 知识图谱 | NullGraphProvider | ✅ | `@register_graph_provider("name")` |
-| 存储 | SQLiteBackend / PostgresBackend / MySQLBackend | ✅ | 配置切换 `storage.type` |
+| 存储 | SQLiteBackend / PostgresBackend / MySQLBackend / MongoDBBackend | ✅ | 配置切换 `storage.type` |
 | 检查点 | MemorySaver / SqliteSaver / PostgresSaver / MySQLSaver | ✅ | 配置切换 `checkpointer.type` |
 
 ### 内置但未默认启用的 Provider
@@ -244,13 +246,13 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | Redis 队列 | ✅ 已验证 | `queue.provider: redis` |
 | Neo4j 知识图谱 | ✅ 已验证 | `graph.provider: neo4j` |
 | MySQL 存储 | ✅ 已验证 | `storage.type: mysql` |
+| MongoDB 存储 | ✅ 已验证 | `storage.type: mongodb` |
 | LLM 文档解析 | ✅ 已验证 | 直接实例化 `LLMDocumentParser()` |
 | OCR 解析 | ✅ 已验证 | 直接实例化 `OCRParser()` |
 
 ### 未实现
 
 - Celery/RabbitMQ 队列
-- MongoDB 存储
 
 ---
 
@@ -363,7 +365,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 994 |
+| 总测试数 | 1045 |
 | 失败数 | 0 |
 | 覆盖率 | 67% |
 | 覆盖率门槛 | 60%（CI 强制） |
@@ -398,6 +400,6 @@ pip install agentbase[all]          # 全部安装
 | P5 | OAuth2 第三方登录 | Google/GitHub 登录 |
 | P5 | 审计日志中间件 | 合规审计 |
 | P5 | Alembic 数据库迁移 | 版本化 schema |
-| P5 | MongoDB 存储 | 文档型数据库 |
+| P5 | ~~MongoDB 存储~~ | ~~✅ 已实现~~ `storage.type: mongodb`，SQL→MongoDB 适配层 |
 | P5 | Celery/RabbitMQ 队列 | 分布式任务 |
 | P5 | 前端 UI | Web 管理界面 |

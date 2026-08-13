@@ -1,16 +1,18 @@
-"""Storage backend abstraction — SQLite and PostgreSQL via a unified interface.
+"""Storage backend abstraction — SQLite, PostgreSQL, MySQL, and MongoDB via a unified interface.
 
 The scaffold provides a ``StorageBackend`` abstraction so that
 ``MemoryManager`` and ``KnowledgeBase`` can work with either SQLite (dev /
-single-user) or PostgreSQL (prod / multi-user) without changing their
-business logic.
+single-user), PostgreSQL (prod / multi-user), MySQL, or MongoDB without
+changing their business logic.
 
 Selection is automatic based on the constructor parameter:
 
 - ``db_path=Path("data/memory.db")``  →  SQLiteBackend
 - ``dsn="postgresql://user:pass@host/db")``  →  PostgresBackend
+- ``dsn="mysql://user:pass@host:port/db")``  →  MySQLBackend
+- ``dsn="mongodb://host:port/db")``  →  MongoDBBackend
 
-Both backends implement the same ``execute`` / ``executemany`` / ``fetchone``
+All backends implement the same ``execute`` / ``executemany`` / ``fetchone``
 / ``fetchall`` / ``commit`` interface, so the managers never need to know
 which database is underneath.
 """
@@ -389,6 +391,9 @@ def create_storage(*, db_path: Path | None = None, dsn: str | None = None) -> St
     - If neither → in-memory SQLite (for tests)
     """
     if dsn:
+        if dsn.startswith("mongodb"):
+            from agentbase.core.storage_mongodb import MongoDBBackend
+            return MongoDBBackend(dsn=dsn)
         if dsn.startswith("mysql"):
             return MySQLBackend(dsn=dsn)
         return PostgresBackend(dsn=dsn)

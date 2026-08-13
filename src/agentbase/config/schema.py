@@ -105,12 +105,13 @@ class StorageConfig(BaseModel):
     - ``type = sqlite``  (default) → file-based, zero-config, dev/single-user
     - ``type = postgres``           → PostgreSQL, requires ``dsn``, prod/multi-user
     - ``type = mysql``              → MySQL, requires ``dsn``, prod/multi-user
+    - ``type = mongodb``            → MongoDB, requires ``dsn``, document-oriented NoSQL
 
     When ``type = sqlite``, ``db_dir`` controls where the .db files live.
-    When ``type = postgres`` or ``mysql``, ``dsn`` is the connection string.
+    When ``type = postgres``, ``mysql``, or ``mongodb``, ``dsn`` is the connection string.
     """
 
-    type: Literal["sqlite", "postgres", "mysql"] = "sqlite"
+    type: Literal["sqlite", "postgres", "mysql", "mongodb"] = "sqlite"
     db_dir: str = "data"
     dsn: str | None = None
 
