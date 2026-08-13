@@ -174,7 +174,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 5. Agent 工具（36 个）
+## 5. Agent 工具（37 个）
 
 ### 已实现
 
@@ -191,10 +191,10 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | MCP | 2 | `mcp_list_tools`, `mcp_call_tool` |
 | 代码执行 | 1 | `code_execute` — 沙箱 Python 执行（代码/输出大小限制+代理新env+超时上限） |
 | 音频转录 | 1 | `transcribe` — Whisper API/本地转录 |
+| 邮件发送 | 1 | `email_sender` — SMTP 邮件发送（纯文本/HTML/多收件人/CC/BCC/SSL/TLS 认证/超时控制/结构化返回） |
 
 ### 未实现
 
-- 邮件发送工具
 - 日程管理工具
 
 ---

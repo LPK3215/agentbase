@@ -12,10 +12,10 @@
 |------|------|------|
 | 核心服务（17） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment |
 | 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment |
-| 扩展体系 | done | tools(36) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| 扩展体系 | done | tools(37) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 33 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / admin(rate-limit) |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 1118 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 1140 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -164,6 +164,15 @@
 - **行为**：通过 `wrap_model_call` 拦截模型调用，在成功/失败后记录 `AuditEvent`（actor=agent_name、action=`model.call`、resource=`model:<name>`、result=success/failure、detail={duration_ms, thread_id, error}）。
 - **依赖**：`audit.enabled=true` + `middleware: [audit_log]`。
 - **测试**：注册验证（3）+ 构建行为（5）+ 中间件行为（8）= 16 测试。
+
+#### G5. 邮件发送工具（`email_sender`）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：Agent 通过 SMTP 发送电子邮件，支持纯文本/HTML、多收件人（to/cc/bcc）、SSL/TLS 加密认证。
+- **注册**：`@register_tool("email_sender")`，`default_enabled=false`。
+- **配置**：`agent_config.metadata.email`（`smtp_host` / `smtp_port` / `use_tls` / `use_ssl` / `username` / `password` / `from_addr` / `timeout`）。
+- **安全**：收件人上限 50、正文上限 500K 字符、主题上限 200 字符、超时上限 60s。
+- **依赖**：无外部依赖（Python 标准库 `smtplib` + `email.mime`）。
+- **测试**：注册（3）+ 验证（4）+ 截断（2）+ 构建（2）+ 发送（7）+ 错误处理（4）= 22 测试。
 
 ---
 
