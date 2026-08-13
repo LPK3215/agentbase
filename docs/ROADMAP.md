@@ -12,10 +12,10 @@
 |------|------|------|
 | 核心服务（16） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets |
 | 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets |
-| 扩展体系 | done | tools(33) / middleware(7) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| 扩展体系 | done | tools(36) / middleware(7) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 23 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 892 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 920 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---

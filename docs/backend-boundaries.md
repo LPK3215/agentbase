@@ -46,7 +46,7 @@
 | 速率限制 | ✅ 已实现 | `rate_limit` 配置段：`max_requests`/`window_seconds`/`burst`，可配置 |
 | 全局异常处理 | ✅ 已实现 | 返回 `{"error": "...", "code": "...", "http_status": N, "request_id": "..."}` |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，自动生成 UUID，传播到日志和 tracer |
-| 分页 | ✅ 已实现 | `/queue` 和 `/documents` 支持 `page`/`page_size` 参数 |
+| 分页 | ✅ 已实现 | `/queue`、`/documents`、`/audit/events` 支持 `page`/`page_size` 参数 |
 | WebSocket 心跳 | ✅ 已实现 | 30 秒心跳间隔，防止连接超时 |
 
 ### 未实现
@@ -166,17 +166,17 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 5. Agent 工具（33 个）
+## 5. Agent 工具（36 个）
 
 ### 已实现
 
 | 工具 | 数量 | 说明 |
 |------|------|------|
-| 文件操作 | 4 | `read_file`（1MB 限制+二进制检测）, `write_file`, `grep`（200 结果限制+二进制跳过）, `list_workspace` |
+| 文件操作 | 3 | `read_file`（1MB 限制+二进制检测）, `write_file`, `grep`（200 结果限制+二进制跳过） |
 | 时间 | 2 | `get_time`, `now_local` |
-| 其他 | 2 | `echo` |
+| 工作区 | 2 | `echo`, `list_workspace` |
 | 技能管理 | 6 | `skill_list`, `skill_get`, `skill_create`, `skill_update`, `skill_delete`, `skill_search` |
-| 记忆管理 | 5 | `memory_save`, `memory_get`, `memory_list`, `memory_search`, `memory_delete` |
+| 记忆管理 | 7 | `memory_save`, `memory_get`, `memory_list`, `memory_search`, `memory_delete`, `memory_count`, `memory_batch_save` |
 | 知识库 | 8 | `kb_add`, `kb_get`, `kb_list`, `kb_search`, `kb_update`, `kb_delete`, `kb_ingest`, `kb_batch_ingest` |
 | Web | 3 | `web_search`, `web_fetch`（超时+重试+Content-Type 校验+编码检测）, `http_request`（GET/POST/PUT/PATCH/DELETE+超时+重定向限制+响应截断+结构化返回） |
 | 数据库查询 | 1 | `db_query` — 只读 SELECT 查询（SELECT 强制/DDL-DML 拦截/表白名单/行数上限/超时/结构化返回） |
@@ -191,7 +191,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 6. 中间件（6 个）
+## 6. 中间件（7 个）
 
 | 中间件 | 状态 | 说明 |
 |--------|------|------|
@@ -201,6 +201,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | `summary` | ✅ 已实现 | L1/L2 对话历史压缩 |
 | `cache` | ✅ 已实现 | 线程安全缓存，`OrderedDict` LRU 淘汰 + TTL 过期 + 命中率统计 |
 | `redact_output` | ✅ 已实现 | 响应脱敏中间件，基于 RedactionManager 对模型输出做 PII/密钥掩码 |
+| `rate_limit` | ✅ 已实现 | 模型调用限流中间件，按 agent/全局 token bucket 限流，支持 burst 突发 |
 
 ### 未实现
 
@@ -354,9 +355,9 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 892 |
+| 总测试数 | 920 |
 | 失败数 | 0 |
-| 覆盖率 | 65% |
+| 覆盖率 | 66% |
 | 覆盖率门槛 | 60%（CI 强制） |
 | ruff lint | 0 errors |
 | isort | 0 errors |
