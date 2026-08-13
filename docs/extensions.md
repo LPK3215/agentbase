@@ -77,7 +77,7 @@ def build_retry(context: dict[str, Any] | None = None):
     return []
 ```
 
-## Built-in Middleware (5)
+## Built-in Middleware (6)
 
 | Middleware | Description |
 |------------|-------------|
@@ -86,6 +86,7 @@ def build_retry(context: dict[str, Any] | None = None):
 | `timeout` | Enforce timeout on model calls |
 | `summary` | L1/L2 conversation compaction (compresses history when threshold exceeded) |
 | `cache` | Cache identical model calls (TTL + LRU eviction) |
+| `redact_output` | Redact PII/secrets from model response content (default disabled) |
 
 ## Context Keys
 
@@ -122,7 +123,7 @@ extensions:
 
 Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap automatically.
 
-## Built-in Tools (32)
+## Built-in Tools (33)
 
 | Tool | Description |
 |------|-------------|
@@ -133,6 +134,7 @@ Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap au
 | `memory_save` / `memory_get` / `memory_list` / `memory_search` / `memory_delete` | Memory CRUD |
 | `kb_add` / `kb_get` / `kb_list` / `kb_search` / `kb_update` / `kb_delete` / `kb_ingest` / `kb_batch_ingest` | Knowledge base |
 | `web_search` / `web_fetch` | Web search and fetch |
+| `http_request` | Make HTTP requests (GET/POST/PUT/PATCH/DELETE) with timeout, redirect limits, and structured response |
 | `mcp_list_tools` / `mcp_call_tool` | MCP server tools |
 | `code_execute` | Execute Python code in a sandboxed subprocess |
 | `transcribe` | Transcribe audio/video to text (Whisper API/local) |

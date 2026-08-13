@@ -156,7 +156,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 5. Agent 工具（32 个）
+## 5. Agent 工具（33 个）
 
 ### 已实现
 
@@ -168,7 +168,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 技能管理 | 6 | `skill_list`, `skill_get`, `skill_create`, `skill_update`, `skill_delete`, `skill_search` |
 | 记忆管理 | 5 | `memory_save`, `memory_get`, `memory_list`, `memory_search`, `memory_delete` |
 | 知识库 | 8 | `kb_add`, `kb_get`, `kb_list`, `kb_search`, `kb_update`, `kb_delete`, `kb_ingest`, `kb_batch_ingest` |
-| Web | 2 | `web_search`, `web_fetch`（超时+重试+Content-Type 校验+编码检测） |
+| Web | 3 | `web_search`, `web_fetch`（超时+重试+Content-Type 校验+编码检测）, `http_request`（GET/POST/PUT/PATCH/DELETE+超时+重定向限制+响应截断+结构化返回） |
 | MCP | 2 | `mcp_list_tools`, `mcp_call_tool` |
 | 代码执行 | 1 | `code_execute` — 沙箱 Python 执行（代码/输出大小限制+代理新env+超时上限） |
 | 音频转录 | 1 | `transcribe` — Whisper API/本地转录 |
@@ -181,7 +181,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 6. 中间件（5 个）
+## 6. 中间件（6 个）
 
 | 中间件 | 状态 | 说明 |
 |--------|------|------|
@@ -190,10 +190,10 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | `timeout` | ✅ 已实现 | 超时控制，复用共享线程池避免每次调用创建新线程 |
 | `summary` | ✅ 已实现 | L1/L2 对话历史压缩 |
 | `cache` | ✅ 已实现 | 线程安全缓存，`OrderedDict` LRU 淘汰 + TTL 过期 + 命中率统计 |
+| `redact_output` | ✅ 已实现 | 响应脱敏中间件，基于 RedactionManager 对模型输出做 PII/密钥掩码 |
 
 ### 未实现
 
-- 审计日志中间件
 - 多模型路由中间件（按任务复杂度选模型）
 
 ---
@@ -244,7 +244,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | Prometheus 指标 | ✅ 已实现 | `GET /metrics` — 请求计数/状态分布/延迟直方图/Agent 调用计数/错误码分布/WS 连接数 |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，传播到 runner 日志和 tracer span |
 | 追踪 (Tracing) | ✅ 已实现 | NullTracer + InMemoryTracer + LangfuseTracer + OpenTelemetryTracer，已集成到 invoke/stream/resume |
-| 健康检查 | ✅ 已实现 | `GET /health` — 检查存储/队列/认证连通性，返回 `status`/`storage_connected`/`queue_connected` |
+| 健康检查 | ✅ 已实现 | `GET /health` — 组件级探活（storage/queue/embedding/search/tracer），受 `health_check` 配置开关控制，返回 `status`/`components`/`storage_connected`/`queue_connected`/`embedding_connected`/`search_connected`/`tracer_connected` |
 | 错误码体系 | ✅ 已实现 | `ErrorCode` 常量类，10 个领域（CONFIG/REG/FACTORY/RT/AUTH/RATE/QUEUE/KB/UPLOAD/WS），HTTP 状态映射 |
 
 ---
@@ -344,7 +344,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 520 |
+| 总测试数 | 809 |
 | 失败数 | 0 |
 | 覆盖率 | 65% |
 | 覆盖率门槛 | 60%（CI 强制） |
@@ -366,6 +366,7 @@ pip install agentbase[all]          # 全部安装
 | docs/extensions.md | ✅ 扩展开发指南 |
 | docs/error-codes.md | ✅ 错误码注册表 |
 | docs/backend-boundaries.md | ✅ 本文档 |
+| examples/ | ✅ Cookbook 示例库（11 个可运行脚本，覆盖全部 9 个注册表 + 2 个扩展类型 + 2 个配置切换） |
 | deploy/k8s/ | ✅ K8s Helm Chart + Manifests |
 | deploy/nginx/ | ✅ Nginx 反向代理配置 |
 

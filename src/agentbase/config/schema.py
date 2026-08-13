@@ -227,11 +227,15 @@ class HealthCheckConfig(BaseModel):
 
     - ``check_storage``: verify storage backend connectivity
     - ``check_queue``: verify queue provider connectivity
+    - ``check_embedding``: verify embedding provider availability
+    - ``check_search``: verify search provider availability
     - ``check_tracer``: verify tracer provider connectivity
     """
 
     check_storage: bool = True
     check_queue: bool = True
+    check_embedding: bool = False
+    check_search: bool = False
     check_tracer: bool = False
 
 

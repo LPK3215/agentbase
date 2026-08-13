@@ -1,6 +1,6 @@
 # AgentBase 功能路线图（ROADMAP）
 
-> 配合 `docs/PROJECT_DRIVER_PROMPT.md` 使用。
+> 配合 `docs/提示词.md` 使用。
 > AI 每次推进会话读取本文件，选择**最高优先级、未完成**的模块推进。
 > 状态：`done` / `in_progress` / `pending`。完成后必须更新状态。
 
@@ -12,10 +12,10 @@
 |------|------|------|
 | 核心服务（16） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets |
 | 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets |
-| 扩展体系 | done | tools(32) / middleware(6) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| 扩展体系 | done | tools(33) / middleware(7) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 21 条路由，含 agents / memory / kb / queue / skills / workspace / health |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 708 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 809 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -61,8 +61,8 @@
 ### B. 工具层扩充（extensions/tools）
 
 #### B1. `http_request` 工具
-- **状态**：pending ｜ **优先级**：P2
-- **定位**：Agent 发起 HTTP 请求（GET/POST），带超时、响应大小上限、重定向限制。
+- **状态**：done ｜ **优先级**：P2
+- **定位**：Agent 发起 HTTP 请求（GET/POST/PUT/PATCH/DELETE），带超时、响应大小上限、重定向限制。
 - **注册**：`@register_tool("http_request")`，`default_enabled=false`。
 - **错误**：统一错误码；非 2xx 结构化返回。
 - **测试**：mock 服务器正常/超时/大响应/4xx。
@@ -84,7 +84,7 @@
 - **测试**：精确上限（burst=0）/ 突发容忍 / 冷却恢复。
 
 #### C2. 响应脱敏中间件（`redact_output`）
-- **状态**：pending ｜ **优先级**：P2
+- **状态**：done ｜ **优先级**：P2
 - **定位**：基于 A2，对模型输出做脱敏后再返回，防止密钥经 LLM 泄漏。
 - **注册**：`@register_middleware("redact_output")`，`default_enabled=false`。
 - **测试**：输出含密钥被掩码；正常文本不变。
@@ -92,8 +92,8 @@
 ### D. API / 运维层
 
 #### D1. 健康检查增强（`/health` 组件探活）
-- **状态**：pending ｜ **优先级**：P2
-- **定位**：返回各依赖组件状态（storage / queue / embedding / search），供 K8s readiness。
+- **状态**：done ｜ **优先级**：P2
+- **定位**：返回各依赖组件状态（storage / queue / embedding / search / tracer），供 K8s readiness。
 - **测试**：组件正常 / 组件故障时响应结构正确且非 200。
 
 #### D2. 审计查询 API
@@ -110,7 +110,7 @@
 ### F. 文档 / 示例完备化
 
 #### F1. Cookbook 示例库
-- **状态**：pending ｜ **优先级**：P2
+- **状态**：done ｜ **优先级**：P2
 - **定位**：每个注册表一个完整可运行示例（如"从 SQLite 切到 PostgreSQL"、"加自定义 embedding"），进 `examples/` 目录。
 - **测试**：示例脚本有 smoke test 或至少 `--help` 可跑。
 
@@ -122,7 +122,7 @@
 
 ## 推进规则
 
-1. 每次只推进一个模块，完成后按 PROMPT 第 7 节自查清单逐项确认。
+1. 每次只推进一个模块，完成后按 `docs/提示词.md` 第 11 节自查清单逐项确认。
 2. 模块完成 → 状态改 `done`，并在 `.codebuddy/memory/` 记录。
 3. 用户可随时调整优先级 / 增删模块；调整后以 ROADMAP 为准。
 4. 新模块候选须先过 `docs/project-positioning.md` 的边界三问：

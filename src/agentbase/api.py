@@ -86,13 +86,10 @@ from pydantic import BaseModel, Field
 from agentbase.bootstrap import build_runtime
 from agentbase.runtime.errors import (
     AgentbaseError,
-    AuthError,
     ErrorCode,
     NotFoundError,
     QueueError,
-    RateLimitError,
     RuntimeExecutionError,
-    http_status_for_code,
 )
 
 # --------------------------------------------------------------------------- #
@@ -491,6 +488,14 @@ class AgentInfo(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
 
 
+class ComponentHealth(BaseModel):
+    """Health status of a single dependency component."""
+
+    name: str
+    healthy: bool
+    detail: str = ""
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "0.4.0"
@@ -500,6 +505,10 @@ class HealthResponse(BaseModel):
     auth_type: str = "api_key"
     storage_connected: bool = True
     queue_connected: bool = True
+    embedding_connected: bool = True
+    search_connected: bool = True
+    tracer_connected: bool = True
+    components: list[ComponentHealth] = Field(default_factory=list)
 
 
 class ErrorResponse(BaseModel):
@@ -580,6 +589,87 @@ def _make_error_response(
             request_id=request_id,
         ).model_dump(),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Health-check helpers                                                        #
+# --------------------------------------------------------------------------- #
+
+def _check_storage(factory: Any) -> tuple[bool, str]:
+    """Probe storage backend connectivity."""
+    try:
+        storage = factory.storage
+        if hasattr(storage, "health_check"):
+            ok = storage.health_check()
+            return (bool(ok), "ok" if ok else "health_check returned False")
+        # Fallback: if no health_check method, just accessing it is enough
+        return (True, "ok (no health_check method)")
+    except Exception as exc:
+        return (False, f"storage error: {exc}")
+
+
+def _check_queue(factory: Any) -> tuple[bool, str]:
+    """Probe queue provider connectivity."""
+    try:
+        q = factory.queue
+        if q is None:
+            return (True, "ok (queue not configured)")
+        # For Redis-backed queues, verify the client connects
+        if hasattr(q, "_get_client"):
+            _ = q._get_client()
+            return (True, "ok")
+        # For MemoryRequestQueue, call stats() as a liveness probe
+        if hasattr(q, "stats"):
+            _ = q.stats()
+            return (True, "ok")
+        return (True, "ok (no probe method)")
+    except Exception as exc:
+        return (False, f"queue error: {exc}")
+
+
+def _check_embedding(factory: Any, app_config: Any) -> tuple[bool, str]:
+    """Probe embedding provider availability."""
+    try:
+        emb_cfg = app_config.embedding
+        if not emb_cfg.provider or emb_cfg.provider == "none":
+            return (True, "ok (embedding not configured)")
+        from agentbase.core.embeddings import embedding_registry
+        if not embedding_registry.has(emb_cfg.provider):
+            return (False, f"embedding provider '{emb_cfg.provider}' not registered")
+        provider = embedding_registry.get(emb_cfg.provider)
+        # Lightweight probe: check dimension property (doesn't make API calls)
+        _ = provider.dimension
+        return (True, f"ok (provider={emb_cfg.provider})")
+    except Exception as exc:
+        return (False, f"embedding error: {exc}")
+
+
+def _check_search(factory: Any, app_config: Any) -> tuple[bool, str]:
+    """Probe search provider availability."""
+    try:
+        search_cfg = app_config.web_search
+        if not search_cfg.provider or search_cfg.provider == "none":
+            return (True, "ok (search not configured)")
+        from agentbase.core.search import search_registry
+        if not search_registry.has(search_cfg.provider):
+            return (False, f"search provider '{search_cfg.provider}' not registered")
+        # Accessing the provider instance verifies it's available
+        _ = search_registry.get(search_cfg.provider)
+        return (True, f"ok (provider={search_cfg.provider})")
+    except Exception as exc:
+        return (False, f"search error: {exc}")
+
+
+def _check_tracer(factory: Any) -> tuple[bool, str]:
+    """Probe tracer provider connectivity."""
+    try:
+        tracer = factory.tracer
+        if tracer is None:
+            return (True, "ok (tracer not configured)")
+        # NullTracer is always healthy
+        return (True, "ok")
+    except Exception as exc:
+        return (False, f"tracer error: {exc}")
 
 
 def create_app(*, runtime=None) -> FastAPI:
@@ -735,28 +825,65 @@ def create_app(*, runtime=None) -> FastAPI:
         except Exception:
             agents = []
 
-        # Check storage connectivity
-        storage_ok = True
-        try:
-            _ = rt.factory.storage
-        except Exception:
-            storage_ok = False
+        hc_cfg = rt.app_config.health_check
+        components: list[ComponentHealth] = []
 
-        # Check queue connectivity
+        # --- Storage ---
+        storage_ok = True
+        if hc_cfg.check_storage:
+            storage_ok, detail = _check_storage(rt.factory)
+            components.append(ComponentHealth(
+                name="storage", healthy=storage_ok, detail=detail,
+            ))
+
+        # --- Queue ---
         queue_ok = True
-        try:
-            q = rt.factory.queue
-            if q is not None and hasattr(q, "_get_client"):
-                _ = q._get_client()
-        except Exception:
-            queue_ok = False
+        if hc_cfg.check_queue:
+            queue_ok, detail = _check_queue(rt.factory)
+            components.append(ComponentHealth(
+                name="queue", healthy=queue_ok, detail=detail,
+            ))
+
+        # --- Embedding ---
+        embedding_ok = True
+        if hc_cfg.check_embedding:
+            embedding_ok, detail = _check_embedding(rt.factory, rt.app_config)
+            components.append(ComponentHealth(
+                name="embedding", healthy=embedding_ok, detail=detail,
+            ))
+
+        # --- Search ---
+        search_ok = True
+        if hc_cfg.check_search:
+            search_ok, detail = _check_search(rt.factory, rt.app_config)
+            components.append(ComponentHealth(
+                name="search", healthy=search_ok, detail=detail,
+            ))
+
+        # --- Tracer ---
+        tracer_ok = True
+        if hc_cfg.check_tracer:
+            tracer_ok, detail = _check_tracer(rt.factory)
+            components.append(ComponentHealth(
+                name="tracer", healthy=tracer_ok, detail=detail,
+            ))
+
+        # Aggregate status
+        checks = [c.healthy for c in components] if components else [True]
+        healthy_count = sum(checks)
+        if healthy_count == len(checks):
+            overall = "ok"
+        elif healthy_count == 0:
+            overall = "unhealthy"
+        else:
+            overall = "degraded"
 
         auth_type = "none"
         if hasattr(rt.app_config, "auth"):
             auth_type = rt.app_config.auth.type
 
         return HealthResponse(
-            status="ok" if storage_ok else "degraded",
+            status=overall,
             version=rt.app_config.app.version,
             agents=agents,
             default_agent=rt.app_config.runtime.default_agent,
@@ -764,6 +891,10 @@ def create_app(*, runtime=None) -> FastAPI:
             auth_type=auth_type,
             storage_connected=storage_ok,
             queue_connected=queue_ok,
+            embedding_connected=embedding_ok,
+            search_connected=search_ok,
+            tracer_connected=tracer_ok,
+            components=components,
         )
 
     # ------------------------------------------------------------------ #

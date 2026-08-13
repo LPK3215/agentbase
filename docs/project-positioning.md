@@ -130,11 +130,11 @@ Ship first, discover issues through usage, gather feedback from the community, r
 |-----------|-------|
 | Source files | 67 |
 | Source code | 6,500+ lines |
-| Tests | 520 (all passing) |
+| Tests | 809 (all passing) |
 | Coverage | 65% |
 | API endpoints | 21 |
 | CLI commands | 10 |
-| Agent tools | 32 |
+| Agent tools | 33 |
 | Pluggable providers | 9 registries |
 | Document parsers | 9 types |
 | Error code domains | 10 |
