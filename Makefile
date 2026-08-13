@@ -2,7 +2,7 @@
        dev server worker test test-fast test-cov lint format type-check \
        docker-up docker-down docker-logs docker-ps \
        backup restore clean clean-cache clean-db \
-       doctor init migrate
+       doctor migrate
 
 # Default Python interpreter
 PYTHON ?= python
@@ -88,8 +88,6 @@ migrate: ## Run database migrations (if available)
 doctor: ## Run health checks
 	$(PYTHON) -m agentbase doctor
 
-init: ## Initialize a new project from the template
-	$(PYTHON) -m agentbase init .
 
 clean: ## Remove build artifacts and cache files
 	rm -rf build/ dist/ *.egg-info src/*.egg-info

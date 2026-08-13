@@ -15,13 +15,12 @@
 - **K8s deployment**: Helm Chart (`deploy/k8s/`) + native manifests, values.yaml
 - **Nginx reverse proxy**: `deploy/nginx/nginx.conf` — SSE/WebSocket proxy, rate limiting, TLS template
 - **Database backup/restore**: `agentbase backup` / `agentbase restore` (SQL + JSON formats)
-- **`agentbase init` command**: Scaffold new projects (generate config, agent, directory structure)
 - **Request ID middleware**: `X-Request-ID` header, auto-generated UUID, propagated through logs
 - `docs/project-positioning.md` — project identity, design philosophy, boundary principles
 - `docs/backend-boundaries.md` — complete feature boundary reference (16 sections)
 - 9 middleware (5 built-in: request_logger, retry, timeout, summary, cache)
 - 32 tools (added code_execute, transcribe)
-- 10 CLI commands (added init, backup, restore)
+- 8 CLI commands (added backup, restore)
 
 ### Changed
 - **Package renamed**: `myda` → `agentbase` (package name, CLI, env vars, Docker, Redis, Prometheus)

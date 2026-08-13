@@ -14,7 +14,7 @@
 | 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets |
 | 扩展体系 | done | tools(32) / middleware(6) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 21 条路由，含 agents / memory / kb / queue / skills / workspace / health |
-| CLI 层 | done | 14 条命令，含 init / run / backup / restore / resume / doctor / add-extension |
+| CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
 | 测试基座 | done | 708 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
@@ -103,19 +103,9 @@
 
 ### E. 模板 / 脚手架（agentbase 的核心卖点）
 
-#### E1. `agentbase init` 增强（交互式引导）
-- **状态**：done ｜ **优先级**：P1
-- **定位**：交互式选择数据库 / embedding / queue / tracer 组合，生成可运行项目骨架。
-- **测试**：不同组合生成的骨架可导入、可跑 `doctor`。
-
-#### E2. 扩展骨架生成器 `agentbase add-extension`
-- **状态**：done ｜ **优先级**：P1
-- **定位**：`agentbase add-extension tool --name my_tool` 生成标准 tool 骨架（含 meta、注册、测试模板、docs 章节模板），让"加一个新功能"成为半自动流程。
-- **测试**：生成的骨架文件齐全；导入无错；测试模板可运行。
-
-#### E3. 模板渲染引擎统一
-- **状态**：pending ｜ **优先级**：P2
-- **定位**：将 init / add-extension 的模板渲染抽为统一引擎（变量替换 + 条件块 + 校验），消除复制粘贴式生成。
+> **已移除**：`agentbase init` 和 `agentbase add-extension` 命令已删除。
+> 项目定位为仓库型脚手架，用户直接克隆仓库二次开发，不需要模板生成工具。
+> 详见 `docs/project-positioning.md` 中的功能边界说明。
 
 ### F. 文档 / 示例完备化
 

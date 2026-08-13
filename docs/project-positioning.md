@@ -133,7 +133,7 @@ Ship first, discover issues through usage, gather feedback from the community, r
 | Tests | 520 (all passing) |
 | Coverage | 65% |
 | API endpoints | 21 |
-| CLI commands | 12 |
+| CLI commands | 10 |
 | Agent tools | 32 |
 | Pluggable providers | 9 registries |
 | Document parsers | 9 types |

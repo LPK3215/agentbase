@@ -117,7 +117,6 @@ agentbase serve --reload
 
 | Command | Description |
 |---------|-------------|
-| `agentbase init` | Initialize a new project (generate config, agent, directory structure) |
 | `agentbase doctor` | Validate configuration and agent assembly |
 | `agentbase agents` | List available agent profiles |
 | `agentbase extensions` | List registered extensions |
@@ -128,6 +127,10 @@ agentbase serve --reload
 | `agentbase serve --port 8000` | Start the FastAPI server |
 | `agentbase backup -o backup.sql` | Backup database (SQL/JSON format) |
 | `agentbase restore backup.sql` | Restore database from backup |
+| `agentbase worker` | Start a queue worker process |
+| `agentbase version` | Print version information |
+| `agentbase config validate` | Validate configuration files |
+| `agentbase config show` | Display resolved configuration |
 
 ### Common Options
 

@@ -306,7 +306,6 @@ pip install agentbase[all]          # 全部安装
 | `agentbase stream` | ✅ 已实现 | 流式调用 Agent |
 | `agentbase resume` | ✅ 已实现 | 恢复中断的 Agent |
 | `agentbase serve` | ✅ 已实现 | 启动 API 服务 |
-| `agentbase init` | ✅ 已实现 | 初始化新项目（生成完整配置含 auth/rate_limit/metrics/cors/health_check，生成 .gitignore） |
 | `agentbase version` | ✅ 已实现 | 打印版本信息（Python 版本、平台） |
 | `agentbase config validate` | ✅ 已实现 | 验证配置文件（app config + agent configs + workspace 结构） |
 | `agentbase backup` | ✅ 已实现 | 数据库备份（SQL/JSON 格式） |
@@ -351,7 +350,7 @@ pip install agentbase[all]          # 全部安装
 | 覆盖率门槛 | 60%（CI 强制） |
 | ruff lint | 0 errors |
 | isort | 0 errors |
-| CLI 命令 | 12 |
+| CLI 命令 | 10 |
 | 错误码领域 | 10 |
 
 ---
