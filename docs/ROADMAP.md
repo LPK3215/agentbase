@@ -115,7 +115,7 @@
 - **测试**：示例脚本有 smoke test 或至少 `--help` 可跑。
 
 #### F2. 迁移指南
-- **状态**：pending ｜ **优先级**：P3
+- **状态**：done ｜ **优先级**：P3
 - **定位**：`docs/migrations/`：SQLite→PostgreSQL、Memory→Redis、Null→Langfuse 的逐步指南。
 
 ---

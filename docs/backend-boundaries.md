@@ -88,11 +88,19 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 数据库恢复 | ✅ 已实现 | `agentbase restore backup.sql --format sql` |
 | 数据库恢复 (JSON) | ✅ 已实现 | `agentbase restore backup.json --format json` |
 
+### 迁移指南
+
+详细的 Provider 迁移步骤见 `docs/migrations/`：
+
+- [SQLite → PostgreSQL](./migrations/sqlite-to-postgresql.md)
+- [Memory Queue → Redis Queue](./migrations/memory-to-redis.md)
+- [Null Tracer → Langfuse](./migrations/null-to-langfuse.md)
+
 ### 未实现
 
 - MongoDB 支持
 - 向量数据库（Milvus、Pinecone、Weaviate）—— 当前用 pgvector 替代
-- 数据库迁移脚本（Alembic）
+- 数据库 Schema 迁移工具（Alembic）—— 当前使用 `backup` / `restore` 命令 + 自动方言转换替代
 
 ---
 
