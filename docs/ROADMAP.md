@@ -12,10 +12,10 @@
 |------|------|------|
 | 核心服务（17） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment |
 | 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment |
-| 扩展体系 | done | tools(36) / middleware(8) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| 扩展体系 | done | tools(36) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 30 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 1086 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 1102 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -156,6 +156,14 @@
 - **配置**：`queue.provider: celery` + `queue.options.broker_url`。
 - **依赖**：`pip install agentbase[celery]`（`celery>=5.3.0`）。
 - **测试**：Protocol 合规（6）+ 状态映射（7）+ 反序列化（3）+ submit（3）+ get_task（4）+ list（3）+ cancel（3）+ update（2）+ stats（2）+ clear（2）+ handler（2）+ health_check（2）+ registry（1）+ import_error（1）= 41 测试。
+
+#### G4. 审计日志中间件（`audit_log`）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：自动记录模型调用的审计事件，复用 AuditManager，实现合规审计。
+- **注册**：`@register_middleware("audit_log")`，`default_enabled=false`。
+- **行为**：通过 `wrap_model_call` 拦截模型调用，在成功/失败后记录 `AuditEvent`（actor=agent_name、action=`model.call`、resource=`model:<name>`、result=success/failure、detail={duration_ms, thread_id, error}）。
+- **依赖**：`audit.enabled=true` + `middleware: [audit_log]`。
+- **测试**：注册验证（3）+ 构建行为（5）+ 中间件行为（8）= 16 测试。
 
 ---
 

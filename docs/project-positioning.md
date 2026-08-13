@@ -130,7 +130,7 @@ Ship first, discover issues through usage, gather feedback from the community, r
 |-----------|-------|
 | Source files | 67 |
 | Source code | 6,500+ lines |
-| Tests | 1086 (all passing) |
+| Tests | 1102 (all passing) |
 | Coverage | 67% |
 | API endpoints | 30 |
 | CLI commands | 10 |
