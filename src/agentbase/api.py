@@ -65,7 +65,11 @@ Endpoints::
     DELETE /experiments/{name}         — delete experiment
     POST   /experiments/{name}/assign  — assign a request to a variant
     POST   /experiments/{name}/results — record a result
-    GET    /experiments/{name}/stats   — get experiment statistics
+     GET    /experiments/{name}/stats   — get experiment statistics
+     GET    /admin/rate-limit            — get rate limiter stats
+     POST   /admin/rate-limit/quotas/{role} — set per-role quota
+     DELETE /admin/rate-limit/buckets    — reset all buckets
+
 
     WS     /ws/agents/{name}           — real-time agent communication
 """
@@ -207,11 +211,15 @@ def _check_rbac(request: Request, payload: dict[str, Any] | None, app_config: An
 
 
 class RateLimiter:
-    """Per-IP sliding-window rate limiter with burst support.
+    """Per-IP sliding-window rate limiter with burst and per-role quota support.
 
     Uses a token bucket variant: each IP gets a bucket that refills
     at ``max_requests / window_seconds`` tokens per second, up to
     ``max_requests + burst`` capacity.
+
+    When per-role quotas are configured (via ``RateLimitConfig.quotas``),
+    the limiter uses role-specific limits instead of the global default.
+    Each (role, IP) pair gets its own bucket.
     """
 
     def __init__(
@@ -224,28 +232,71 @@ class RateLimiter:
         self.window = window_seconds
         self.burst = burst
         self._buckets: dict[str, list[float]] = defaultdict(list)
+        self._role_quotas: dict[str, tuple[int, int, int]] = {}
 
-    def check(self, client_ip: str) -> bool:
-        """Returns True if request is allowed, False if rate limited."""
+    def set_role_quota(self, role: str, max_requests: int, window_seconds: int, burst: int) -> None:
+        """Set a custom quota for a specific role."""
+        self._role_quotas[role] = (max_requests, window_seconds, burst)
+
+    def get_role_quota(self, role: str) -> tuple[int, int, int]:
+        """Get (max_requests, window_seconds, burst) for a role.
+
+        Falls back to global defaults if no role-specific quota is set.
+        """
+        return self._role_quotas.get(role, (self.max_requests, self.window, self.burst))
+
+    def check(self, client_ip: str, role: str = "user") -> bool:
+        """Returns True if request is allowed, False if rate limited.
+
+        Uses role-specific quota if configured, otherwise global default.
+        """
+        max_req, window, burst = self.get_role_quota(role)
+        key = f"{role}:{client_ip}"
         now = time.time()
-        bucket = self._buckets[client_ip]
+        bucket = self._buckets[key]
         # Sliding window: remove timestamps outside the window
-        self._buckets[client_ip] = [t for t in bucket if now - t < self.window]
-        if len(self._buckets[client_ip]) >= self.max_requests + self.burst:
+        self._buckets[key] = [t for t in bucket if now - t < window]
+        if len(self._buckets[key]) >= max_req + burst:
             return False
-        self._buckets[client_ip].append(now)
+        self._buckets[key].append(now)
         return True
 
     def reset(self) -> None:
         """Clear all buckets (for testing)."""
         self._buckets.clear()
 
-    def get_remaining(self, client_ip: str) -> int:
-        """Get remaining requests for an IP."""
+    def get_remaining(self, client_ip: str, role: str = "user") -> int:
+        """Get remaining requests for an IP + role."""
+        max_req, window, burst = self.get_role_quota(role)
+        key = f"{role}:{client_ip}"
         now = time.time()
-        bucket = self._buckets.get(client_ip, [])
-        recent = [t for t in bucket if now - t < self.window]
-        return max(0, self.max_requests + self.burst - len(recent))
+        bucket = self._buckets.get(key, [])
+        recent = [t for t in bucket if now - t < window]
+        return max(0, max_req + burst - len(recent))
+
+    @property
+    def stats(self) -> dict[str, Any]:
+        """Return rate limiter statistics including per-role quotas."""
+        now = time.time()
+        per_key: dict[str, int] = {}
+        for key, bucket in self._buckets.items():
+            # Extract role from key
+            role = key.split(":")[0] if ":" in key else "default"
+            _, window, _ = self.get_role_quota(role)
+            recent = [t for t in bucket if now - t < window]
+            per_key[key] = len(recent)
+        return {
+            "max_requests": self.max_requests,
+            "window_seconds": self.window,
+            "burst": self.burst,
+            "capacity": self.max_requests + self.burst,
+            "role_quotas": {
+                role: {"max_requests": q[0], "window_seconds": q[1], "burst": q[2]}
+                for role, q in self._role_quotas.items()
+            },
+            "active_keys": len(per_key),
+            "per_key": per_key,
+        }
 
 
 # --------------------------------------------------------------------------- #
@@ -734,6 +785,7 @@ def create_app(*, runtime=None) -> FastAPI:
             {"name": "documents", "description": "Knowledge base document management"},
             {"name": "audit", "description": "Audit log query (read-only)"},
             {"name": "experiments", "description": "A/B testing experiment management"},
+            {"name": "admin", "description": "Admin operations (rate-limit quota management)"},
             {"name": "websocket", "description": "WebSocket real-time communication"},
         ],
     )
@@ -805,19 +857,39 @@ def create_app(*, runtime=None) -> FastAPI:
                 request_id=getattr(request.state, "request_id", None),
             )
 
-        # Rate limiting
+        # Rate limiting (with per-role quota support)
         rl_cfg = rt.app_config.rate_limit
         if rl_cfg.enabled:
             limiter = _get_rate_limiter()
             client_ip = request.client.host if request.client else "unknown"
-            if not limiter.check(client_ip):
+            # Extract role from auth payload for per-role quotas
+            role = "user"
+            if isinstance(payload, dict):
+                role = payload.get("role", "user")
+            # Sync role quotas from config to limiter (if not already set)
+            for quota_role, quota_cfg in rl_cfg.quotas.items():
+                if quota_role not in limiter._role_quotas:
+                    limiter.set_role_quota(
+                        quota_role,
+                        quota_cfg.get("max_requests", rl_cfg.max_requests),
+                        quota_cfg.get("window_seconds", rl_cfg.window_seconds),
+                        quota_cfg.get("burst", rl_cfg.burst),
+                    )
+            if not limiter.check(client_ip, role=role):
                 _metrics.record_error(ErrorCode.RATE_EXCEEDED)
+                max_req, window, burst = limiter.get_role_quota(role)
                 return _make_error_response(
                     error="Rate limit exceeded",
                     code=ErrorCode.RATE_EXCEEDED,
                     http_status=status.HTTP_429_TOO_MANY_REQUESTS,
                     request_id=getattr(request.state, "request_id", None),
-                    detail={"retry_after": rl_cfg.window_seconds},
+                    detail={
+                        "retry_after": window,
+                        "role": role,
+                        "max_requests": max_req,
+                        "burst": burst,
+                        "remaining": limiter.get_remaining(client_ip, role=role),
+                    },
                 )
 
         return await call_next(request)
@@ -1498,6 +1570,57 @@ def create_app(*, runtime=None) -> FastAPI:
         manager = rt.factory.experiment_manager
         stats = manager.get_stats(name)
         return stats.to_dict()
+
+    # ------------------------------------------------------------------ #
+    # Rate-limit admin — quota management                                #
+    # ------------------------------------------------------------------ #
+    @app.get("/admin/rate-limit", tags=["admin"])
+    def get_rate_limit_stats():
+        """Get rate limiter statistics including per-role quotas and active buckets.
+
+        Requires admin role.
+        """
+        rt = get_runtime()
+        rl_cfg = rt.app_config.rate_limit
+        if not rl_cfg.enabled:
+            return {"enabled": False, "message": "Rate limiting is disabled"}
+        limiter = _get_rate_limiter()
+        return limiter.stats
+
+    @app.post("/admin/rate-limit/quotas/{role}", tags=["admin"])
+    def set_role_quota(role: str, max_requests: int = 60, window_seconds: int = 60, burst: int = 10):
+        """Dynamically set a per-role rate limit quota.
+
+        Requires admin role. Changes are applied in-memory and reset
+        on server restart (persist in config for permanent changes).
+        """
+        rt = get_runtime()
+        rl_cfg = rt.app_config.rate_limit
+        if not rl_cfg.enabled:
+            return {"enabled": False, "message": "Rate limiting is disabled"}
+        limiter = _get_rate_limiter()
+        limiter.set_role_quota(role, max_requests, window_seconds, burst)
+        return {
+            "role": role,
+            "max_requests": max_requests,
+            "window_seconds": window_seconds,
+            "burst": burst,
+            "capacity": max_requests + burst,
+        }
+
+    @app.delete("/admin/rate-limit/buckets", tags=["admin"])
+    def reset_rate_limit_buckets():
+        """Reset all rate limit buckets (clear all counters).
+
+        Requires admin role. Useful for testing or after configuration changes.
+        """
+        rt = get_runtime()
+        rl_cfg = rt.app_config.rate_limit
+        if not rl_cfg.enabled:
+            return {"enabled": False, "message": "Rate limiting is disabled"}
+        limiter = _get_rate_limiter()
+        limiter.reset()
+        return {"reset": True}
 
     # ------------------------------------------------------------------ #
     # WebSocket — real-time agent communication                          #

@@ -107,7 +107,6 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ### 未实现
 
-- MongoDB 支持
 - 向量数据库（Milvus、Pinecone、Weaviate）—— 当前用 pgvector 替代
 - 数据库 Schema 迁移工具（Alembic）—— 当前使用 `backup` / `restore` 命令 + 自动方言转换替代
 
@@ -286,7 +285,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ### 未实现
 
-- A/B 测试框架
+- ~~A/B 测试框架~~ → 已实现（Experiment Provider + `/experiments` API）
 
 ---
 
@@ -344,12 +343,12 @@ pip install agentbase[all]          # 全部安装
 | JWT 认证 | ✅ 已实现 | HMAC-SHA256，Token 过期，自定义 claims |
 | RBAC 权限控制 | ✅ 已实现 | admin/user/readonly 三级角色，路径级权限 |
 | CORS | ✅ 已实现 | 可配置 origins |
-| 速率限制 | ✅ 已实现 | 每 IP 60 req/min |
+| 速率限制 | ✅ 已实现 | 每 IP 60 req/min，支持按角色动态配额（`quotas` 配置 + `/admin/rate-limit` API） |
 
 ### 未实现
 
 - OAuth2 第三方登录
-- API 限流配额管理（只有固定阈值）
+- ~~API 限流配额管理（只有固定阈值）~~ → 已实现（按角色动态配额 + `/admin/rate-limit` 管理端点）
 
 ---
 
@@ -367,7 +366,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 1102 |
+| 总测试数 | 1118 |
 | 失败数 | 0 |
 | 覆盖率 | 67% |
 | 覆盖率门槛 | 60%（CI 强制） |

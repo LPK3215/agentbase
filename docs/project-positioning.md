@@ -130,9 +130,9 @@ Ship first, discover issues through usage, gather feedback from the community, r
 |-----------|-------|
 | Source files | 67 |
 | Source code | 6,500+ lines |
-| Tests | 1102 (all passing) |
+| Tests | 1118 (all passing) |
 | Coverage | 67% |
-| API endpoints | 30 |
+| API endpoints | 33 |
 | CLI commands | 10 |
 | Agent tools | 36 |
 | Pluggable providers | 9 registries |

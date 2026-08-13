@@ -167,12 +167,14 @@ class RateLimitConfig(BaseModel):
     - ``enabled = true`` (default) → per-IP token bucket
     - ``max_requests`` per ``window_seconds`` per IP
     - ``burst`` allows short bursts above the steady-state rate
+    - ``quotas`` allows per-role custom limits (e.g. admin: 200, user: 60)
     """
 
     enabled: bool = True
     max_requests: int = 60
     window_seconds: int = 60
     burst: int = 10
+    quotas: dict[str, dict[str, int]] = Field(default_factory=dict)
 
     @field_validator("max_requests")
     @classmethod
@@ -185,6 +187,20 @@ class RateLimitConfig(BaseModel):
     def _validate_window(cls, v: int) -> int:
         """Ensure window_seconds is positive."""
         return max(v, 1)
+
+    def get_quota_for_role(self, role: str) -> tuple[int, int, int]:
+        """Get (max_requests, window_seconds, burst) for a role.
+
+        Falls back to global defaults if no role-specific quota is set.
+        """
+        role_quota = self.quotas.get(role)
+        if role_quota:
+            return (
+                role_quota.get("max_requests", self.max_requests),
+                role_quota.get("window_seconds", self.window_seconds),
+                role_quota.get("burst", self.burst),
+            )
+        return self.max_requests, self.window_seconds, self.burst
 
     @field_validator("burst")
     @classmethod
