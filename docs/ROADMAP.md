@@ -13,7 +13,7 @@
 | 核心服务（16） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets |
 | 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets |
 | 扩展体系 | done | tools(33) / middleware(7) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 21 条路由，含 agents / memory / kb / queue / skills / workspace / health |
+| API 层 | done | 23 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
 | 测试基座 | done | 892 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
@@ -97,7 +97,7 @@
 - **测试**：组件正常 / 组件故障时响应结构正确且非 200。
 
 #### D2. 审计查询 API
-- **状态**：pending ｜ **优先级**：P3
+- **状态**：done ｜ **优先级**：P3
 - **定位**：配合 A1，暴露只读审计查询端点（分页、按时间/操作类型过滤），需鉴权。
 - **测试**：鉴权 / 分页 / 过滤。
 

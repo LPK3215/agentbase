@@ -56,6 +56,9 @@ Endpoints::
     DELETE /documents/{id}             — delete document
     POST   /documents/search           — search knowledge base
 
+    GET    /audit/events               — query audit log (paginated, filterable)
+    GET    /audit/events/count         — count audit events matching filter
+
     WS     /ws/agents/{name}           — real-time agent communication
 """
 from __future__ import annotations
@@ -693,6 +696,7 @@ def create_app(*, runtime=None) -> FastAPI:
             {"name": "invoke", "description": "Agent invocation (sync, stream, resume)"},
             {"name": "queue", "description": "Async task queue management"},
             {"name": "documents", "description": "Knowledge base document management"},
+            {"name": "audit", "description": "Audit log query (read-only)"},
             {"name": "websocket", "description": "WebSocket real-time communication"},
         ],
     )
@@ -1272,6 +1276,85 @@ def create_app(*, runtime=None) -> FastAPI:
             }
             for r in results
         ]
+
+    # ------------------------------------------------------------------ #
+    # Audit — read-only audit log query                                  #
+    # ------------------------------------------------------------------ #
+    @app.get("/audit/events", tags=["audit"])
+    def list_audit_events(
+        actor: str | None = Query(None, description="Filter by actor (user/agent)"),
+        action: str | None = Query(None, description="Filter by action type (e.g. agent.invoke)"),
+        resource: str | None = Query(None, description="Filter by resource identifier"),
+        result: str | None = Query(None, description="Filter by result (success/failure/denied)"),
+        since: str | None = Query(None, description="ISO timestamp, inclusive lower bound"),
+        until: str | None = Query(None, description="ISO timestamp, exclusive upper bound"),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """Query audit log events with filtering and pagination.
+
+        Requires authentication. Returns events in descending timestamp order.
+        When audit logging is disabled (``audit.enabled=false``), returns
+        an empty list.
+        """
+        rt = get_runtime()
+        manager = rt.factory.audit_manager
+
+        from agentbase.core.audit import AuditFilter
+
+        page_size_clamped = min(page_size, 100)
+        offset = (page - 1) * page_size_clamped
+
+        flt = AuditFilter(
+            actor=actor,
+            action=action,
+            resource=resource,
+            result=result,
+            since=since,
+            until=until,
+            limit=page_size_clamped,
+            offset=offset,
+        )
+
+        events = manager.query_events(flt)
+        total = manager.count_events(flt)
+
+        return {
+            "items": [e.to_dict() for e in events],
+            "total": total,
+            "page": page,
+            "page_size": page_size_clamped,
+            "has_next": offset + page_size_clamped < total,
+        }
+
+    @app.get("/audit/events/count", tags=["audit"])
+    def count_audit_events(
+        actor: str | None = Query(None),
+        action: str | None = Query(None),
+        resource: str | None = Query(None),
+        result: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+    ):
+        """Count audit events matching the filter (without pagination).
+
+        Requires authentication. Returns 0 when audit logging is disabled.
+        """
+        rt = get_runtime()
+        manager = rt.factory.audit_manager
+
+        from agentbase.core.audit import AuditFilter
+
+        flt = AuditFilter(
+            actor=actor,
+            action=action,
+            resource=resource,
+            result=result,
+            since=since,
+            until=until,
+        )
+
+        return {"count": manager.count_events(flt)}
 
     # ------------------------------------------------------------------ #
     # WebSocket — real-time agent communication                          #

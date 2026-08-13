@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（21 个端点）
+### 已实现（23 个端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -29,6 +29,8 @@
 | `/documents/{id}` | GET | 需要 | 获取文档详情 |
 | `/documents/{id}` | DELETE | 需要 | 删除文档 |
 | `/documents/search` | POST | 需要 | 搜索知识库 |
+| `/audit/events` | GET | 需要 | 查询审计日志（分页、过滤） |
+| `/audit/events/count` | GET | 需要 | 统计审计事件数量（支持过滤） |
 | `/ws/agents/{name}` | WebSocket | Token | 实时双向 Agent 对话 |
 | `/docs` | GET | 公开 | Swagger UI |
 | `/redoc` | GET | 公开 | ReDoc 文档 |

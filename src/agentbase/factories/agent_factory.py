@@ -33,6 +33,7 @@ class AgentFactory:
         self._tracer = None
         self._queue = None
         self._storage = None
+        self._audit_manager = None
 
     @property
     def backend(self) -> Any:
@@ -160,6 +161,32 @@ class AgentFactory:
                 else:
                     self._queue = MemoryRequestQueue()
         return self._queue
+
+    @property
+    def audit_manager(self) -> Any:
+        """Build the audit log manager from config.
+
+        When ``audit.enabled = false`` (default), returns a NullAuditManager
+        that silently discards all events. When enabled, creates a provider
+        from ``audit.provider`` (default ``sqlite``).
+        """
+        if self._audit_manager is None:
+            from agentbase.core.audit import AuditManager
+
+            audit_cfg = self.app_config.audit
+            kwargs: dict[str, Any] = {}
+            if audit_cfg.dsn:
+                kwargs["dsn"] = audit_cfg.dsn
+            else:
+                db_path = self.root_dir / audit_cfg.db_dir / "audit.db"
+                kwargs["db_path"] = db_path
+            kwargs.update(audit_cfg.options)
+            self._audit_manager = AuditManager(
+                provider=audit_cfg.provider,
+                enabled=audit_cfg.enabled,
+                **kwargs,
+            )
+        return self._audit_manager
 
     @property
     def checkpointer(self) -> Any:
