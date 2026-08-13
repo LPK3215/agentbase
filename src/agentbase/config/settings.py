@@ -52,6 +52,7 @@ class EnvSettings(BaseSettings):
     runtime__default_agent: str | None = None
     runtime__config_dir: str | None = None
     runtime__workspace_dir: str | None = None
+    runtime__session_ttl_seconds: float | None = None
 
     audit__enabled: bool | None = None
     audit__provider: str | None = None
@@ -60,6 +61,9 @@ class EnvSettings(BaseSettings):
 
     redaction__enabled: bool | None = None
     redaction__provider: str | None = None
+
+    secrets__enabled: bool | None = None
+    secrets__provider: str | None = None
 
     @property
     def app_env(self) -> str | None:
@@ -166,6 +170,10 @@ class EnvSettings(BaseSettings):
         return self.runtime__workspace_dir
 
     @property
+    def runtime_session_ttl_seconds(self) -> float | None:
+        return self.runtime__session_ttl_seconds
+
+    @property
     def audit_enabled(self) -> bool | None:
         return self.audit__enabled
 
@@ -188,6 +196,14 @@ class EnvSettings(BaseSettings):
     @property
     def redaction_provider(self) -> str | None:
         return self.redaction__provider
+
+    @property
+    def secrets_enabled(self) -> bool | None:
+        return self.secrets__enabled
+
+    @property
+    def secrets_provider(self) -> str | None:
+        return self.secrets__provider
 
 
 def load_dotenv_files(root_dir: Path) -> None:

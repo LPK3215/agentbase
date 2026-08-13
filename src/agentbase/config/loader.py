@@ -76,6 +76,7 @@ def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
         "runtime": {},
         "audit": {},
         "redaction": {},
+        "secrets": {},
     }
 
     mapping = {
@@ -105,12 +106,15 @@ def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
         ("runtime", "default_agent"): settings.runtime_default_agent,
         ("runtime", "config_dir"): settings.runtime_config_dir,
         ("runtime", "workspace_dir"): settings.runtime_workspace_dir,
+        ("runtime", "session_ttl_seconds"): settings.runtime_session_ttl_seconds,
         ("audit", "enabled"): settings.audit_enabled,
         ("audit", "provider"): settings.audit_provider,
         ("audit", "db_dir"): settings.audit_db_dir,
         ("audit", "dsn"): settings.audit_dsn,
         ("redaction", "enabled"): settings.redaction_enabled,
         ("redaction", "provider"): settings.redaction_provider,
+        ("secrets", "enabled"): settings.secrets_enabled,
+        ("secrets", "provider"): settings.secrets_provider,
     }
     for (section, key), value in mapping.items():
         if value is not None:

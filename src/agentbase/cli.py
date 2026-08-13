@@ -482,6 +482,11 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--name", default="my-project", help="Project name")
     init.add_argument("--force", action="store_true", help="Overwrite existing files")
     init.add_argument("--dry-run", action="store_true", help="Preview changes without writing files")
+    init.add_argument("--preset", default="dev", choices=["dev", "prod", "minimal", "full"], help="Preset combination (default: dev)")
+    init.add_argument("--storage", default=None, choices=["sqlite", "postgresql"], help="Storage backend (overrides preset)")
+    init.add_argument("--embedding", default=None, choices=["hash", "openai"], help="Embedding provider (overrides preset)")
+    init.add_argument("--queue", default=None, choices=["memory", "redis"], help="Queue provider (overrides preset)")
+    init.add_argument("--tracer", default=None, choices=["null", "memory"], help="Tracer provider (overrides preset)")
     init.set_defaults(func=cmd_init)
 
     backup = sub.add_parser("backup", help="Backup database to a file")
@@ -514,6 +519,25 @@ def build_parser() -> argparse.ArgumentParser:
     create_cmd.add_argument("--force", action="store_true", help="Overwrite existing agent config")
     create_cmd.set_defaults(func=cmd_agent_create)
 
+    # add-extension: generate extension scaffolds
+    add_ext = sub.add_parser("add-extension", help="Generate extension skeleton (tool/middleware)")
+    add_ext_sub = add_ext.add_subparsers(dest="ext_type", required=True)
+    tool_ext = add_ext_sub.add_parser("tool", help="Generate a tool skeleton")
+    tool_ext.add_argument("--name", required=True, help="Tool name (snake_case)")
+    tool_ext.add_argument("--description", default="", help="Tool description")
+    tool_ext.add_argument("--output", default=".", help="Output directory (default: current)")
+    tool_ext.add_argument("--force", action="store_true", help="Overwrite existing files")
+    tool_ext.add_argument("--dry-run", action="store_true", help="Preview without writing")
+    tool_ext.set_defaults(func=cmd_add_extension)
+
+    mw_ext = add_ext_sub.add_parser("middleware", help="Generate a middleware skeleton")
+    mw_ext.add_argument("--name", required=True, help="Middleware name (snake_case)")
+    mw_ext.add_argument("--description", default="", help="Middleware description")
+    mw_ext.add_argument("--output", default=".", help="Output directory (default: current)")
+    mw_ext.add_argument("--force", action="store_true", help="Overwrite existing files")
+    mw_ext.add_argument("--dry-run", action="store_true", help="Preview without writing")
+    mw_ext.set_defaults(func=cmd_add_extension)
+
     return parser
 
 
@@ -525,15 +549,29 @@ def cmd_init(args: argparse.Namespace) -> int:
     - ``--dry-run`` to preview changes without writing
     - Template variable substitution via the template engine
     - Configurable merge strategy (skip/overwrite)
+    - Preset-based configuration (dev/prod/minimal/full)
+    - Component-level overrides (--storage/--embedding/--queue/--tracer)
     """
     from pathlib import Path
 
     from agentbase.core.template import render
+    from agentbase.core.presets import resolve_preset
 
     project_dir = Path(args.path)
     project_dir.mkdir(parents=True, exist_ok=True)
 
+    # Resolve preset with optional overrides
+    preset = resolve_preset(
+        preset_name=getattr(args, 'preset', 'dev'),
+        storage=getattr(args, 'storage', None),
+        embedding=getattr(args, 'embedding', None),
+        queue=getattr(args, 'queue', None),
+        tracer=getattr(args, 'tracer', None),
+    )
+
     console.print(f"[cyan]Initializing agentbase project: {args.name}[/cyan]")
+    console.print(f"  Preset: [magenta]{preset.name}[/magenta] — {preset.description}")
+    console.print(f"  Storage: {preset.storage_type} | Embedding: {preset.embedding_provider} | Queue: {preset.queue_type} | Tracer: {preset.tracer_type}")
     if args.dry_run:
         console.print("  [yellow]DRY RUN — no files will be written[/yellow]")
 
@@ -549,7 +587,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         # (relative_path, content_template, description)
         (
             "configs/default.yaml",
-            _generate_default_config(args.name),
+            _generate_default_config(args.name, preset),
             "app configuration",
         ),
         (
@@ -559,7 +597,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         ),
         (
             ".env.example",
-            _generate_env_example(),
+            _generate_env_example(preset),
             "environment template",
         ),
         (
@@ -651,83 +689,138 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def _generate_default_config(name: str) -> str:
-    """Generate a comprehensive default.yaml config."""
-    return (
-        'app:\n'
-        f'  name: {name}\n'
-        '  env: dev\n'
-        '  log_level: INFO\n'
-        '  version: "0.4.0"\n'
-        '\n'
-        'model:\n'
-        '  provider: openai\n'
-        '  name: deepseek-chat\n'
-        '  temperature: 0\n'
-        '  timeout_seconds: 120\n'
-        '  base_url: https://api.deepseek.com/v1\n'
-        '  api_key_env: DEEPSEEK_API_KEY\n'
-        '\n'
-        'checkpointer:\n'
-        '  type: sqlite\n'
-        '  options: {}\n'
-        '\n'
-        'storage:\n'
-        '  type: sqlite\n'
-        '  db_dir: data\n'
-        '\n'
-        'embedding:\n'
-        '  provider: hash\n'
-        '  options: {}\n'
-        '\n'
-        'web_search:\n'
-        '  provider: duckduckgo\n'
-        '  options: {}\n'
-        '\n'
-        'auth:\n'
-        '  type: api_key\n'
-        '  secret: agentbase-default-secret\n'
-        '  token_expiry_hours: 24\n'
-        '\n'
-        'rate_limit:\n'
-        '  enabled: true\n'
-        '  max_requests: 60\n'
-        '  window_seconds: 60\n'
-        '  burst: 10\n'
-        '\n'
-        'cors:\n'
-        '  allow_origins:\n'
-        '    - "*"\n'
-        '  allow_credentials: true\n'
-        '\n'
-        'metrics:\n'
-        '  enabled: true\n'
-        '  path: /metrics\n'
-        '  collect_latency: true\n'
-        '  collect_agent_metrics: true\n'
-        '\n'
-        'health_check:\n'
-        '  check_storage: true\n'
-        '  check_queue: true\n'
-        '  check_tracer: false\n'
-        '\n'
-        'runtime:\n'
-        '  default_agent: default\n'
-        '  config_dir: configs\n'
-        '  workspace_dir: workspace\n'
-        '  stream_modes:\n'
-        '    - messages\n'
-        '    - updates\n'
-        '  recursion_limit: 50\n'
-        '  max_concurrency: 4\n'
-        '\n'
-        'extensions:\n'
-        '  autodiscover:\n'
-        '    - agentbase.extensions.tools\n'
-        '    - agentbase.extensions.middleware\n'
-        '    - agentbase.extensions.subagents\n'
-        '  extra_modules: []\n'
-    )
+def _generate_default_config(name: str, preset=None) -> str:
+    """Generate a comprehensive default.yaml config.
+
+    When a preset is provided, the config reflects the selected
+    storage/embedding/queue/tracer combination.
+    """
+    # Default values
+    storage_type = 'sqlite'
+    storage_db_dir = 'data'
+    storage_dsn = ''
+    embedding_provider = 'hash'
+    queue_type = 'memory'
+    queue_dsn = ''
+    tracer_type = 'null'
+    audit_enabled = 'false'
+    redaction_enabled = 'false'
+
+    if preset is not None:
+        storage_type = preset.storage_type
+        if preset.storage_type == 'postgresql':
+            storage_db_dir = ''
+            storage_dsn = preset.storage_dsn
+        embedding_provider = preset.embedding_provider
+        queue_type = preset.queue_type
+        queue_dsn = preset.queue_dsn
+        tracer_type = preset.tracer_type
+        audit_enabled = 'true' if preset.audit_enabled else 'false'
+        redaction_enabled = 'true' if preset.redaction_enabled else 'false'
+
+    lines = [
+        'app:',
+        f'  name: {name}',
+        '  env: dev',
+        '  log_level: INFO',
+        '  version: "0.4.0"',
+        '',
+        'model:',
+        '  provider: openai',
+        '  name: deepseek-chat',
+        '  temperature: 0',
+        '  timeout_seconds: 120',
+        '  base_url: https://api.deepseek.com/v1',
+        '  api_key_env: DEEPSEEK_API_KEY',
+        '',
+        'checkpointer:',
+        f'  type: {storage_type}',
+        '  options: {}',
+        '',
+        'storage:',
+        f'  type: {storage_type}',
+    ]
+    if storage_dsn:
+        lines.append(f'  dsn: {storage_dsn}')
+    if storage_db_dir:
+        lines.append(f'  db_dir: {storage_db_dir}')
+    lines.extend([
+        '',
+        'embedding:',
+        f'  provider: {embedding_provider}',
+        '  options: {}',
+        '',
+        'web_search:',
+        '  provider: duckduckgo',
+        '  options: {}',
+        '',
+        'queue:',
+        f'  provider: {queue_type}',
+    ])
+    if queue_dsn:
+        lines.append(f'  dsn: {queue_dsn}')
+    lines.extend([
+        '  options: {}',
+        '',
+        'tracer:',
+        f'  provider: "{tracer_type}"',
+        '  options: {}',
+        '',
+        'auth:',
+        '  type: api_key',
+        '  secret: agentbase-default-secret',
+        '  token_expiry_hours: 24',
+        '',
+        'rate_limit:',
+        '  enabled: true',
+        '  max_requests: 60',
+        '  window_seconds: 60',
+        '  burst: 10',
+        '',
+        'cors:',
+        '  allow_origins:',
+        '    - "*"',
+        '  allow_credentials: true',
+        '',
+        'metrics:',
+        '  enabled: true',
+        '  path: /metrics',
+        '  collect_latency: true',
+        '  collect_agent_metrics: true',
+        '',
+        'health_check:',
+        '  check_storage: true',
+        '  check_queue: true',
+        '  check_tracer: false',
+        '',
+        'runtime:',
+        '  default_agent: default',
+        '  config_dir: configs',
+        '  workspace_dir: workspace',
+        '  stream_modes:',
+        '    - messages',
+        '    - updates',
+        '  recursion_limit: 50',
+        '  max_concurrency: 4',
+        '',
+        'extensions:',
+        '  autodiscover:',
+        '    - agentbase.extensions.tools',
+        '    - agentbase.extensions.middleware',
+        '    - agentbase.extensions.subagents',
+        '  extra_modules: []',
+        '',
+        'audit:',
+        f'  enabled: {audit_enabled}',
+        '  provider: sqlite',
+        '  db_dir: data',
+        '',
+        'redaction:',
+        f'  enabled: {redaction_enabled}',
+        '  provider: regex',
+        '  rules: []',
+    ])
+    return '\n'.join(lines)
 
 
 def _generate_default_agent() -> str:
@@ -766,34 +859,92 @@ def _generate_default_agent() -> str:
     )
 
 
-def _generate_env_example() -> str:
-    """Generate .env.example with all supported env vars."""
-    return (
-        '# Model API keys (first available is used)\n'
-        'DEEPSEEK_API_KEY=\n'
-        'OPENAI_API_KEY=\n'
-        'SILICONFLOW_API_KEY=\n'
-        'ANTHROPIC_API_KEY=\n'
-        '\n'
-        '# API security\n'
-        'AGENTBASE_API_KEY=\n'
-        'AGENTBASE_CORS_ORIGINS=*\n'
-        '\n'
-        '# JWT auth (optional, set to enable JWT)\n'
-        'AGENTBASE_AUTH__TYPE=api_key\n'
-        'AGENTBASE_AUTH__SECRET=agentbase-default-secret\n'
-        '\n'
-        '# Rate limiting (optional overrides)\n'
-        'AGENTBASE_RATE_LIMIT__ENABLED=true\n'
-        'AGENTBASE_RATE_LIMIT__MAX_REQUESTS=60\n'
-        '\n'
-        '# Storage (optional overrides)\n'
-        'AGENTBASE_STORAGE__TYPE=sqlite\n'
-        'AGENTBASE_STORAGE__DB_DIR=data\n'
-        '\n'
-        '# Checkpointer (optional overrides)\n'
-        'AGENTBASE_CHECKPOINTER__TYPE=sqlite\n'
-    )
+def _generate_env_example(preset=None) -> str:
+    """Generate .env.example with all supported env vars.
+
+    When a preset is provided, the env vars reflect the selected
+    storage/embedding/queue/tracer combination.
+    """
+    lines = [
+        '# Model API keys (first available is used)',
+        'DEEPSEEK_API_KEY=',
+        'OPENAI_API_KEY=',
+        'SILICONFLOW_API_KEY=',
+        'ANTHROPIC_API_KEY=',
+        '',
+        '# API security',
+        'AGENTBASE_API_KEY=',
+        'AGENTBASE_CORS_ORIGINS=*',
+        '',
+        '# JWT auth (optional, set to enable JWT)',
+        'AGENTBASE_AUTH__TYPE=api_key',
+        'AGENTBASE_AUTH__SECRET=agentbase-default-secret',
+        '',
+        '# Rate limiting (optional overrides)',
+        'AGENTBASE_RATE_LIMIT__ENABLED=true',
+        'AGENTBASE_RATE_LIMIT__MAX_REQUESTS=60',
+        '',
+    ]
+
+    if preset is not None:
+        if preset.storage_type == 'postgresql':
+            lines.extend([
+                '# Storage — PostgreSQL',
+                'AGENTBASE_STORAGE__TYPE=postgresql',
+                f'AGENTBASE_STORAGE__DSN={preset.storage_dsn}',
+                '',
+            ])
+        else:
+            lines.extend([
+                '# Storage — SQLite',
+                'AGENTBASE_STORAGE__TYPE=sqlite',
+                'AGENTBASE_STORAGE__DB_DIR=data',
+                '',
+            ])
+
+        if preset.embedding_provider == 'openai':
+            lines.extend([
+                '# Embedding — OpenAI',
+                'AGENTBASE_EMBEDDING__PROVIDER=openai',
+                '',
+            ])
+
+        if preset.queue_type == 'redis':
+            lines.extend([
+                '# Queue — Redis',
+                'AGENTBASE_QUEUE__PROVIDER=redis',
+                f'AGENTBASE_QUEUE__DSN={preset.queue_dsn}',
+                '',
+            ])
+
+        if preset.audit_enabled:
+            lines.extend([
+                '# Audit logging',
+                'AGENTBASE_AUDIT__ENABLED=true',
+                'AGENTBASE_AUDIT__PROVIDER=sqlite',
+                '',
+            ])
+
+        if preset.redaction_enabled:
+            lines.extend([
+                '# Redaction',
+                'AGENTBASE_REDACTION__ENABLED=true',
+                'AGENTBASE_REDACTION__PROVIDER=regex',
+                '',
+            ])
+    else:
+        lines.extend([
+            '# Storage (optional overrides)',
+            'AGENTBASE_STORAGE__TYPE=sqlite',
+            'AGENTBASE_STORAGE__DB_DIR=data',
+            '',
+        ])
+
+    lines.extend([
+        '# Checkpointer (optional overrides)',
+        'AGENTBASE_CHECKPOINTER__TYPE=sqlite',
+    ])
+    return '\n'.join(lines)
 
 
 def _generate_gitignore() -> str:
@@ -884,6 +1035,64 @@ def cmd_agent_create(args: argparse.Namespace) -> int:
     console.print(f"  name: {args.name}")
     console.print(f"  tools: {agent_config.tools}")
     console.print(f"  middleware: {agent_config.middleware}")
+    return 0
+
+
+def cmd_add_extension(args: argparse.Namespace) -> int:
+    """Generate an extension skeleton (tool or middleware).
+
+    Creates standard scaffold files with proper imports, registration,
+    and test templates.
+    """
+    from pathlib import Path
+
+    from agentbase.core.scaffold import generate_tool_scaffold, generate_middleware_scaffold
+
+    ext_type = getattr(args, "ext_type", "tool")
+    name = args.name
+    description = getattr(args, "description", "")
+    output_dir = Path(getattr(args, "output", "."))
+    force = getattr(args, "force", False)
+    dry_run = getattr(args, "dry_run", False)
+
+    console.print(f"[cyan]Generating {ext_type} scaffold: {name}[/cyan]")
+    if dry_run:
+        console.print("  [yellow]DRY RUN — no files will be written[/yellow]")
+
+    try:
+        if ext_type == "tool":
+            files = generate_tool_scaffold(
+                name=name,
+                description=description,
+                output_dir=output_dir,
+                force=force,
+                dry_run=dry_run,
+            )
+        elif ext_type == "middleware":
+            files = generate_middleware_scaffold(
+                name=name,
+                description=description,
+                output_dir=output_dir,
+                force=force,
+                dry_run=dry_run,
+            )
+        else:
+            console.print(f"[red]ERROR: Unknown extension type: {ext_type}[/red]")
+            return 1
+    except ValueError as exc:
+        console.print(f"[red]ERROR: {exc}[/red]")
+        return 1
+
+    for path_str, _ in files.items():
+        rel = Path(path_str).relative_to(output_dir) if Path(path_str).is_relative_to(output_dir) else path_str
+        action = "CREATE" if not dry_run else "WOULD CREATE"
+        console.print(f"  [green]{action}[/green] {rel}")
+
+    console.print(f"\n[{'yellow' if dry_run else 'green'}]Scaffold generated for '{name}' ({ext_type})[/{'yellow' if dry_run else 'green'}]")
+    console.print("  Next steps:")
+    console.print(f"  1. Edit the implementation in extensions/{ext_type}s/{name}.py")
+    console.print(f"  2. Run tests: pytest tests/test_{ext_type}_{name}.py -v")
+    console.print(f"  3. Add '{name}' to your agent's {ext_type}s list in configs/agents/default.yaml")
     return 0
 
 

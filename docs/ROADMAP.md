@@ -10,12 +10,12 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 核心服务（13） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer |
-| 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer |
-| 扩展体系 | done | tools(32) / middleware(5) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| 核心服务（16） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets |
+| 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets |
+| 扩展体系 | done | tools(32) / middleware(6) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 21 条路由，含 agents / memory / kb / queue / skills / workspace / health |
-| CLI 层 | done | 12 条命令，含 init / run / backup / restore / resume / doctor |
-| 测试基座 | done | 530 测试全绿，conftest 统一 fixture |
+| CLI 层 | done | 14 条命令，含 init / run / backup / restore / resume / doctor / add-extension |
+| 测试基座 | done | 708 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -25,7 +25,7 @@
 ### A. 核心服务增强
 
 #### A1. 审计日志服务（AuditLogService）
-- **状态**：in_progress ｜ **优先级**：P1
+- **状态**：done ｜ **优先级**：P1
 - **定位**：结构化记录关键操作（谁/何时/做了什么/结果），满足企业合规。
 - **接口**：`AuditLogProvider` Protocol（`record(event)` / `query(filter)` / `export()`）。
 - **默认实现**：SQLite 审计表（复用 storage backend）；可替换为 PostgreSQL / 文件。
@@ -35,7 +35,7 @@
 - **测试**：record→query→export 全链路；enabled/disabled 分支；并发写。
 
 #### A2. 敏感信息脱敏服务（RedactionService）
-- **状态**：pending ｜ **优先级**：P1
+- **状态**：done ｜ **优先级**：P1
 - **定位**：对文本中的 API Key / 手机号 / 邮箱 / 身份证做可配置掩码，防日志与响应泄漏。
 - **接口**：`RedactionProvider` Protocol（`redact(text)` / `mask(value, kind)`）。
 - **默认实现**：正则规则集 + 可扩展规则注册；可替换为 Presidio 等（optional dep）。
@@ -44,7 +44,7 @@
 - **测试**：各 PII 类型掩码；不误伤普通文本；规则热注册。
 
 #### A3. 配置机密加密（SecretsStore）
-- **状态**：pending ｜ **优先级**：P2
+- **状态**：done ｜ **优先级**：P2
 - **定位**：config 中的密钥（API Key 等）支持密文存储与读取，避免明文落盘。
 - **接口**：`SecretsProvider` Protocol（`set(key, val)` / `get(key)` / `exists`）。
 - **默认实现**：Fernet 对称加密 + 本地 key 文件；可替换为环境变量 / Vault（optional）。
@@ -53,7 +53,7 @@
 - **测试**：加密→解密往返；坏 key 报错；未启用时透明直读。
 
 #### A4. 会话隔离增强（SessionStore 完善）
-- **状态**：pending ｜ **优先级**：P2
+- **状态**：done ｜ **优先级**：P2
 - **定位**：会话 TTL、自动清理、跨线程安全；目前 session 仅基础 CRUD。
 - **接口**：复用现有 `SessionManager`，补齐 `ttl` / `cleanup_expired` / `touch`。
 - **测试**：过期清理；并发 touch 无竞态。
@@ -77,7 +77,7 @@
 ### C. 中间件层扩充
 
 #### C1. 模型调用限流中间件（`rate_limit`）
-- **状态**：pending ｜ **优先级**：P1
+- **状态**：done ｜ **优先级**：P1
 - **定位**：复用 API 层 RateLimiter 语义，对模型调用按 agent / 全局限流。
 - **注册**：`@register_middleware("rate_limit")`，`default_enabled=false`。
 - **契约**：`burst` 短突发语义与现有 RateLimiter 一致，勿改变默认值语义。
@@ -104,12 +104,12 @@
 ### E. 模板 / 脚手架（agentbase 的核心卖点）
 
 #### E1. `agentbase init` 增强（交互式引导）
-- **状态**：pending ｜ **优先级**：P1
+- **状态**：done ｜ **优先级**：P1
 - **定位**：交互式选择数据库 / embedding / queue / tracer 组合，生成可运行项目骨架。
 - **测试**：不同组合生成的骨架可导入、可跑 `doctor`。
 
 #### E2. 扩展骨架生成器 `agentbase add-extension`
-- **状态**：pending ｜ **优先级**：P1
+- **状态**：done ｜ **优先级**：P1
 - **定位**：`agentbase add-extension tool --name my_tool` 生成标准 tool 骨架（含 meta、注册、测试模板、docs 章节模板），让"加一个新功能"成为半自动流程。
 - **测试**：生成的骨架文件齐全；导入无错；测试模板可运行。
 

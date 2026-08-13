@@ -76,6 +76,7 @@ class RuntimeConfig(BaseModel):
     stream_modes: list[str] = Field(default_factory=lambda: ["messages", "updates"])
     recursion_limit: int = 50
     max_concurrency: int = 4
+    session_ttl_seconds: float | None = None  # None = no TTL (never expire)
 
     @field_validator("recursion_limit")
     @classmethod
@@ -278,6 +279,25 @@ class RedactionConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class SecretsConfig(BaseModel):
+    """Secrets encryption configuration.
+
+    - ``enabled = false`` (default) → secrets disabled (NullSecretsProvider)
+    - ``enabled = true``             → encrypts secrets at rest
+    - ``provider = fernet`` (default) → Fernet symmetric encryption + key file
+    - ``provider = env``             → reads from environment variables
+    - ``key_file``: path to encryption key file (default ``.secret_key``)
+    - ``secrets_file``: path to encrypted secrets store (default ``.secrets.json``)
+    - Register custom providers with ``@register_secrets_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "fernet"
+    key_file: str = ".secret_key"
+    secrets_file: str = ".secrets.json"
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MCPConfig(BaseModel):
     """MCP (Model Context Protocol) server configuration.
 
@@ -338,6 +358,7 @@ class AppConfig(BaseModel):
     extensions: ExtensionsConfig = Field(default_factory=ExtensionsConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
     redaction: RedactionConfig = Field(default_factory=RedactionConfig)
+    secrets: SecretsConfig = Field(default_factory=SecretsConfig)
 
 
 class PermissionRule(BaseModel):

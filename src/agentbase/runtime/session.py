@@ -41,6 +41,9 @@ class Session:
     - ``agent_name``: the agent that was invoked
     - ``metadata``: arbitrary session-level metadata (request_id, user_id, etc.)
     - ``started_at``: ISO timestamp for duration tracking
+    - ``last_accessed_at``: ISO timestamp of last ``touch()`` call (for TTL)
+    - ``ttl_seconds``: optional time-to-live; session expires after this many
+      seconds of inactivity (None = no TTL, never expires)
     - ``status``: lifecycle status (pending/running/completed/failed/cancelled)
     """
 
@@ -48,6 +51,8 @@ class Session:
     agent_name: str
     metadata: dict[str, Any] = field(default_factory=dict)
     started_at: str = field(default_factory=_now)
+    last_accessed_at: str = field(default_factory=_now)
+    ttl_seconds: float | None = None
     status: SessionStatus = SessionStatus.PENDING
     finished_at: str | None = None
 
@@ -56,11 +61,13 @@ class Session:
         agent_name: str,
         thread_id: str | None = None,
         metadata: dict[str, Any] | None = None,
+        ttl_seconds: float | None = None,
     ) -> Session:
         session = Session(
             thread_id=thread_id or str(uuid.uuid4()),
             agent_name=agent_name,
             metadata=metadata or {},
+            ttl_seconds=ttl_seconds,
         )
         # Auto-register with the global registry
         _registry.register(session)
@@ -101,6 +108,38 @@ class Session:
         self.status = SessionStatus.CANCELLED
         self.finished_at = _now()
         _registry.update(self)
+
+    def touch(self) -> None:
+        """Update the last-accessed timestamp to keep the session alive.
+
+        Call this method whenever the session is actively used (e.g. on
+        each message in a conversation) to prevent TTL-based expiration.
+
+        Thread-safe: acquires the registry lock before updating.
+        """
+        self.last_accessed_at = _now()
+        _registry.update(self)
+
+    def is_expired(self) -> bool:
+        """Check if this session has expired based on its TTL.
+
+        Returns ``True`` if:
+        - The session has a ``ttl_seconds`` set, AND
+        - The time since ``last_accessed_at`` exceeds ``ttl_seconds``.
+
+        Sessions without a TTL never expire.
+        """
+        if self.ttl_seconds is None:
+            return False
+        if self.status in {SessionStatus.COMPLETED, SessionStatus.FAILED, SessionStatus.CANCELLED}:
+            return False  # Already finished — not subject to TTL
+        try:
+            last = datetime.fromisoformat(self.last_accessed_at)
+            now = datetime.now(timezone.utc)
+            elapsed = (now - last).total_seconds()
+            return elapsed >= self.ttl_seconds
+        except Exception:
+            return False
 
     @property
     def duration_ms(self) -> float | None:
@@ -220,6 +259,67 @@ class SessionRegistry:
                     session.metadata["stale_cleanup"] = True
                     cleaned += 1
         return cleaned
+
+    def cleanup_expired(self) -> int:
+        """Remove all sessions that have expired based on their TTL.
+
+        A session is expired if:
+        - It has a ``ttl_seconds`` set, AND
+        - The time since ``last_accessed_at`` exceeds ``ttl_seconds``.
+
+        Expired sessions are marked as ``FAILED`` and removed from the
+        registry's active tracking.
+
+        Returns:
+            Number of expired sessions cleaned up.
+        """
+        cleaned = 0
+        with self._lock:
+            expired_tids: list[str] = []
+            for tid, session in self._sessions.items():
+                if session.ttl_seconds is None:
+                    continue
+                if session.status in {SessionStatus.COMPLETED, SessionStatus.FAILED, SessionStatus.CANCELLED}:
+                    continue
+                try:
+                    last = datetime.fromisoformat(session.last_accessed_at)
+                    now = datetime.now(timezone.utc)
+                    elapsed = (now - last).total_seconds()
+                    if elapsed >= session.ttl_seconds:
+                        expired_tids.append(tid)
+                except Exception:
+                    continue
+            for tid in expired_tids:
+                session = self._sessions.get(tid)
+                if session:
+                    session.status = SessionStatus.FAILED
+                    session.finished_at = _now()
+                    session.metadata["ttl_expired"] = True
+                    cleaned += 1
+        return cleaned
+
+    def list_expired(self) -> list[Session]:
+        """List all sessions that have expired based on their TTL.
+
+        Unlike ``cleanup_expired()``, this does not modify sessions —
+        it only returns them for observability.
+        """
+        with self._lock:
+            expired: list[Session] = []
+            for session in self._sessions.values():
+                if session.ttl_seconds is None:
+                    continue
+                if session.status in {SessionStatus.COMPLETED, SessionStatus.FAILED, SessionStatus.CANCELLED}:
+                    continue
+                try:
+                    last = datetime.fromisoformat(session.last_accessed_at)
+                    now = datetime.now(timezone.utc)
+                    elapsed = (now - last).total_seconds()
+                    if elapsed >= session.ttl_seconds:
+                        expired.append(session)
+                except Exception:
+                    continue
+            return expired
 
     def _evict_if_needed(self) -> None:
         """Evict oldest completed sessions if over capacity."""

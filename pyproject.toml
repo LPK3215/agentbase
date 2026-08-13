@@ -74,6 +74,9 @@ graph = [
 mysql = [
   "pymysql>=1.1.0",
 ]
+secrets = [
+  "cryptography>=42.0.0",
+]
 otel = [
   "opentelemetry-api>=1.20.0",
   "opentelemetry-sdk>=1.20.0",
