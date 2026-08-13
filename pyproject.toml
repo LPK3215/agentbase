@@ -77,6 +77,9 @@ mysql = [
 mongodb = [
   "pymongo>=4.6.0",
 ]
+celery = [
+  "celery>=5.3.0",
+]
 secrets = [
   "cryptography>=42.0.0",
 ]
@@ -97,7 +100,7 @@ dev = [
   "pip-audit>=2.7.0",
 ]
 all = [
-  "agentbase[postgres,api,openai,anthropic,google,embeddings,search,rag,queue,tracing,ocr,graph,mysql,mongodb,otel,transcribe]",
+  "agentbase[postgres,api,openai,anthropic,google,embeddings,search,rag,queue,tracing,ocr,graph,mysql,mongodb,celery,otel,transcribe]",
 ]
 
 [project.scripts]

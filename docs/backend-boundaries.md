@@ -167,11 +167,11 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | `none` | ✅ 已实现（默认） | — | 同步模式，无队列 |
 | `memory` | ✅ 已实现 | ❌ 进程丢失 | 内存队列，测试/单机用 |
 | `redis` | ✅ 已实现 | ✅ 持久化 | Redis JSON 存储，多进程安全 |
+| `celery` | ✅ 已实现 | ✅ 持久化 | Celery 分布式任务（RabbitMQ/Redis broker），多节点多worker |
 
 ### 未实现
 
-- Celery 队列
-- RabbitMQ 队列
+- RabbitMQ 原生队列（可通过 Celery + RabbitMQ broker 实现）
 
 ---
 
@@ -244,6 +244,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | Langfuse 追踪 | ✅ 已验证 | `tracer.provider: langfuse` |
 | OpenTelemetry 追踪 | ✅ 已验证 | `tracer.provider: opentelemetry` |
 | Redis 队列 | ✅ 已验证 | `queue.provider: redis` |
+| Celery 分布式队列 | ✅ 已验证 | `queue.provider: celery` |
 | Neo4j 知识图谱 | ✅ 已验证 | `graph.provider: neo4j` |
 | MySQL 存储 | ✅ 已验证 | `storage.type: mysql` |
 | MongoDB 存储 | ✅ 已验证 | `storage.type: mongodb` |
@@ -252,7 +253,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ### 未实现
 
-- Celery/RabbitMQ 队列
+- ~~Celery/RabbitMQ 队列~~ → 已实现（Celery 队列 + RabbitMQ/Redis broker）
 
 ---
 
@@ -365,7 +366,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 1045 |
+| 总测试数 | 1086 |
 | 失败数 | 0 |
 | 覆盖率 | 67% |
 | 覆盖率门槛 | 60%（CI 强制） |
@@ -401,5 +402,5 @@ pip install agentbase[all]          # 全部安装
 | P5 | 审计日志中间件 | 合规审计 |
 | P5 | Alembic 数据库迁移 | 版本化 schema |
 | P5 | ~~MongoDB 存储~~ | ~~✅ 已实现~~ `storage.type: mongodb`，SQL→MongoDB 适配层 |
-| P5 | Celery/RabbitMQ 队列 | 分布式任务 |
+| P5 | ~~Celery/RabbitMQ 队列~~ | ~~✅ 已实现~~ `queue.provider: celery`，分布式任务（RabbitMQ/Redis broker） |
 | P5 | 前端 UI | Web 管理界面 |

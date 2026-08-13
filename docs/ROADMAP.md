@@ -15,7 +15,7 @@
 | 扩展体系 | done | tools(36) / middleware(8) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 30 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 1045 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 1086 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -146,6 +146,16 @@
 - **配置**：`storage.type: mongodb` + `storage.dsn: mongodb://host:port/db`。
 - **依赖**：`pip install agentbase[mongodb]`（`pymongo>=4.6.0`）。
 - **测试**：SQL 解析器（26）+ Protocol 合规（3）+ mock 集成（14）+ 配置（2）+ Row helper（3）= 51 测试。
+
+#### G3. Celery 分布式队列 Provider
+- **状态**：done ｜ **优先级**：P5
+- **定位**：Celery 分布式任务队列，支持 RabbitMQ/Redis broker，实现多进程、多节点分布式 Agent 任务处理。
+- **实现**：`CeleryRequestQueue`（`src/agentbase/core/queue_celery.py`），实现 `RequestQueue` Protocol 全部 5 个方法。
+- **适配**：Celery 状态映射（PENDING→pending、SUCCESS→completed、FAILURE→failed、REVOKED→cancelled）；`submit` → `apply_async`；`cancel` → `revoke`。
+- **注册**：`queue_registry`，`@register_queue_provider("celery")`。
+- **配置**：`queue.provider: celery` + `queue.options.broker_url`。
+- **依赖**：`pip install agentbase[celery]`（`celery>=5.3.0`）。
+- **测试**：Protocol 合规（6）+ 状态映射（7）+ 反序列化（3）+ submit（3）+ get_task（4）+ list（3）+ cancel（3）+ update（2）+ stats（2）+ clear（2）+ handler（2）+ health_check（2）+ registry（1）+ import_error（1）= 41 测试。
 
 ---
 
