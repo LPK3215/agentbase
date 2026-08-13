@@ -15,7 +15,7 @@
 | 扩展体系 | done | tools(33) / middleware(7) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 21 条路由，含 agents / memory / kb / queue / skills / workspace / health |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 809 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 892 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -68,7 +68,7 @@
 - **测试**：mock 服务器正常/超时/大响应/4xx。
 
 #### B2. `db_query` 只读工具
-- **状态**：pending ｜ **优先级**：P3
+- **状态**：done ｜ **优先级**：P3
 - **定位**：Agent 对配置的只读数据源执行 SELECT（白名单、行数上限、超时）。
 - **注册**：`@register_tool("db_query")`，`default_enabled=false`。
 - **安全**：仅允许 SELECT；禁止 DDL/DML；结果上限。

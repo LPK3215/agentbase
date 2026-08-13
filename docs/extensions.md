@@ -123,7 +123,7 @@ extensions:
 
 Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap automatically.
 
-## Built-in Tools (33)
+## Built-in Tools (34)
 
 | Tool | Description |
 |------|-------------|
@@ -135,6 +135,7 @@ Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap au
 | `kb_add` / `kb_get` / `kb_list` / `kb_search` / `kb_update` / `kb_delete` / `kb_ingest` / `kb_batch_ingest` | Knowledge base |
 | `web_search` / `web_fetch` | Web search and fetch |
 | `http_request` | Make HTTP requests (GET/POST/PUT/PATCH/DELETE) with timeout, redirect limits, and structured response |
+| `db_query` | Execute read-only SELECT queries with table whitelist, row limit, and timeout (default disabled) |
 | `mcp_list_tools` / `mcp_call_tool` | MCP server tools |
 | `code_execute` | Execute Python code in a sandboxed subprocess |
 | `transcribe` | Transcribe audio/video to text (Whisper API/local) |

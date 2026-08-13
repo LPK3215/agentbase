@@ -169,13 +169,13 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 记忆管理 | 5 | `memory_save`, `memory_get`, `memory_list`, `memory_search`, `memory_delete` |
 | 知识库 | 8 | `kb_add`, `kb_get`, `kb_list`, `kb_search`, `kb_update`, `kb_delete`, `kb_ingest`, `kb_batch_ingest` |
 | Web | 3 | `web_search`, `web_fetch`（超时+重试+Content-Type 校验+编码检测）, `http_request`（GET/POST/PUT/PATCH/DELETE+超时+重定向限制+响应截断+结构化返回） |
+| 数据库查询 | 1 | `db_query` — 只读 SELECT 查询（SELECT 强制/DDL-DML 拦截/表白名单/行数上限/超时/结构化返回） |
 | MCP | 2 | `mcp_list_tools`, `mcp_call_tool` |
 | 代码执行 | 1 | `code_execute` — 沙箱 Python 执行（代码/输出大小限制+代理新env+超时上限） |
 | 音频转录 | 1 | `transcribe` — Whisper API/本地转录 |
 
 ### 未实现
 
-- 数据库查询工具
 - 邮件发送工具
 - 日程管理工具
 
@@ -344,7 +344,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 809 |
+| 总测试数 | 892 |
 | 失败数 | 0 |
 | 覆盖率 | 65% |
 | 覆盖率门槛 | 60%（CI 强制） |

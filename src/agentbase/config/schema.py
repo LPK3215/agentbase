@@ -302,6 +302,23 @@ class SecretsConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class DBQueryConfig(BaseModel):
+    """Database query tool configuration.
+
+    - ``enabled = false`` (default) → tool registered but not auto-added to agents
+    - ``dsn``: database connection string (sqlite/postgresql/mysql)
+    - ``max_rows``: max rows returned per query (default 100, hard cap 1000)
+    - ``timeout_seconds``: query timeout (default 10, hard cap 30)
+    - ``allowed_tables``: whitelist of table names; empty = allow all
+    """
+
+    enabled: bool = False
+    dsn: str = ""
+    max_rows: int = 100
+    timeout_seconds: int = 10
+    allowed_tables: list[str] = Field(default_factory=list)
+
+
 class MCPConfig(BaseModel):
     """MCP (Model Context Protocol) server configuration.
 
@@ -363,6 +380,7 @@ class AppConfig(BaseModel):
     audit: AuditConfig = Field(default_factory=AuditConfig)
     redaction: RedactionConfig = Field(default_factory=RedactionConfig)
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
+    db_query: DBQueryConfig = Field(default_factory=DBQueryConfig)
 
 
 class PermissionRule(BaseModel):
