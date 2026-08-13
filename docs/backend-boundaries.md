@@ -191,7 +191,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 6. 中间件（7 个）
+## 6. 中间件（8 个）
 
 | 中间件 | 状态 | 说明 |
 |--------|------|------|
@@ -202,10 +202,11 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | `cache` | ✅ 已实现 | 线程安全缓存，`OrderedDict` LRU 淘汰 + TTL 过期 + 命中率统计 |
 | `redact_output` | ✅ 已实现 | 响应脱敏中间件，基于 RedactionManager 对模型输出做 PII/密钥掩码 |
 | `rate_limit` | ✅ 已实现 | 模型调用限流中间件，按 agent/全局 token bucket 限流，支持 burst 突发 |
+| `model_router` | ✅ 已实现 | 多模型路由中间件，支持 round_robin/weighted/random/failover 策略，通过 `wrap_model_call` 替换 `request.model` |
 
 ### 未实现
 
-- 多模型路由中间件（按任务复杂度选模型）
+（无）
 
 ---
 
@@ -355,7 +356,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 920 |
+| 总测试数 | 942 |
 | 失败数 | 0 |
 | 覆盖率 | 66% |
 | 覆盖率门槛 | 60%（CI 强制） |
@@ -390,7 +391,6 @@ pip install agentbase[all]          # 全部安装
 | P5 | OAuth2 第三方登录 | Google/GitHub 登录 |
 | P5 | A/B 测试框架 | Agent 策略对比 |
 | P5 | 审计日志中间件 | 合规审计 |
-| P5 | 多模型路由中间件 | 按任务复杂度选模型 |
 | P5 | Alembic 数据库迁移 | 版本化 schema |
 | P5 | MongoDB 存储 | 文档型数据库 |
 | P5 | Celery/RabbitMQ 队列 | 分布式任务 |

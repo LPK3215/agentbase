@@ -12,10 +12,10 @@
 |------|------|------|
 | 核心服务（16） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets |
 | 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets |
-| 扩展体系 | done | tools(36) / middleware(7) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| 扩展体系 | done | tools(36) / middleware(8) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 23 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 920 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 942 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -88,6 +88,13 @@
 - **定位**：基于 A2，对模型输出做脱敏后再返回，防止密钥经 LLM 泄漏。
 - **注册**：`@register_middleware("redact_output")`，`default_enabled=false`。
 - **测试**：输出含密钥被掩码；正常文本不变。
+
+#### C3. 多模型路由中间件（`model_router`）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：按策略（round_robin / weighted / random / failover）在多个模型间路由调用，支持成本优化与故障转移。
+- **注册**：`@register_middleware("model_router")`，`default_enabled=false`。
+- **配置**：`agent_config.metadata.model_router.strategy` + `models` 列表。
+- **测试**：4 种策略选择逻辑；failover 错误转移；配置缺失降级；线程安全。
 
 ### D. API / 运维层
 
