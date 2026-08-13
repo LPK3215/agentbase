@@ -268,6 +268,21 @@ class AuditConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class ExperimentConfig(BaseModel):
+    """A/B testing experiment configuration.
+
+    - ``enabled = false`` (default) → experiments disabled (NullExperimentProvider)
+    - ``enabled = true``             → enables experiment assignment and result tracking
+    - ``provider = memory`` (default) → in-memory storage (zero-config)
+    - ``options``: extra kwargs passed to the provider factory
+    - Register custom providers with ``@register_experiment_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class RedactionConfig(BaseModel):
     """Sensitive information redaction configuration.
 
@@ -378,6 +393,7 @@ class AppConfig(BaseModel):
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     extensions: ExtensionsConfig = Field(default_factory=ExtensionsConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
+    experiment: ExperimentConfig = Field(default_factory=ExperimentConfig)
     redaction: RedactionConfig = Field(default_factory=RedactionConfig)
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
     db_query: DBQueryConfig = Field(default_factory=DBQueryConfig)

@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（23 个端点）
+### 已实现（30 个端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -31,6 +31,13 @@
 | `/documents/search` | POST | 需要 | 搜索知识库 |
 | `/audit/events` | GET | 需要 | 查询审计日志（分页、过滤） |
 | `/audit/events/count` | GET | 需要 | 统计审计事件数量（支持过滤） |
+| `/experiments` | GET | 需要 | 列出所有 A/B 测试实验 |
+| `/experiments` | POST | 需要 | 创建 A/B 测试实验 |
+| `/experiments/{name}` | GET | 需要 | 获取实验详情 |
+| `/experiments/{name}` | DELETE | 需要 | 删除实验及其结果 |
+| `/experiments/{name}/assign` | POST | 需要 | 分配请求到变体 |
+| `/experiments/{name}/results` | POST | 需要 | 记录实验结果 |
+| `/experiments/{name}/stats` | GET | 需要 | 获取实验统计 |
 | `/ws/agents/{name}` | WebSocket | Token | 实时双向 Agent 对话 |
 | `/docs` | GET | 公开 | Swagger UI |
 | `/redoc` | GET | 公开 | ReDoc 文档 |
@@ -356,9 +363,9 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 942 |
+| 总测试数 | 994 |
 | 失败数 | 0 |
-| 覆盖率 | 66% |
+| 覆盖率 | 67% |
 | 覆盖率门槛 | 60%（CI 强制） |
 | ruff lint | 0 errors |
 | isort | 0 errors |
@@ -389,7 +396,6 @@ pip install agentbase[all]          # 全部安装
 | 优先级 | 功能 | 说明 |
 |--------|------|------|
 | P5 | OAuth2 第三方登录 | Google/GitHub 登录 |
-| P5 | A/B 测试框架 | Agent 策略对比 |
 | P5 | 审计日志中间件 | 合规审计 |
 | P5 | Alembic 数据库迁移 | 版本化 schema |
 | P5 | MongoDB 存储 | 文档型数据库 |

@@ -34,6 +34,7 @@ class AgentFactory:
         self._queue = None
         self._storage = None
         self._audit_manager = None
+        self._experiment_manager = None
 
     @property
     def backend(self) -> Any:
@@ -187,6 +188,26 @@ class AgentFactory:
                 **kwargs,
             )
         return self._audit_manager
+
+    @property
+    def experiment_manager(self) -> Any:
+        """Build the experiment manager from config.
+
+        When ``experiment.enabled = false`` (default), returns a
+        NullExperimentManager that silently discards all operations.
+        When enabled, creates a provider from ``experiment.provider``
+        (default ``memory``).
+        """
+        if self._experiment_manager is None:
+            from agentbase.core.experiment import ExperimentManager
+
+            exp_cfg = self.app_config.experiment
+            self._experiment_manager = ExperimentManager(
+                provider=exp_cfg.provider,
+                enabled=exp_cfg.enabled,
+                **exp_cfg.options,
+            )
+        return self._experiment_manager
 
     @property
     def checkpointer(self) -> Any:

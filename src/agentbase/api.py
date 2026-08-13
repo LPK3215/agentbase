@@ -59,6 +59,14 @@ Endpoints::
     GET    /audit/events               — query audit log (paginated, filterable)
     GET    /audit/events/count         — count audit events matching filter
 
+    GET    /experiments                — list experiments
+    POST   /experiments                — create experiment
+    GET    /experiments/{name}         — get experiment detail
+    DELETE /experiments/{name}         — delete experiment
+    POST   /experiments/{name}/assign  — assign a request to a variant
+    POST   /experiments/{name}/results — record a result
+    GET    /experiments/{name}/stats   — get experiment statistics
+
     WS     /ws/agents/{name}           — real-time agent communication
 """
 from __future__ import annotations
@@ -483,6 +491,34 @@ class QueueSubmitRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class VariantModel(BaseModel):
+    name: str
+    weight: int = 1
+    model_override: dict[str, Any] | None = None
+    system_prompt_override: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CreateExperimentRequest(BaseModel):
+    name: str
+    description: str = ""
+    strategy: str = "round_robin"
+    variants: list[VariantModel] = Field(default_factory=list)
+
+
+class AssignRequest(BaseModel):
+    request_id: str | None = None
+
+
+class RecordResultRequest(BaseModel):
+    variant_name: str
+    success: bool = True
+    duration_ms: float = 0.0
+    output_text: str = ""
+    error: str = ""
+    request_id: str | None = None
+
+
 class AgentInfo(BaseModel):
     name: str
     description: str
@@ -697,6 +733,7 @@ def create_app(*, runtime=None) -> FastAPI:
             {"name": "queue", "description": "Async task queue management"},
             {"name": "documents", "description": "Knowledge base document management"},
             {"name": "audit", "description": "Audit log query (read-only)"},
+            {"name": "experiments", "description": "A/B testing experiment management"},
             {"name": "websocket", "description": "WebSocket real-time communication"},
         ],
     )
@@ -1355,6 +1392,112 @@ def create_app(*, runtime=None) -> FastAPI:
         )
 
         return {"count": manager.count_events(flt)}
+
+    # ------------------------------------------------------------------ #
+    # Experiments — A/B testing framework                                 #
+    # ------------------------------------------------------------------ #
+    @app.get("/experiments", tags=["experiments"])
+    def list_experiments():
+        """List all A/B testing experiments.
+
+        Requires authentication. Returns empty list when experiments
+        are disabled (``experiment.enabled=false``).
+        """
+        rt = get_runtime()
+        manager = rt.factory.experiment_manager
+        experiments = manager.list_experiments()
+        return {
+            "items": [e.to_dict() for e in experiments],
+            "total": len(experiments),
+            "enabled": manager.enabled,
+        }
+
+    @app.post("/experiments", tags=["experiments"])
+    def create_experiment(req: CreateExperimentRequest):
+        """Create a new A/B testing experiment.
+
+        Requires authentication.
+        """
+        rt = get_runtime()
+        manager = rt.factory.experiment_manager
+        from agentbase.core.experiment import Variant
+
+        if not req.variants:
+            raise HTTPException(status_code=400, detail="At least one variant is required")
+
+        variants = [
+            Variant(
+                name=v.name,
+                weight=v.weight,
+                model_override=v.model_override,
+                system_prompt_override=v.system_prompt_override,
+                metadata=v.metadata,
+            )
+            for v in req.variants
+        ]
+
+        exp = manager.create_experiment(
+            name=req.name,
+            description=req.description,
+            variants=variants,
+            strategy=req.strategy,
+        )
+        return exp.to_dict()
+
+    @app.get("/experiments/{name}", tags=["experiments"])
+    def get_experiment(name: str):
+        """Get experiment details by name."""
+        rt = get_runtime()
+        manager = rt.factory.experiment_manager
+        exp = manager.get_experiment(name)
+        if exp is None:
+            raise HTTPException(status_code=404, detail=f"Experiment not found: {name}")
+        return exp.to_dict()
+
+    @app.delete("/experiments/{name}", tags=["experiments"])
+    def delete_experiment(name: str):
+        """Delete an experiment and all its results."""
+        rt = get_runtime()
+        manager = rt.factory.experiment_manager
+        deleted = manager.delete_experiment(name)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Experiment not found: {name}")
+        return {"deleted": True, "name": name}
+
+    @app.post("/experiments/{name}/assign", tags=["experiments"])
+    def assign_variant(name: str, req: AssignRequest | None = None):
+        """Assign a request to a variant in the experiment.
+        """
+        rt = get_runtime()
+        manager = rt.factory.experiment_manager
+        request_id = req.request_id if req else None
+        assignment = manager.assign(name, request_id=request_id)
+        return assignment.to_dict()
+
+    @app.post("/experiments/{name}/results", tags=["experiments"])
+    def record_experiment_result(name: str, req: RecordResultRequest):
+        """Record a result for a variant in the experiment.
+        """
+        rt = get_runtime()
+        manager = rt.factory.experiment_manager
+        result = manager.record_result(
+            experiment_name=name,
+            variant_name=req.variant_name,
+            success=req.success,
+            duration_ms=req.duration_ms,
+            output_text=req.output_text,
+            error=req.error,
+            request_id=req.request_id,
+        )
+        return result.to_dict()
+
+    @app.get("/experiments/{name}/stats", tags=["experiments"])
+    def get_experiment_stats(name: str):
+        """Get aggregate statistics for an experiment."""
+        rt = get_runtime()
+        manager = rt.factory.experiment_manager
+        stats = manager.get_stats(name)
+        return stats.to_dict()
 
     # ------------------------------------------------------------------ #
     # WebSocket — real-time agent communication                          #

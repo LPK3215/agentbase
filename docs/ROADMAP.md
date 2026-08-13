@@ -10,12 +10,12 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 核心服务（16） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets |
-| 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets |
+| 核心服务（17） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment |
+| 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment |
 | 扩展体系 | done | tools(36) / middleware(8) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 23 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit |
+| API 层 | done | 30 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 942 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 994 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -124,6 +124,18 @@
 #### F2. 迁移指南
 - **状态**：done ｜ **优先级**：P3
 - **定位**：`docs/migrations/`：SQLite→PostgreSQL、Memory→Redis、Null→Langfuse 的逐步指南。
+
+### G. 实验与质量保障
+
+#### G1. A/B 测试框架（Experiment）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：对比不同 Agent 策略效果（模型/system_prompt/temperature），支持 round_robin / weighted / random 分配策略和统计报告。
+- **接口**：`ExperimentProvider` Protocol（create / assign / record_result / get_stats / delete）。
+- **默认实现**：`InMemoryExperimentProvider`（零配置，进程内存储）；`NullExperimentProvider`（禁用时 no-op）。
+- **注册**：`experiment_registry`，`@register_experiment_provider("name")`。
+- **开关**：config `experiment.enabled=false`（默认关）。
+- **API**：`/experiments` CRUD + `/assign` + `/results` + `/stats`（7 条路由）。
+- **测试**：create / assign（4 种策略）/ record / stats / delete / API 全链路。
 
 ---
 
