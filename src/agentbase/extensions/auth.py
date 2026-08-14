@@ -110,11 +110,22 @@ class JWTAuth:
     def __init__(
         self,
         *,
-        secret: str = "agentbase-default-secret",
+        secret: str = "",
         token_expiry_hours: int = 24,
         refresh_expiry_hours: int = 168,  # 7 days
         role_permissions: dict[str, list[str]] | None = None,
     ) -> None:
+        if not secret:
+            # Fail-safe: generate a random per-instance secret so that
+            # tokens issued by one process are not forgeable by an
+            # attacker who knows a well-known default.  A warning is
+            # logged so operators know they need to set a proper secret.
+            secret = uuid.uuid4().hex + uuid.uuid4().hex
+            logger.warning(
+                "JWT secret is empty — generated a random ephemeral secret. "
+                "Set AGENTBASE_AUTH__SECRET to a stable value for production.",
+                extra={"event": "auth.jwt.ephemeral_secret"},
+            )
         self._secret = secret.encode("utf-8")
         self._expiry = token_expiry_hours * 3600
         self._refresh_expiry = refresh_expiry_hours * 3600

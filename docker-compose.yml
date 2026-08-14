@@ -78,7 +78,8 @@ services:
       - AGENTBASE_CORS_ORIGINS=${AGENTBASE_CORS_ORIGINS:-*}
       # JWT auth (optional)
       - AGENTBASE_AUTH__TYPE=${AGENTBASE_AUTH__TYPE:-api_key}
-      - AGENTBASE_AUTH__SECRET=${AGENTBASE_AUTH__SECRET:-agentbase-default-secret}
+      # JWT secret — MUST be set when AUTH__TYPE=jwt; no insecure default.
+      - AGENTBASE_AUTH__SECRET=${AGENTBASE_AUTH__SECRET:-}
       # Rate limiting
       - AGENTBASE_RATE_LIMIT__ENABLED=${AGENTBASE_RATE_LIMIT__ENABLED:-true}
       - AGENTBASE_RATE_LIMIT__MAX_REQUESTS=${AGENTBASE_RATE_LIMIT__MAX_REQUESTS:-60}

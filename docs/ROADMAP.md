@@ -11,9 +11,9 @@
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 核心服务（17） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment |
-| 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment |
+| 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager |
 | 扩展体系 | done | tools(37) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 33 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / admin(rate-limit) |
+| API 层 | done | 39 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / admin(rate-limit) |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
 | 测试基座 | done | 1555 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
@@ -173,6 +173,16 @@
 - **安全**：收件人上限 50、正文上限 500K 字符、主题上限 200 字符、超时上限 60s。
 - **依赖**：无外部依赖（Python 标准库 `smtplib` + `email.mime`）。
 - **测试**：注册（3）+ 验证（4）+ 截断（2）+ 构建（2）+ 发送（7）+ 错误处理（4）= 22 测试。
+
+#### G6. 模型管理服务（ModelProvider）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：多模型注册、CRUD、连通性测试——标准 AI 后台系统的核心基础能力。
+- **接口**：`ModelProvider` Protocol（`register` / `get` / `list` / `update` / `delete` / `close`）。
+- **默认实现**：`InMemoryModelProvider`（零配置，进程内存储，线程安全）；`NullModelProvider`（禁用时 no-op）。
+- **注册**：`model_registry`，`@register_model_provider("name")`。
+- **开关**：config `model_manager.enabled=false`（默认关）。
+- **API**：`/models` CRUD + `/models/{name}/test`（6 条路由）。
+- **测试**：数据模型（3）+ InMemory CRUD（14）+ Null（5）+ Manager（8）+ Registry（5）+ Singleton（2）+ Protocol（2）= 39 测试。
 
 ---
 

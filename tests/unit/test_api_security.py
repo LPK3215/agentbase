@@ -227,6 +227,72 @@ class TestCors:
         )
         assert response.status_code == 200
 
+    def test_wildcard_origin_disables_credentials(self, client_no_auth):
+        """When origins is [*], allow_credentials must be False (CORS spec)."""
+        response = client_no_auth.options(
+            "/agents",
+            headers={
+                "Origin": "http://evil.example.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        # The key should either be absent or explicitly "false" / "0"
+        cred_header = response.headers.get("access-control-allow-credentials", "")
+        assert cred_header.lower() not in ("true", "1")
+
+    def test_explicit_origins_enable_credentials(self, mock_runtime):
+        """When origins are explicit, credentials should be allowed."""
+        reset_runtime()
+        _reset_rate_limiter()
+        with patch.dict("os.environ", {
+            "AGENTBASE_API_KEY": "",
+            "AGENTBASE_CORS_ORIGINS": "https://app.example.com,https://admin.example.com",
+        }, clear=False):
+            app = create_app(runtime=mock_runtime)
+            with TestClient(app, raise_server_exceptions=False) as c:
+                response = c.options(
+                    "/agents",
+                    headers={
+                        "Origin": "https://app.example.com",
+                        "Access-Control-Request-Method": "GET",
+                    },
+                )
+                assert response.status_code == 200
+                assert response.headers.get("access-control-allow-credentials", "").lower() == "true"
+        reset_runtime()
+        _reset_rate_limiter()
+
+
+class TestCORSConfig:
+    """Unit tests for CORSConfig schema logic."""
+
+    def test_default_credentials_is_false(self):
+        from agentbase.config.schema import CORSConfig
+
+        cfg = CORSConfig()
+        assert cfg.allow_credentials is False
+
+    def test_effective_credentials_false_with_wildcard(self):
+        from agentbase.config.schema import CORSConfig
+
+        cfg = CORSConfig(allow_origins=["*"], allow_credentials=True)
+        assert cfg.effective_credentials() is False
+
+    def test_effective_credentials_true_with_explicit_origins(self):
+        from agentbase.config.schema import CORSConfig
+
+        cfg = CORSConfig(
+            allow_origins=["https://app.example.com"],
+            allow_credentials=True,
+        )
+        assert cfg.effective_credentials() is True
+
+    def test_effective_credentials_false_when_not_set(self):
+        from agentbase.config.schema import CORSConfig
+
+        cfg = CORSConfig(allow_origins=["https://app.example.com"])
+        assert cfg.effective_credentials() is False
+
 
 class TestErrorHandling:
     def test_agent_not_found_returns_404(self, client_no_auth):
@@ -296,3 +362,60 @@ class TestQueueWithAuth:
             headers={"Authorization": "Bearer secret-key-123"},
         )
         assert response.status_code == 200
+
+
+class TestApiKeyConstantTime:
+    """Direct unit tests for _verify_api_key using constant-time comparison.
+
+    The existing TestApiKeyAuth tests verify the end-to-end HTTP behaviour;
+    these tests target the _verify_api_key function directly to cover
+    edge cases that the HTTP-level tests don't reach.
+    """
+
+    def test_correct_bearer_key(self):
+        from agentbase.api import _verify_api_key
+
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": "my-key-abc"}):
+            request = MagicMock()
+            request.headers = {"Authorization": "Bearer my-key-abc"}
+            assert _verify_api_key(request) is True
+
+    def test_wrong_bearer_key(self):
+        from agentbase.api import _verify_api_key
+
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": "my-key-abc"}):
+            request = MagicMock()
+            request.headers = {"Authorization": "Bearer wrong-key"}
+            assert _verify_api_key(request) is False
+
+    def test_correct_x_api_key(self):
+        from agentbase.api import _verify_api_key
+
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": "my-key-abc"}):
+            request = MagicMock()
+            request.headers = {"X-API-Key": "my-key-abc"}
+            assert _verify_api_key(request) is True
+
+    def test_wrong_x_api_key(self):
+        from agentbase.api import _verify_api_key
+
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": "my-key-abc"}):
+            request = MagicMock()
+            request.headers = {"X-API-Key": "wrong-key"}
+            assert _verify_api_key(request) is False
+
+    def test_no_headers(self):
+        from agentbase.api import _verify_api_key
+
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": "my-key-abc"}):
+            request = MagicMock()
+            request.headers = {}
+            assert _verify_api_key(request) is False
+
+    def test_auth_disabled_no_key(self):
+        from agentbase.api import _verify_api_key
+
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": ""}, clear=False):
+            request = MagicMock()
+            request.headers = {}
+            assert _verify_api_key(request) is True

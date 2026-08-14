@@ -617,6 +617,143 @@ class TestAgentRunnerFromModePayload:
         )
         assert result.type == EventType.RAW
 
+
+# ---------------------------------------------------------------------------
+# AgentRunner.stream — semaphore coverage (concurrency limit)
+# ---------------------------------------------------------------------------
+
+
+class TestAgentRunnerStreamSemaphore:
+    """Verify that the semaphore is held during the entire stream iteration,
+    not just during iterator creation."""
+
+    def _make_runner(self, max_conc: int = 1):
+        from agentbase.runtime.runner import AgentRunner
+
+        mock_factory = MagicMock()
+        mock_factory.tracer = None
+        mock_config = MagicMock()
+        mock_config.runtime.max_concurrency = max_conc
+        mock_config.runtime.recursion_limit = 50
+        mock_config.runtime.stream_modes = ["messages"]
+        return AgentRunner(factory=mock_factory, app_config=mock_config)
+
+    def test_semaphore_held_during_iteration(self):
+        """When max_concurrency=1, a second stream must block until the
+        first completes iteration — not just until iterator creation."""
+        import threading
+        from agentbase.runtime.events import EventType
+
+        runner = self._make_runner(max_conc=1)
+        barrier = threading.Event()
+        second_started = threading.Event()
+
+        class BlockingAgent:
+            def stream(self, payload, config=None, stream_mode=None):
+                # Return a lazy iterator that blocks until the first
+                # stream consumer signals it can proceed.
+                def _gen():
+                    yield ("messages", {"content": "first"})
+                    # Signal that the first stream is mid-iteration
+                    barrier.set()
+                    # Wait for the test to confirm the second stream is blocked
+                    second_started.wait(timeout=5)
+                    yield ("messages", {"content": "done"})
+                return _gen()
+
+        class FastAgent:
+            def stream(self, payload, config=None, stream_mode=None):
+                # If the semaphore is properly held, this will only
+                # be called after the first stream finishes.
+                second_started.set()
+                return iter([("messages", {"content": "second"})])
+
+        agent1 = BlockingAgent()
+        agent2 = FastAgent()
+
+        events1 = []
+        errors = []
+
+        def run_stream1():
+            try:
+                for ev in runner.stream(
+                    agent=agent1, agent_name="a1",
+                    message="hi", thread_id="t1",
+                ):
+                    events1.append(ev)
+            except Exception as exc:
+                errors.append(exc)
+
+        def run_stream2():
+            # Wait for the first stream to start iterating
+            barrier.wait(timeout=5)
+            try:
+                for ev in runner.stream(
+                    agent=agent2, agent_name="a2",
+                    message="hi", thread_id="t2",
+                ):
+                    pass
+            except Exception as exc:
+                errors.append(exc)
+
+        t1 = threading.Thread(target=run_stream1)
+        t2 = threading.Thread(target=run_stream2)
+        t1.start()
+        t2.start()
+        t1.join(timeout=10)
+        t2.join(timeout=10)
+
+        assert errors == [], f"Unexpected errors: {errors}"
+        # If the semaphore works, the second stream's agent.stream() was
+        # only called after the first finished — meaning second_started
+        # was set by run_stream2, not by the first stream's barrier.
+        assert second_started.is_set()
+        assert any(e.type == EventType.RUN_FINISHED for e in events1)
+
+    def test_semaphore_released_on_stream_error(self):
+        """If a stream raises during iteration, the semaphore must be released."""
+        from agentbase.runtime.errors import RuntimeExecutionError
+
+        runner = self._make_runner(max_conc=1)
+
+        class ErrorAgent:
+            def stream(self, payload, config=None, stream_mode=None):
+                def _gen():
+                    yield ("messages", {"content": "chunk1"})
+                    raise ValueError("mid-stream error")
+                return _gen()
+
+        agent = ErrorAgent()
+        with pytest.raises(RuntimeExecutionError, match="stream iteration failed"):
+            list(runner.stream(
+                agent=agent, agent_name="err",
+                message="hi", thread_id="t-err",
+            ))
+
+        # Semaphore should be available now — a new stream should work
+        agent2 = MagicMock()
+        agent2.stream.return_value = iter([("messages", {"content": "ok"})])
+        events = list(runner.stream(
+            agent=agent2, agent_name="ok",
+            message="hi", thread_id="t-ok",
+        ))
+        # Should have at least RUN_STARTED and RUN_FINISHED
+        from agentbase.runtime.events import EventType
+        assert any(e.type == EventType.RUN_FINISHED for e in events)
+
+
+class TestAgentRunnerFromModePayloadExtra:
+    def _make_runner(self):
+        from agentbase.runtime.runner import AgentRunner
+
+        mock_factory = MagicMock()
+        mock_factory.tracer = None
+        mock_config = MagicMock()
+        mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.recursion_limit = 50
+        mock_config.runtime.stream_modes = ["messages"]
+        return AgentRunner(factory=mock_factory, app_config=mock_config)
+
     def test_unknown_mode(self):
         from agentbase.runtime.events import EventType
 

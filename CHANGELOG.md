@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Model management service (ModelProvider)**: Multi-model CRUD and connectivity testing. New `core/model_manager.py` with `ModelProvider` Protocol, `InMemoryModelProvider` (default), `NullModelProvider` (disabled), `ModelManager` wrapper with `test()` method, and `@register_model_provider` decorator for custom providers. 6 new API endpoints: `GET /models`, `POST /models`, `GET /models/{name}`, `PATCH /models/{name}`, `DELETE /models/{name}`, `POST /models/{name}/test`. Config: `model_manager.enabled` + `model_manager.provider`. Added `tests/unit/test_core_model_manager.py` (39 tests: CRUD, null provider, registry, singleton, concurrency, protocol compliance). Total routes: 33 → 39, total tests: 1588 → 1627.
+
+### Fixed
+- **`code_execute` tool could never be assembled**: the tool function was registered directly via `@register_tool` instead of a builder function, violating the tool-factory contract (`builder(context)`). Assembly raised `TypeError` twice and the tool was silently skipped (`skip_on_error=True`). Fixed by registering `build_code_execute_tool()` which wraps the sandbox function in a LangChain `@tool`, following the same pattern as all other 36 tools. Added `tests/unit/test_tool_code_execute.py` (8 tests: factory assembly, real subprocess execution, timeout/size limits, error paths).
+- **JWT hardcoded default secret (P0 security)**: `AuthConfig.secret` and `JWTAuth.__init__` both defaulted to `"agentbase-default-secret"` — anyone knowing this value could forge JWT tokens when `auth.type: jwt` was configured without an explicit secret. Fixed by: (1) defaulting `secret` to empty string in both `AuthConfig` and `JWTAuth`; (2) `_get_jwt_auth()` now raises `ConfigError` (`AGENTBASE_CONFIG_002`) on empty secret when `type=jwt` (fail-fast); (3) `JWTAuth` generates a random ephemeral secret as last-resort fail-safe (with warning log); (4) `docker-compose.yml` removed the insecure fallback. Added `tests/unit/test_jwt_security.py` (11 tests).
+- **API key timing side-channel (P1 security)**: `_verify_api_key()` and `_verify_auth()` used Python `==` for API key comparison, which short-circuits on the first differing byte — enabling timing attacks to recover the key byte-by-byte. Fixed by replacing all 3 comparison sites with `hmac.compare_digest()` (constant-time comparison). Added 6 direct unit tests in `test_api_security.py::TestApiKeyConstantTime`.
+- **CORS wildcard + credentials (P1 security)**: `CORSMiddleware` was hardcoded with `allow_credentials=True` while defaulting to `allow_origins=["*"]` — a combination forbidden by the CORS spec that causes browsers to reflect arbitrary Origin headers, effectively disabling CORS protection. Fixed by: (1) `allow_credentials` is now dynamically `False` when origins contain `*`; (2) `CORSConfig.allow_credentials` default changed from `True` to `False`; (3) added `effective_credentials()` method to schema. Added 6 tests (2 HTTP-level + 4 schema unit).
+- **Stream semaphore bypass (P1 concurrency)**: `AgentRunner.stream()` held the `threading.Semaphore` only around `agent.stream()` (iterator creation) and released it before iterating — meaning `max_concurrency` was effectively bypassed for all streaming requests. Fixed by moving the semaphore to `acquire()` before iteration and `release()` in a `finally` block, so it covers the entire stream consumption. Added 2 concurrency tests (threading-based blocking verification + error-release verification).
+
+### Docs
+- README metrics corrected to match code reality: 32 → 37 built-in tools, 21 → 33 API routes, 520 → 1563 tests, 65% → 74% coverage
+
 ## [0.4.0] - Production Grade + Rebrand
 
 ### Added

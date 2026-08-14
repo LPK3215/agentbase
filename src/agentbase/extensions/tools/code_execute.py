@@ -27,6 +27,9 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
+
+from langchain_core.tools import tool
 
 from agentbase.extensions._meta import ExtensionMeta
 from agentbase.registry.tools import register_tool
@@ -44,7 +47,6 @@ _MAX_TIMEOUT = 60               # 60 seconds hard cap
 _DEFAULT_TIMEOUT = 10           # 10 seconds default
 
 
-@register_tool("code_execute", meta=_CODE_EXECUTE_META)
 def code_execute(
     code: str,
     language: str = "python",
@@ -156,4 +158,35 @@ def code_execute(
         script_path.unlink(missing_ok=True)
 
 
-__all__ = ["code_execute"]
+@register_tool("code_execute", meta=_CODE_EXECUTE_META)
+def build_code_execute_tool(context: dict[str, Any] | None = None):
+    """Build the ``code_execute`` tool instance.
+
+    Wraps the module-level :func:`code_execute` in a LangChain tool so the
+    tool factory can assemble it via the standard builder contract.
+    ``context`` is accepted for contract compatibility; the tool is stateless
+    and requires no shared context.
+    """
+
+    @tool("code_execute")
+    def code_execute_tool(
+        code: str,
+        language: str = "python",
+        timeout: int = _DEFAULT_TIMEOUT,
+    ) -> dict:
+        """Execute Python code in a sandboxed subprocess.
+
+        Args:
+            code: Python source code to execute.
+            language: Programming language (only "python" supported).
+            timeout: Execution timeout in seconds (max 60).
+
+        Returns:
+            dict with keys: stdout, stderr, exit_code, timed_out
+        """
+        return code_execute(code=code, language=language, timeout=timeout)
+
+    return code_execute_tool
+
+
+__all__ = ["build_code_execute_tool", "code_execute"]

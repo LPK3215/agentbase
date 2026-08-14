@@ -70,13 +70,22 @@ Endpoints::
      POST   /admin/rate-limit/quotas/{role} — set per-role quota
      DELETE /admin/rate-limit/buckets    — reset all buckets
 
+     GET    /models                      — list all registered models
+     POST   /models                      — register a new model config
+     GET    /models/{name}               — get model config detail
+     PATCH  /models/{name}               — update model config fields
+     DELETE /models/{name}               — delete a model config
+     POST   /models/{name}/test          — test model connectivity
+
 
     WS     /ws/agents/{name}           — real-time agent communication
 """
 from __future__ import annotations
 
+import hmac
 import json
 import os
+import threading
 import time
 import uuid
 from collections import defaultdict
@@ -145,20 +154,41 @@ def _verify_api_key(request: Request) -> bool:
         token = auth_header[7:]
         # If JWT auth is configured, the token may be a JWT
         # The JWT verification is handled separately
-        return token == _get_api_key()
+        # Use constant-time comparison to prevent timing side-channel
+        expected = _get_api_key()
+        if expected is not None:
+            return hmac.compare_digest(token, expected)
+        return False
     api_key_header = request.headers.get("X-API-Key", "")
     if api_key_header:
-        return api_key_header == _get_api_key()
+        expected = _get_api_key()
+        if expected is not None:
+            return hmac.compare_digest(api_key_header, expected)
+        return False
     return False
 
 
 def _get_jwt_auth(app_config: Any) -> Any | None:
-    """Get JWTAuth instance if JWT auth is configured."""
+    """Get JWTAuth instance if JWT auth is configured.
+
+    Raises ``ConfigError`` if ``auth.type`` is ``jwt`` but ``secret``
+    is empty — this is a fail-fast guard so the server never starts
+    with an unforgeable but ephemeral secret that would silently
+    invalidate all tokens on restart.
+    """
     auth_cfg = getattr(app_config, "auth", None)
     if auth_cfg is None or auth_cfg.type != "jwt":
         return None
     from agentbase.extensions.auth import JWTAuth, DEFAULT_ROLE_PERMISSIONS
+    from agentbase.runtime.errors import ConfigError
 
+    if not auth_cfg.secret:
+        raise ConfigError(
+            "JWT auth type is 'jwt' but no secret is configured. "
+            "Set AGENTBASE_AUTH__SECRET to a strong random value.",
+            code="AGENTBASE_CONFIG_002",
+            detail={"field": "auth.secret"},
+        )
     role_perms = auth_cfg.role_permissions or DEFAULT_ROLE_PERMISSIONS
     return JWTAuth(
         secret=auth_cfg.secret,
@@ -183,9 +213,10 @@ def _verify_auth(request: Request, app_config: Any) -> tuple[bool, dict[str, Any
             if payload is not None:
                 return True, payload
             return False, None
-        # Also check X-API-Key as fallback
+        # Also check X-API-Key as fallback (constant-time comparison)
         api_key = request.headers.get("X-API-Key", "")
-        if api_key and api_key == _get_api_key():
+        expected = _get_api_key()
+        if api_key and expected is not None and hmac.compare_digest(api_key, expected):
             return True, None
         return False, None
 
@@ -570,6 +601,42 @@ class RecordResultRequest(BaseModel):
     request_id: str | None = None
 
 
+class RegisterModelRequest(BaseModel):
+    """Request body for registering a model configuration."""
+    name: str
+    provider: str = "openai"
+    model_name: str = ""
+    temperature: float = 0.0
+    max_tokens: int | None = None
+    timeout_seconds: int = 120
+    base_url: str | None = None
+    api_key_env: str | None = None
+    extra: dict[str, Any] = Field(default_factory=dict)
+    description: str = ""
+    enabled: bool = True
+    tags: list[str] = Field(default_factory=list)
+
+
+class UpdateModelRequest(BaseModel):
+    """Request body for updating a model configuration."""
+    provider: str | None = None
+    model_name: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    timeout_seconds: int | None = None
+    base_url: str | None = None
+    api_key_env: str | None = None
+    extra: dict[str, Any] | None = None
+    description: str | None = None
+    enabled: bool | None = None
+    tags: list[str] | None = None
+
+
+class TestModelRequest(BaseModel):
+    """Request body for testing a model configuration."""
+    prompt: str = "Say hello in one word."
+
+
 class AgentInfo(BaseModel):
     name: str
     description: str
@@ -659,6 +726,37 @@ def _reset_rate_limiter() -> None:
     """Reset rate limiter (for testing)."""
     global _rate_limiter
     _rate_limiter = None
+
+
+# Model manager singleton (lazily built from app config)
+_model_manager: Any = None
+_model_manager_lock = threading.Lock()
+
+
+def _get_model_manager() -> Any:
+    """Get or create the ModelManager singleton from app config."""
+    global _model_manager
+    if _model_manager is None:
+        with _model_manager_lock:
+            if _model_manager is None:
+                from agentbase.core.model_manager import ModelManager, set_model_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.model_manager
+                mgr = ModelManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    **cfg.options,
+                )
+                set_model_manager(mgr)
+                _model_manager = mgr
+    return _model_manager
+
+
+def _reset_model_manager() -> None:
+    """Reset model manager singleton (for testing)."""
+    global _model_manager
+    _model_manager = None
 
 
 def _make_error_response(
@@ -785,6 +883,7 @@ def create_app(*, runtime=None) -> FastAPI:
             {"name": "documents", "description": "Knowledge base document management"},
             {"name": "audit", "description": "Audit log query (read-only)"},
             {"name": "experiments", "description": "A/B testing experiment management"},
+            {"name": "models", "description": "Model configuration CRUD and connectivity testing"},
             {"name": "admin", "description": "Admin operations (rate-limit quota management)"},
             {"name": "websocket", "description": "WebSocket real-time communication"},
         ],
@@ -794,10 +893,15 @@ def create_app(*, runtime=None) -> FastAPI:
     # CORS middleware                                                    #
     # ------------------------------------------------------------------ #
     cors_origins = os.environ.get("AGENTBASE_CORS_ORIGINS", "*").split(",")
+    cors_origins = [o.strip() for o in cors_origins if o.strip()]
+    # Per CORS spec, credentials are not allowed with wildcard origin.
+    # When origins is ["*"], force allow_credentials=False to prevent
+    # the browser from reflecting arbitrary Origin headers.
+    allow_credentials = "*" not in cors_origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[o.strip() for o in cors_origins],
-        allow_credentials=True,
+        allow_origins=cors_origins,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -1570,6 +1674,124 @@ def create_app(*, runtime=None) -> FastAPI:
         manager = rt.factory.experiment_manager
         stats = manager.get_stats(name)
         return stats.to_dict()
+
+    # ------------------------------------------------------------------ #
+    # Models — multi-model CRUD and testing                             #
+    # ------------------------------------------------------------------ #
+    @app.get("/models", tags=["models"])
+    def list_models():
+        """List all registered model configurations.
+
+        Returns empty list when model management is disabled
+        (``model_manager.enabled=false``).
+        """
+        mgr = _get_model_manager()
+        if not mgr.enabled:
+            return {"enabled": False, "items": [], "total": 0}
+        models = mgr.list()
+        return {
+            "enabled": True,
+            "items": [m.to_dict() for m in models],
+            "total": len(models),
+        }
+
+    @app.post("/models", tags=["models"])
+    def register_model(req: RegisterModelRequest):
+        """Register a new model configuration or replace an existing one.
+
+        If a model with the same name already exists, it will be updated.
+        """
+        mgr = _get_model_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Model management is disabled. Set model_manager.enabled=true to enable.",
+            )
+        from agentbase.core.model_manager import ModelEntry
+
+        entry = ModelEntry(
+            name=req.name,
+            provider=req.provider,
+            model_name=req.model_name,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+            timeout_seconds=req.timeout_seconds,
+            base_url=req.base_url,
+            api_key_env=req.api_key_env,
+            extra=req.extra,
+            description=req.description,
+            enabled=req.enabled,
+            tags=req.tags,
+        )
+        try:
+            stored = mgr.register(entry)
+            return stored.to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/models/{name}", tags=["models"])
+    def get_model(name: str):
+        """Get a model configuration by name."""
+        mgr = _get_model_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Model management is disabled.",
+            )
+        entry = mgr.get(name)
+        if entry is None:
+            raise HTTPException(status_code=404, detail=f"Model '{name}' not found")
+        return entry.to_dict()
+
+    @app.patch("/models/{name}", tags=["models"])
+    def update_model(name: str, req: UpdateModelRequest):
+        """Update fields on an existing model configuration.
+
+        Only non-None fields in the request body are applied.
+        """
+        mgr = _get_model_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Model management is disabled.",
+            )
+        changes = {k: v for k, v in req.model_dump().items() if v is not None}
+        if not changes:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        updated = mgr.update(name, changes)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Model '{name}' not found")
+        return updated.to_dict()
+
+    @app.delete("/models/{name}", tags=["models"])
+    def delete_model(name: str):
+        """Delete a model configuration by name."""
+        mgr = _get_model_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Model management is disabled.",
+            )
+        deleted = mgr.delete(name)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Model '{name}' not found")
+        return {"deleted": True, "name": name}
+
+    @app.post("/models/{name}/test", tags=["models"])
+    def test_model(name: str, req: TestModelRequest):
+        """Test a model's connectivity by sending a simple prompt.
+
+        Builds a LangChain model instance from the registered configuration
+        and sends a test message. Returns response text and timing.
+        """
+        mgr = _get_model_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Model management is disabled.",
+            )
+        result = mgr.test(name, prompt=req.prompt)
+        return result.to_dict()
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

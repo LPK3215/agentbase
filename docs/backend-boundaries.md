@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（30 个端点）
+### 已实现（36 个端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -38,6 +38,12 @@
 | `/experiments/{name}/assign` | POST | 需要 | 分配请求到变体 |
 | `/experiments/{name}/results` | POST | 需要 | 记录实验结果 |
 | `/experiments/{name}/stats` | GET | 需要 | 获取实验统计 |
+| `/models` | GET | 需要 | 列出所有已注册模型配置 |
+| `/models` | POST | 需要 | 注册/替换模型配置 |
+| `/models/{name}` | GET | 需要 | 获取模型配置详情 |
+| `/models/{name}` | PATCH | 需要 | 更新模型配置字段 |
+| `/models/{name}` | DELETE | 需要 | 删除模型配置 |
+| `/models/{name}/test` | POST | 需要 | 测试模型连通性（发送测试 prompt） |
 | `/ws/agents/{name}` | WebSocket | Token | 实时双向 Agent 对话 |
 | `/docs` | GET | 公开 | Swagger UI |
 | `/redoc` | GET | 公开 | ReDoc 文档 |
@@ -219,7 +225,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（9 个注册表）
+## 7. 可插拔 Provider（10 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -232,6 +238,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 知识图谱 | NullGraphProvider | ✅ | `@register_graph_provider("name")` |
 | 存储 | SQLiteBackend / PostgresBackend / MySQLBackend / MongoDBBackend | ✅ | 配置切换 `storage.type` |
 | 检查点 | MemorySaver / SqliteSaver / PostgresSaver / MySQLSaver | ✅ | 配置切换 `checkpointer.type` |
+| 模型管理 | InMemoryModelProvider / NullModelProvider | ✅ | `@register_model_provider("name")` |
 
 ### 内置但未默认启用的 Provider
 
@@ -250,6 +257,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | MongoDB 存储 | ✅ 已验证 | `storage.type: mongodb` |
 | LLM 文档解析 | ✅ 已验证 | 直接实例化 `LLMDocumentParser()` |
 | OCR 解析 | ✅ 已验证 | 直接实例化 `OCRParser()` |
+| 模型管理 | ✅ 已验证 | `model_manager.enabled: true` + `model_manager.provider: memory` |
 
 ### 未实现
 
@@ -339,10 +347,10 @@ pip install agentbase[all]          # 全部安装
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| API Key 认证 | ✅ 已实现 | Bearer Token / X-API-Key |
-| JWT 认证 | ✅ 已实现 | HMAC-SHA256，Token 过期，自定义 claims |
+| API Key 认证 | ✅ 已实现 | Bearer Token / X-API-Key，常数时间比较（`hmac.compare_digest`） |
+| JWT 认证 | ✅ 已实现 | HMAC-SHA256，Token 过期，自定义 claims，secret 为空时 fail-fast（`AGENTBASE_CONFIG_002`） |
 | RBAC 权限控制 | ✅ 已实现 | admin/user/readonly 三级角色，路径级权限 |
-| CORS | ✅ 已实现 | 可配置 origins |
+| CORS | ✅ 已实现 | 可配置 origins，通配符 `*` 时自动禁用 credentials（CORS 规范） |
 | 速率限制 | ✅ 已实现 | 每 IP 60 req/min，支持按角色动态配额（`quotas` 配置 + `/admin/rate-limit` API） |
 
 ### 未实现
@@ -366,7 +374,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 1555 |
+| 总测试数 | 1627 |
 | 失败数 | 0 |
 | 覆盖率 | 74% |
 | 覆盖率门槛 | 60%（CI 强制） |
@@ -403,4 +411,5 @@ pip install agentbase[all]          # 全部安装
 | P5 | Alembic 数据库迁移 | 版本化 schema |
 | P5 | ~~MongoDB 存储~~ | ~~✅ 已实现~~ `storage.type: mongodb`，SQL→MongoDB 适配层 |
 | P5 | ~~Celery/RabbitMQ 队列~~ | ~~✅ 已实现~~ `queue.provider: celery`，分布式任务（RabbitMQ/Redis broker） |
+| P5 | ~~模型管理 CRUD~~ | ~~✅ 已实现~~ `model_manager.enabled=true`，多模型注册/查询/更新/删除 + 连通性测试 + `/models` API（6 条路由） |
 | P5 | 前端 UI | Web 管理界面 |

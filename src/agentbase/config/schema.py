@@ -155,7 +155,10 @@ class AuthConfig(BaseModel):
     """
 
     type: Literal["api_key", "jwt", "none"] = "api_key"
-    secret: str = "agentbase-default-secret"
+    # When type=jwt, a non-empty secret is **required**.  If left empty,
+    # the application will refuse to start (fail-fast in _get_jwt_auth).
+    # Set via ``AGENTBASE_AUTH__SECRET`` environment variable.
+    secret: str = ""
     token_expiry_hours: int = 24
     role_permissions: dict[str, list[str]] = Field(default_factory=dict)
     api_key: str | None = None  # if set, overrides env-based API key
@@ -212,16 +215,33 @@ class RateLimitConfig(BaseModel):
 class CORSConfig(BaseModel):
     """CORS (Cross-Origin Resource Sharing) configuration.
 
-    - ``allow_origins``: comma-separated list of allowed origins (default ``*``)
+    - ``allow_origins``: list of allowed origins (default ``["*"]``)
     - ``allow_methods``: list of allowed HTTP methods (default all)
     - ``allow_headers``: list of allowed headers (default all)
-    - ``allow_credentials``: whether to send credentials (default true)
+    - ``allow_credentials``: whether to send credentials (default ``False``)
+
+    .. note::
+        When ``allow_origins`` contains ``"*"``, ``allow_credentials``
+        is **forced to** ``False`` per the CORS specification —
+        ``Access-Control-Allow-Credentials: true`` is not permitted
+        with a wildcard origin.  Set explicit origins to enable
+        credentialed access.
     """
 
     allow_origins: list[str] = Field(default_factory=lambda: ["*"])
     allow_methods: list[str] = Field(default_factory=lambda: ["*"])
     allow_headers: list[str] = Field(default_factory=lambda: ["*"])
-    allow_credentials: bool = True
+    allow_credentials: bool = False
+
+    def effective_credentials(self) -> bool:
+        """Return ``allow_credentials`` unless origins is ``["*"]``.
+
+        Per CORS spec, ``Access-Control-Allow-Credentials: true``
+        is not permitted with a wildcard origin.
+        """
+        if "*" in self.allow_origins:
+            return False
+        return self.allow_credentials
 
 
 class MetricsConfig(BaseModel):
@@ -351,6 +371,21 @@ class DBQueryConfig(BaseModel):
     allowed_tables: list[str] = Field(default_factory=list)
 
 
+class ModelManagerConfig(BaseModel):
+    """Model management service configuration.
+
+    - ``enabled = false`` (default) → model management disabled (NullModelProvider)
+    - ``enabled = true``             → enables multi-model CRUD and testing
+    - ``provider = memory`` (default) → in-memory storage (zero-config)
+    - ``options``: extra kwargs passed to the provider factory
+    - Register custom providers with ``@register_model_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MCPConfig(BaseModel):
     """MCP (Model Context Protocol) server configuration.
 
@@ -414,6 +449,7 @@ class AppConfig(BaseModel):
     redaction: RedactionConfig = Field(default_factory=RedactionConfig)
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
     db_query: DBQueryConfig = Field(default_factory=DBQueryConfig)
+    model_manager: ModelManagerConfig = Field(default_factory=ModelManagerConfig)
 
 
 class PermissionRule(BaseModel):

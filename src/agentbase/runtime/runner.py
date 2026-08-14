@@ -227,15 +227,12 @@ class AgentRunner:
         start_time = time.time()
         try:
             try:
-                with self._semaphore:
-                    event_iter = agent.stream(payload, config=config, stream_mode=stream_modes)
+                event_iter = agent.stream(payload, config=config, stream_mode=stream_modes)
             except TypeError:
                 try:
-                    with self._semaphore:
-                        event_iter = agent.stream(payload, config=config)
+                    event_iter = agent.stream(payload, config=config)
                 except TypeError:
-                    with self._semaphore:
-                        event_iter = agent.stream(payload, config)
+                    event_iter = agent.stream(payload, config)
         except Exception as exc:  # noqa: BLE001
             session.mark_failed()
             if span is not None:
@@ -253,6 +250,12 @@ class AgentRunner:
 
         final_text = ""
         interrupt_seen = False
+        # Hold the semaphore for the entire iteration — not just iterator
+        # creation.  ``agent.stream()`` returns a lazy iterator; the actual
+        # LLM calls happen during ``for event in event_iter``.  If the
+        # semaphore only wraps iterator creation, max_concurrency is
+        # effectively bypassed for streaming.
+        self._semaphore.acquire()
         try:
             for event in event_iter:
                 normalized = self._normalize_event(event, thread_id=session.thread_id, agent_name=agent_name)
@@ -279,6 +282,8 @@ class AgentRunner:
                 f"stream iteration failed: {exc}",
                 code=ErrorCode.RT_STREAM_FAILED,
             ) from exc
+        finally:
+            self._semaphore.release()
 
         if not interrupt_seen:
             session.mark_completed()
