@@ -92,6 +92,12 @@ Endpoints::
      POST   /auth/register               — register a new user (sign-up flow)
      POST   /auth/login                 — authenticate user and return user info
 
+     GET    /sessions                    — list all sessions (filterable)
+     GET    /sessions/stats              — session counts by status
+     GET    /sessions/{thread_id}        — get session details
+     DELETE /sessions/{thread_id}        — cancel a session
+     POST   /sessions/cleanup            — clean up expired/stale/completed sessions
+
 
      WS     /ws/agents/{name}           — real-time agent communication
 """
@@ -1016,6 +1022,7 @@ def create_app(*, runtime=None) -> FastAPI:
 {"name": "models", "description": "Model configuration CRUD and connectivity testing"},
 {"name": "prompts", "description": "Prompt template CRUD and rendering"},
 {"name": "users", "description": "User management CRUD and authentication"},
+{"name": "sessions", "description": "Session management and conversation history"},
 {"name": "admin", "description": "Admin operations (rate-limit quota management)"},
             {"name": "websocket", "description": "WebSocket real-time communication"},
         ],
@@ -2185,6 +2192,142 @@ def create_app(*, runtime=None) -> FastAPI:
         if user is None:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         return user.to_dict()
+
+    # ------------------------------------------------------------------ #
+    # Sessions — session management and conversation history           #
+    # ------------------------------------------------------------------ #
+    @app.get("/sessions", tags=["sessions"])
+    def list_sessions(
+        agent: str | None = None,
+        status: str | None = None,
+    ):
+        """List all sessions, optionally filtered by agent name or status.
+
+        Returns session metadata (thread_id, agent_name, status, timestamps).
+        Does not include conversation messages — use the checkpoint API or
+        the agent's ``/resume`` endpoint to access message history.
+
+        Query params:
+            agent: Filter by agent name.
+            status: Filter by session status (pending/running/completed/failed/cancelled).
+        """
+        from agentbase.runtime.session import get_session_registry
+
+        registry = get_session_registry()
+        if status:
+            # Filter by status
+            from agentbase.runtime.session import SessionStatus
+
+            try:
+                status_enum = SessionStatus(status)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid status '{status}'. Valid values: {', '.join(s.value for s in SessionStatus)}",
+                ) from None
+            # Get all sessions and filter
+            all_sessions = registry.list_by_agent(agent) if agent else [
+                s for s in registry._sessions.values()
+            ]
+            sessions = [s for s in all_sessions if s.status == status_enum]
+        elif agent:
+            sessions = registry.list_by_agent(agent)
+        else:
+            # Return all sessions
+            with registry._lock:
+                sessions = list(registry._sessions.values())
+        return {
+            "items": [s.to_dict() for s in sessions],
+            "total": len(sessions),
+        }
+
+    @app.get("/sessions/stats", tags=["sessions"])
+    def get_session_stats():
+        """Get session statistics — counts by status.
+
+        Returns a dict with counts for each status (pending, running,
+        completed, failed, cancelled) and a total.
+        """
+        from agentbase.runtime.session import get_session_registry
+
+        registry = get_session_registry()
+        return registry.count_by_status()
+
+    @app.get("/sessions/{thread_id}", tags=["sessions"])
+    def get_session(thread_id: str):
+        """Get session details by thread ID.
+
+        Returns the session metadata (status, timestamps, agent_name, etc.).
+        Does not include conversation messages — use the agent's ``/resume``
+        endpoint to resume and access message history.
+        """
+        from agentbase.runtime.session import get_session_registry
+
+        registry = get_session_registry()
+        session = registry.get(thread_id)
+        if session is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session '{thread_id}' not found",
+            )
+        return session.to_dict()
+
+    @app.delete("/sessions/{thread_id}", tags=["sessions"])
+    def cancel_session(thread_id: str):
+        """Cancel a session by marking it as cancelled.
+
+        This does not interrupt a running agent invocation — it only updates
+        the session status. Use the queue's ``DELETE /queue/{task_id}`` to
+        cancel async tasks.
+        """
+        from agentbase.runtime.session import SessionStatus, get_session_registry
+
+        registry = get_session_registry()
+        session = registry.get(thread_id)
+        if session is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session '{thread_id}' not found",
+            )
+        if session.status in {SessionStatus.COMPLETED, SessionStatus.FAILED, SessionStatus.CANCELLED}:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Session already in terminal state: {session.status.value}",
+            )
+        session.mark_cancelled()
+        return {"cancelled": True, "thread_id": thread_id}
+
+    @app.post("/sessions/cleanup", tags=["sessions"])
+    def cleanup_sessions(
+        mode: str = "expired",
+        timeout_seconds: int = 300,
+    ):
+        """Clean up sessions based on the specified mode.
+
+        Modes:
+            expired: Remove sessions that have expired based on their TTL.
+            stale: Mark sessions running longer than ``timeout_seconds`` as failed.
+            completed: Remove all completed/failed/cancelled sessions.
+
+        Returns counts of affected sessions.
+        """
+        from agentbase.runtime.session import get_session_registry
+
+        registry = get_session_registry()
+        if mode == "expired":
+            cleaned = registry.cleanup_expired()
+            return {"mode": "expired", "cleaned": cleaned}
+        elif mode == "stale":
+            cleaned = registry.cleanup_stale(timeout_seconds=timeout_seconds)
+            return {"mode": "stale", "cleaned": cleaned, "timeout_seconds": timeout_seconds}
+        elif mode == "completed":
+            removed = registry.clear(keep_active=True)
+            return {"mode": "completed", "removed": removed}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid mode '{mode}'. Valid values: expired, stale, completed",
+            )
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

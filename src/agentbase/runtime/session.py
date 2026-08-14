@@ -153,6 +153,20 @@ class Session:
         except Exception:
             return None
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialise the session to a dict for API responses."""
+        return {
+            "thread_id": self.thread_id,
+            "agent_name": self.agent_name,
+            "metadata": self.metadata,
+            "started_at": self.started_at,
+            "last_accessed_at": self.last_accessed_at,
+            "ttl_seconds": self.ttl_seconds,
+            "status": self.status.value,
+            "finished_at": self.finished_at,
+            "duration_ms": self.duration_ms,
+        }
+
 
 class SessionRegistry:
     """Thread-safe registry of all active and recently completed sessions.

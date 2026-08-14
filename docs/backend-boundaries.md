@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（50 个端点）
+### 已实现（55 个端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -57,6 +57,11 @@
 | `/users/{username}` | DELETE | 需要 | 删除用户 |
 | `/auth/register` | POST | 需要 | 用户注册（注册流程） |
 | `/auth/login` | POST | 需要 | 用户登录认证 |
+| `/sessions` | GET | 需要 | 列出所有会话（支持 agent/status 过滤） |
+| `/sessions/stats` | GET | 需要 | 会话统计（按状态计数） |
+| `/sessions/{thread_id}` | GET | 需要 | 获取会话详情 |
+| `/sessions/{thread_id}` | DELETE | 需要 | 取消会话（标记为 cancelled） |
+| `/sessions/cleanup` | POST | 需要 | 清理会话（expired/stale/completed 模式） |
 | `/ws/agents/{name}` | WebSocket | Token | 实时双向 Agent 对话 |
 | `/docs` | GET | 公开 | Swagger UI |
 | `/redoc` | GET | 公开 | ReDoc 文档 |
@@ -391,7 +396,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 1777 |
+| 总测试数 | 1808 |
 | 失败数 | 0 |
 | 覆盖率 | 74% |
 | 覆盖率门槛 | 60%（CI 强制） |
