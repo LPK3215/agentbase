@@ -11,11 +11,11 @@
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 核心服务（17） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment |
-| 11 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager |
+| 11 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager |
 | 扩展体系 | done | tools(37) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 45 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / admin(rate-limit) |
+| API 层 | done | 52 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / admin(rate-limit) |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 1555 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 1777 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -185,14 +185,24 @@
 - **测试**：数据模型（3）+ InMemory CRUD（14）+ Null（5）+ Manager（8）+ Registry（5）+ Singleton（2）+ Protocol（2）= 39 测试。
 
 #### G7. 提示词模板管理服务（PromptProvider）
-- **状态**：done ｜ **优先级**：P5
-- **定位**：提示词模板 CRUD、变量替换渲染——标准 AI 后台系统的核心基础能力。
+- **状态**：done ｜ **优先级**：P5- **定位**：提示词模板 CRUD、变量替换渲染——标准 AI 后台系统的核心基础能力。
 - **接口**：`PromptProvider` Protocol（`register` / `get` / `list` / `update` / `delete` / `close`）。
 - **默认实现**：`InMemoryPromptProvider`（零配置，进程内存储，线程安全）；`NullPromptProvider`（禁用时 no-op）。
 - **注册**：`prompt_registry`，`@register_prompt_provider("name")`。
 - **开关**：config `prompt_manager.enabled=false`（默认关）。
 - **API**：`/prompts` CRUD + `/prompts/{name}/render`（6 条路由）。
 - **测试**：数据模型（4）+ InMemory CRUD（14）+ Null（6）+ Manager（16）+ Registry（5）+ Singleton（2）+ Protocol（3）= 55 测试。
+
+#### G8. 用户管理服务（UserProvider）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：用户 CRUD、密码哈希、认证登录——标准 AI 后台系统的核心基础能力。
+- **接口**：`UserProvider` Protocol（`register` / `get` / `get_by_email` / `list` / `update` / `delete` / `close`）。
+- **默认实现**：`InMemoryUserProvider`（零配置，进程内存储，线程安全）；`NullUserProvider`（禁用时 no-op）。
+- **注册**：`user_registry`，`@register_user_provider("name")`。
+- **开关**：config `user_manager.enabled=false`（默认关）。
+- **API**：`/users` CRUD + `/auth/register` + `/auth/login`（7 条路由）。
+- **密码**：PBKDF2-HMAC-SHA256，100k rounds，随机 salt，常数时间比较。
+- **测试**：密码哈希（12）+ 数据模型（8）+ InMemory CRUD（18）+ Null（7）+ Manager（31）+ Registry（7）+ Singleton（3）+ 并发（4）+ Protocol（3）= 95 测试。
 
 ---
 

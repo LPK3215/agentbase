@@ -84,8 +84,16 @@ Endpoints::
      DELETE /prompts/{name}               — delete a prompt template
      POST   /prompts/{name}/render        — render a prompt template with variables
 
+     GET    /users                       — list all registered users
+     POST   /users                       — register a new user
+     GET    /users/{username}            — get user detail
+     PATCH  /users/{username}            — update user fields
+     DELETE /users/{username}            — delete a user
+     POST   /auth/register               — register a new user (sign-up flow)
+     POST   /auth/login                 — authenticate user and return user info
 
-    WS     /ws/agents/{name}           — real-time agent communication
+
+     WS     /ws/agents/{name}           — real-time agent communication
 """
 from __future__ import annotations
 
@@ -672,6 +680,31 @@ class RenderPromptRequest(BaseModel):
     variables: dict[str, Any] = Field(default_factory=dict)
 
 
+class RegisterUserRequest(BaseModel):
+    """Request body for registering a user."""
+    username: str
+    email: str = ""
+    password: str = ""
+    roles: list[str] = Field(default_factory=lambda: ["user"])
+    enabled: bool = True
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class UpdateUserRequest(BaseModel):
+    """Request body for updating a user."""
+    email: str | None = None
+    password: str | None = None
+    roles: list[str] | None = None
+    enabled: bool | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class LoginRequest(BaseModel):
+    """Request body for user login."""
+    username: str
+    password: str
+
+
 class AgentInfo(BaseModel):
     name: str
     description: str
@@ -825,6 +858,37 @@ def _reset_prompt_manager() -> None:
     _prompt_manager = None
 
 
+# User manager singleton (lazily built from app config)
+_user_manager: Any = None
+_user_manager_lock = threading.Lock()
+
+
+def _get_user_manager() -> Any:
+    """Get or create the UserManager singleton from app config."""
+    global _user_manager
+    if _user_manager is None:
+        with _user_manager_lock:
+            if _user_manager is None:
+                from agentbase.core.user_manager import UserManager, set_user_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.user_manager
+                mgr = UserManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    **cfg.options,
+                )
+                set_user_manager(mgr)
+                _user_manager = mgr
+    return _user_manager
+
+
+def _reset_user_manager() -> None:
+    """Reset user manager singleton (for testing)."""
+    global _user_manager
+    _user_manager = None
+
+
 def _make_error_response(
     error: str,
     code: str,
@@ -951,6 +1015,7 @@ def create_app(*, runtime=None) -> FastAPI:
             {"name": "experiments", "description": "A/B testing experiment management"},
 {"name": "models", "description": "Model configuration CRUD and connectivity testing"},
 {"name": "prompts", "description": "Prompt template CRUD and rendering"},
+{"name": "users", "description": "User management CRUD and authentication"},
 {"name": "admin", "description": "Admin operations (rate-limit quota management)"},
             {"name": "websocket", "description": "WebSocket real-time communication"},
         ],
@@ -1980,6 +2045,146 @@ def create_app(*, runtime=None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # ------------------------------------------------------------------ #
+    # Users — user CRUD and authentication                               #
+    # ------------------------------------------------------------------ #
+    @app.get("/users", tags=["users"])
+    def list_users():
+        """List all registered users.
+
+        Returns empty list when user management is disabled.
+        Password hashes are never included in the response.
+        """
+        mgr = _get_user_manager()
+        if not mgr.enabled:
+            return {"enabled": False, "items": [], "total": 0}
+        users = mgr.list()
+        return {
+            "enabled": True,
+            "items": [u.to_dict() for u in users],
+            "total": len(users),
+        }
+
+    @app.post("/users", tags=["users"])
+    def register_user(req: RegisterUserRequest):
+        """Register a new user or replace an existing one.
+
+        If a user with the same username already exists, it will be updated.
+        The password is hashed before storage.
+        """
+        mgr = _get_user_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="User management is disabled. Set user_manager.enabled=true to enable.",
+            )
+        try:
+            stored = mgr.register(
+                username=req.username,
+                email=req.email,
+                password=req.password,
+                roles=req.roles,
+                metadata=req.metadata,
+            )
+            return stored.to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/users/{username}", tags=["users"])
+    def get_user(username: str):
+        """Get a user by username."""
+        mgr = _get_user_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="User management is disabled.",
+            )
+        user = mgr.get(username)
+        if user is None:
+            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+        return user.to_dict()
+
+    @app.patch("/users/{username}", tags=["users"])
+    def update_user(username: str, req: UpdateUserRequest):
+        """Update fields on an existing user.
+
+        Only non-None fields in the request body are applied.
+        If password is provided, it is hashed before storage.
+        """
+        mgr = _get_user_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="User management is disabled.",
+            )
+        changes = {k: v for k, v in req.model_dump().items() if v is not None}
+        if not changes:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        updated = mgr.update(username, changes)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+        return updated.to_dict()
+
+    @app.delete("/users/{username}", tags=["users"])
+    def delete_user(username: str):
+        """Delete a user by username."""
+        mgr = _get_user_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="User management is disabled.",
+            )
+        deleted = mgr.delete(username)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+        return {"deleted": True, "username": username}
+
+    @app.post("/auth/register", tags=["users"])
+    def auth_register(req: RegisterUserRequest):
+        """Register a new user account (public endpoint for sign-up).
+
+        This is functionally equivalent to ``POST /users`` but is provided
+        as a separate endpoint for client-side clarity (sign-up flow).
+        """
+        mgr = _get_user_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="User management is disabled.",
+            )
+        try:
+            stored = mgr.register(
+                username=req.username,
+                email=req.email,
+                password=req.password,
+                roles=req.roles,
+                metadata=req.metadata,
+            )
+            return stored.to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/auth/login", tags=["users"])
+    def auth_login(req: LoginRequest):
+        """Authenticate a user and return user info.
+
+        On success, returns the user entry (without password hash).
+        On failure, returns 401.
+
+        If JWT auth is configured, this endpoint can be extended to also
+        return a JWT token. Currently it returns the user entry only.
+        """
+        mgr = _get_user_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="User management is disabled.",
+            )
+        user = mgr.authenticate(req.username, req.password)
+        if user is None:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        return user.to_dict()
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

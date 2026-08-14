@@ -1,6 +1,6 @@
 # Core Services & Pluggable Providers
 
-> **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document covers the 13 core services and their pluggable providers.
+> **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document covers the core services and their pluggable providers.
 
 **Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Extensions](extensions.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
 
@@ -17,6 +17,9 @@ KnowledgeBase         ───────►       Storage + Parsers + Embeddi
 MCPManager            ───────►       MCP clients (memory / custom)
 WorkspaceManager      ───────►       Filesystem (uploads/outputs/workspace)
 EvaluationRunner      ───────►       Metric calculators
+ModelManager          ───────►       In-memory / custom (model configs)
+PromptManager         ───────►       In-memory / custom (prompt templates)
+UserManager           ───────►       In-memory / custom (users + auth)
                                       ↓
                             ┌─────────────────────────┐
                             │ ParserRegistry          │ → txt, md, pdf, docx, html, xlsx
@@ -178,3 +181,6 @@ Built-in metrics: `KeywordMatchMetric`, `ExactMatchMetric`, `SubstringMatchMetri
 | Knowledge | PostgreSQL | Via storage + parsers + embeddings | `storage` + `embedding` |
 | Workspace | filesystem | `WorkspaceManager` | — |
 | Evaluation | built-in | `Metric` protocol | — |
+| Model Manager | null | `@register_model_provider()` | `model_manager` |
+| Prompt Manager | null | `@register_prompt_provider()` | `prompt_manager` |
+| User Manager | null | `@register_user_provider()` | `user_manager` |

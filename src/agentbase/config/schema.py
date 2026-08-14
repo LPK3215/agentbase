@@ -401,6 +401,21 @@ class PromptManagerConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class UserManagerConfig(BaseModel):
+    """User management service configuration.
+
+    - ``enabled = false`` (default) → user management disabled (NullUserProvider)
+    - ``enabled = true``             → enables user CRUD and authentication
+    - ``provider = memory`` (default) → in-memory storage (zero-config)
+    - ``options``: extra kwargs passed to the provider factory
+    - Register custom providers with ``@register_user_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MCPConfig(BaseModel):
     """MCP (Model Context Protocol) server configuration.
 
@@ -466,6 +481,7 @@ class AppConfig(BaseModel):
     db_query: DBQueryConfig = Field(default_factory=DBQueryConfig)
     model_manager: ModelManagerConfig = Field(default_factory=ModelManagerConfig)
     prompt_manager: PromptManagerConfig = Field(default_factory=PromptManagerConfig)
+    user_manager: UserManagerConfig = Field(default_factory=UserManagerConfig)
 
 
 class PermissionRule(BaseModel):

@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/agentbase.svg)](https://pypi.org/project/agentbase/)
 [![CI](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml/badge.svg)](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-1682-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-1777-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-74%25-green.svg)](#)
 
 <p align="center">
@@ -17,13 +17,13 @@
 
 **Configuration-driven AI Agent backend for secondary development** — a production-grade **AI Agent framework / LLM agent scaffold** built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade **AI agents / intelligent agent systems** from YAML configuration, without writing boilerplate. Use it as an **agent application scaffolding** layer, an **AI agent service framework**, or an **intelligent agent development starter kit**.
 
-`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 10-command CLI, and a FastAPI service layer with 45 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
+`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 10-command CLI, and a FastAPI service layer with 52 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
 
 ## Key Features
 
 - **Config-driven agent assembly** — agents, models, storage, embeddings defined in YAML, validated by `agentbase doctor`
-- **Pluggable registry system** — 11 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer, model manager, prompt manager); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
-- **Full API server** — FastAPI with 45 routes: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, audit query, A/B experiments, model CRUD + connectivity testing, prompt template CRUD + rendering, Prometheus metrics, OpenAPI docs
+- **Pluggable registry system** — 12 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer, model manager, prompt manager, user manager); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
+- **Full API server** — FastAPI with 52 routes: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, audit query, A/B experiments, model CRUD + connectivity testing, prompt template CRUD + rendering, user CRUD + authentication, Prometheus metrics, OpenAPI docs
 - **RAG knowledge base** — 9 document formats (PDF/DOCX/HTML/XLSX/PPTX…), 3 chunking strategies, pgvector native `<=>` cosine retrieval, in-memory fallback
 - **37 built-in tools** — file ops, skill/memory/knowledge-base CRUD, web search & fetch, HTTP request, read-only DB query, MCP client, sandboxed code execution, email sending, audio transcription
 - **Enterprise hardening** — API key auth, CORS, rate limiting, request tracing, structured `agentbase_<domain>_<nnn>` error codes, Docker deployment
@@ -34,7 +34,7 @@
 ```mermaid
 graph TD
     subgraph "Entry Points (CLI / FastAPI / WebSocket)"
-        A[agentbase CLI<br/>10 commands] --> C[Service Layer<br/>45 REST + WS routes]
+        A[agentbase CLI<br/>10 commands] --> C[Service Layer<br/>52 REST + WS routes]
         B[FastAPI App] --> C
     end
 
@@ -341,7 +341,7 @@ AGENTBASE_API_KEY="secret" docker compose up -d
 | [Quick Start](docs/quickstart.md) | End-to-end setup & first agent in 10 steps |
 | [Configuration](docs/configuration.md) | Full config reference (YAML + env vars) |
 | [Core Services](docs/core-services.md) | 13 core services & pluggable provider swaps |
-| [Extensions](docs/extensions.md) | 11 extension registries, tools, middleware |
+| [Extensions](docs/extensions.md) | 12 extension registries, tools, middleware |
 | [Error Codes](docs/error-codes.md) | `agentbase_<domain>_<nnn>` structured errors |
 | [Backend Boundaries](docs/backend-boundaries.md) | Architecture & separation of concerns |
 | [Project Positioning](docs/project-positioning.md) | Why agentbase exists, design principles |
