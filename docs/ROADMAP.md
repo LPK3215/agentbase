@@ -11,9 +11,9 @@
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 核心服务（17） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment |
-| 9 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager |
+| 11 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager |
 | 扩展体系 | done | tools(37) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 39 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / admin(rate-limit) |
+| API 层 | done | 45 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / admin(rate-limit) |
 | CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
 | 测试基座 | done | 1555 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
@@ -183,6 +183,16 @@
 - **开关**：config `model_manager.enabled=false`（默认关）。
 - **API**：`/models` CRUD + `/models/{name}/test`（6 条路由）。
 - **测试**：数据模型（3）+ InMemory CRUD（14）+ Null（5）+ Manager（8）+ Registry（5）+ Singleton（2）+ Protocol（2）= 39 测试。
+
+#### G7. 提示词模板管理服务（PromptProvider）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：提示词模板 CRUD、变量替换渲染——标准 AI 后台系统的核心基础能力。
+- **接口**：`PromptProvider` Protocol（`register` / `get` / `list` / `update` / `delete` / `close`）。
+- **默认实现**：`InMemoryPromptProvider`（零配置，进程内存储，线程安全）；`NullPromptProvider`（禁用时 no-op）。
+- **注册**：`prompt_registry`，`@register_prompt_provider("name")`。
+- **开关**：config `prompt_manager.enabled=false`（默认关）。
+- **API**：`/prompts` CRUD + `/prompts/{name}/render`（6 条路由）。
+- **测试**：数据模型（4）+ InMemory CRUD（14）+ Null（6）+ Manager（16）+ Registry（5）+ Singleton（2）+ Protocol（3）= 55 测试。
 
 ---
 

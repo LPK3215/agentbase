@@ -77,6 +77,13 @@ Endpoints::
      DELETE /models/{name}               — delete a model config
      POST   /models/{name}/test          — test model connectivity
 
+     GET    /prompts                      — list all prompt templates
+     POST   /prompts                      — register a prompt template
+     GET    /prompts/{name}               — get prompt template detail
+     PATCH  /prompts/{name}               — update prompt template fields
+     DELETE /prompts/{name}               — delete a prompt template
+     POST   /prompts/{name}/render        — render a prompt template with variables
+
 
     WS     /ws/agents/{name}           — real-time agent communication
 """
@@ -637,6 +644,34 @@ class TestModelRequest(BaseModel):
     prompt: str = "Say hello in one word."
 
 
+class RegisterPromptRequest(BaseModel):
+    """Request body for registering a prompt template."""
+    name: str
+    content: str = ""
+    variables: list[str] = Field(default_factory=list)
+    description: str = ""
+    category: str = ""
+    tags: list[str] = Field(default_factory=list)
+    version: str = "1.0.0"
+    enabled: bool = True
+
+
+class UpdatePromptRequest(BaseModel):
+    """Request body for updating a prompt template."""
+    content: str | None = None
+    variables: list[str] | None = None
+    description: str | None = None
+    category: str | None = None
+    tags: list[str] | None = None
+    version: str | None = None
+    enabled: bool | None = None
+
+
+class RenderPromptRequest(BaseModel):
+    """Request body for rendering a prompt template."""
+    variables: dict[str, Any] = Field(default_factory=dict)
+
+
 class AgentInfo(BaseModel):
     name: str
     description: str
@@ -757,6 +792,37 @@ def _reset_model_manager() -> None:
     """Reset model manager singleton (for testing)."""
     global _model_manager
     _model_manager = None
+
+
+# Prompt manager singleton (lazily built from app config)
+_prompt_manager: Any = None
+_prompt_manager_lock = threading.Lock()
+
+
+def _get_prompt_manager() -> Any:
+    """Get or create the PromptManager singleton from app config."""
+    global _prompt_manager
+    if _prompt_manager is None:
+        with _prompt_manager_lock:
+            if _prompt_manager is None:
+                from agentbase.core.prompt import PromptManager, set_prompt_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.prompt_manager
+                mgr = PromptManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    **cfg.options,
+                )
+                set_prompt_manager(mgr)
+                _prompt_manager = mgr
+    return _prompt_manager
+
+
+def _reset_prompt_manager() -> None:
+    """Reset prompt manager singleton (for testing)."""
+    global _prompt_manager
+    _prompt_manager = None
 
 
 def _make_error_response(
@@ -883,8 +949,9 @@ def create_app(*, runtime=None) -> FastAPI:
             {"name": "documents", "description": "Knowledge base document management"},
             {"name": "audit", "description": "Audit log query (read-only)"},
             {"name": "experiments", "description": "A/B testing experiment management"},
-            {"name": "models", "description": "Model configuration CRUD and connectivity testing"},
-            {"name": "admin", "description": "Admin operations (rate-limit quota management)"},
+{"name": "models", "description": "Model configuration CRUD and connectivity testing"},
+{"name": "prompts", "description": "Prompt template CRUD and rendering"},
+{"name": "admin", "description": "Admin operations (rate-limit quota management)"},
             {"name": "websocket", "description": "WebSocket real-time communication"},
         ],
     )
@@ -1792,6 +1859,127 @@ def create_app(*, runtime=None) -> FastAPI:
             )
         result = mgr.test(name, prompt=req.prompt)
         return result.to_dict()
+
+    # ------------------------------------------------------------------ #
+    # Prompts — prompt template CRUD and rendering                       #
+    # ------------------------------------------------------------------ #
+    @app.get("/prompts", tags=["prompts"])
+    def list_prompts(category: str | None = None):
+        """List all registered prompt templates.
+
+        Optional ``category`` query param filters by category.
+        Returns empty list when prompt management is disabled.
+        """
+        mgr = _get_prompt_manager()
+        if not mgr.enabled:
+            return {"enabled": False, "items": [], "total": 0}
+        templates = mgr.list()
+        if category:
+            templates = [t for t in templates if t.category == category]
+        return {
+            "enabled": True,
+            "items": [t.to_dict() for t in templates],
+            "total": len(templates),
+        }
+
+    @app.post("/prompts", tags=["prompts"])
+    def register_prompt(req: RegisterPromptRequest):
+        """Register a new prompt template or replace an existing one.
+
+        If a template with the same name already exists, it will be updated.
+        """
+        mgr = _get_prompt_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Prompt management is disabled. Set prompt_manager.enabled=true to enable.",
+            )
+        from agentbase.core.prompt import PromptTemplate
+
+        template = PromptTemplate(
+            name=req.name,
+            content=req.content,
+            variables=req.variables,
+            description=req.description,
+            category=req.category,
+            tags=req.tags,
+            version=req.version,
+            enabled=req.enabled,
+        )
+        try:
+            stored = mgr.register(template)
+            return stored.to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/prompts/{name}", tags=["prompts"])
+    def get_prompt(name: str):
+        """Get a prompt template by name."""
+        mgr = _get_prompt_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Prompt management is disabled.",
+            )
+        template = mgr.get(name)
+        if template is None:
+            raise HTTPException(status_code=404, detail=f"Prompt template '{name}' not found")
+        return template.to_dict()
+
+    @app.patch("/prompts/{name}", tags=["prompts"])
+    def update_prompt(name: str, req: UpdatePromptRequest):
+        """Update fields on an existing prompt template.
+
+        Only non-None fields in the request body are applied.
+        """
+        mgr = _get_prompt_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Prompt management is disabled.",
+            )
+        changes = {k: v for k, v in req.model_dump().items() if v is not None}
+        if not changes:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        updated = mgr.update(name, changes)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Prompt template '{name}' not found")
+        return updated.to_dict()
+
+    @app.delete("/prompts/{name}", tags=["prompts"])
+    def delete_prompt(name: str):
+        """Delete a prompt template by name."""
+        mgr = _get_prompt_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Prompt management is disabled.",
+            )
+        deleted = mgr.delete(name)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Prompt template '{name}' not found")
+        return {"deleted": True, "name": name}
+
+    @app.post("/prompts/{name}/render", tags=["prompts"])
+    def render_prompt(name: str, req: RenderPromptRequest):
+        """Render a prompt template by substituting variables.
+
+        Uses ``str.format()`` for ``{variable}`` substitution.
+        Returns the rendered prompt string.
+        """
+        mgr = _get_prompt_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Prompt management is disabled.",
+            )
+        try:
+            rendered = mgr.render(name, **req.variables)
+            return {"name": name, "rendered": rendered}
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

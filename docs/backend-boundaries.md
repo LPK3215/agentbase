@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（36 个端点）
+### 已实现（42 个端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -44,6 +44,12 @@
 | `/models/{name}` | PATCH | 需要 | 更新模型配置字段 |
 | `/models/{name}` | DELETE | 需要 | 删除模型配置 |
 | `/models/{name}/test` | POST | 需要 | 测试模型连通性（发送测试 prompt） |
+| `/prompts` | GET | 需要 | 列出所有已注册提示词模板 |
+| `/prompts` | POST | 需要 | 注册/替换提示词模板 |
+| `/prompts/{name}` | GET | 需要 | 获取提示词模板详情 |
+| `/prompts/{name}` | PATCH | 需要 | 更新提示词模板字段 |
+| `/prompts/{name}` | DELETE | 需要 | 删除提示词模板 |
+| `/prompts/{name}/render` | POST | 需要 | 渲染提示词模板（变量替换） |
 | `/ws/agents/{name}` | WebSocket | Token | 实时双向 Agent 对话 |
 | `/docs` | GET | 公开 | Swagger UI |
 | `/redoc` | GET | 公开 | ReDoc 文档 |
@@ -225,7 +231,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（10 个注册表）
+## 7. 可插拔 Provider（11 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -239,6 +245,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 存储 | SQLiteBackend / PostgresBackend / MySQLBackend / MongoDBBackend | ✅ | 配置切换 `storage.type` |
 | 检查点 | MemorySaver / SqliteSaver / PostgresSaver / MySQLSaver | ✅ | 配置切换 `checkpointer.type` |
 | 模型管理 | InMemoryModelProvider / NullModelProvider | ✅ | `@register_model_provider("name")` |
+| 提示词管理 | InMemoryPromptProvider / NullPromptProvider | ✅ | `@register_prompt_provider("name")` |
 
 ### 内置但未默认启用的 Provider
 
@@ -258,6 +265,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | LLM 文档解析 | ✅ 已验证 | 直接实例化 `LLMDocumentParser()` |
 | OCR 解析 | ✅ 已验证 | 直接实例化 `OCRParser()` |
 | 模型管理 | ✅ 已验证 | `model_manager.enabled: true` + `model_manager.provider: memory` |
+| 提示词管理 | ✅ 已验证 | `prompt_manager.enabled: true` + `prompt_manager.provider: memory` |
 
 ### 未实现
 
@@ -374,7 +382,7 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 1627 |
+| 总测试数 | 1682 |
 | 失败数 | 0 |
 | 覆盖率 | 74% |
 | 覆盖率门槛 | 60%（CI 强制） |
@@ -412,4 +420,5 @@ pip install agentbase[all]          # 全部安装
 | P5 | ~~MongoDB 存储~~ | ~~✅ 已实现~~ `storage.type: mongodb`，SQL→MongoDB 适配层 |
 | P5 | ~~Celery/RabbitMQ 队列~~ | ~~✅ 已实现~~ `queue.provider: celery`，分布式任务（RabbitMQ/Redis broker） |
 | P5 | ~~模型管理 CRUD~~ | ~~✅ 已实现~~ `model_manager.enabled=true`，多模型注册/查询/更新/删除 + 连通性测试 + `/models` API（6 条路由） |
+| P5 | ~~提示词模板管理~~ | ~~✅ 已实现~~ `prompt_manager.enabled=true`，提示词模板 CRUD + 变量渲染 + `/prompts` API（6 条路由） |
 | P5 | 前端 UI | Web 管理界面 |

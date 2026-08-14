@@ -386,6 +386,21 @@ class ModelManagerConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class PromptManagerConfig(BaseModel):
+    """Prompt template management service configuration.
+
+    - ``enabled = false`` (default) → prompt management disabled (NullPromptProvider)
+    - ``enabled = true``             → enables prompt template CRUD and rendering
+    - ``provider = memory`` (default) → in-memory storage (zero-config)
+    - ``options``: extra kwargs passed to the provider factory
+    - Register custom providers with ``@register_prompt_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MCPConfig(BaseModel):
     """MCP (Model Context Protocol) server configuration.
 
@@ -450,6 +465,7 @@ class AppConfig(BaseModel):
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
     db_query: DBQueryConfig = Field(default_factory=DBQueryConfig)
     model_manager: ModelManagerConfig = Field(default_factory=ModelManagerConfig)
+    prompt_manager: PromptManagerConfig = Field(default_factory=PromptManagerConfig)
 
 
 class PermissionRule(BaseModel):
