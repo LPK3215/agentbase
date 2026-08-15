@@ -56,8 +56,9 @@ Endpoints::
     DELETE /documents/{id}             — delete document
     POST   /documents/search           — search knowledge base
 
-    GET    /audit/events               — query audit log (paginated, filterable)
-    GET    /audit/events/count         — count audit events matching filter
+GET    /audit/events               — query audit log (paginated, filterable)
+GET    /audit/events/count         — count audit events matching filter
+GET    /audit/events/export        — export audit events (JSON/CSV/YAML, filterable)
 
     GET    /experiments                — list experiments
     POST   /experiments                — create experiment
@@ -91,12 +92,55 @@ Endpoints::
      DELETE /users/{username}            — delete a user
      POST   /auth/register               — register a new user (sign-up flow)
      POST   /auth/login                 — authenticate user and return user info
+     GET    /auth/oauth2/{provider}/authorize  — redirect to OAuth2 provider
+     GET    /auth/oauth2/{provider}/callback   — handle OAuth2 callback (issues JWT)
+
+     GET    /apikeys                     — list all API keys
+     POST   /apikeys                     — create a new API key (returns raw key)
+     GET    /apikeys/{key_id}            — get API key detail
+     PATCH  /apikeys/{key_id}            — update API key fields
+     DELETE /apikeys/{key_id}            — delete an API key
+     POST   /apikeys/{key_id}/revoke     — revoke (disable) an API key
+     POST   /apikeys/verify             — verify an API key (returns status)
 
      GET    /sessions                    — list all sessions (filterable)
      GET    /sessions/stats              — session counts by status
      GET    /sessions/{thread_id}        — get session details
      DELETE /sessions/{thread_id}        — cancel a session
      POST   /sessions/cleanup            — clean up expired/stale/completed sessions
+
+GET    /usage/stats                 — aggregated usage statistics (tokens, costs)
+GET    /usage/records               — list usage records (paginated, filterable)
+GET    /usage/summary               — high-level usage summary (totals)
+DELETE /usage/records               — clear all usage records
+
+GET    /webhooks                    — list all webhook endpoints
+POST   /webhooks                    — register a webhook endpoint
+GET    /webhooks/{endpoint_id}      — get webhook endpoint detail
+PATCH  /webhooks/{endpoint_id}      — update webhook endpoint fields
+DELETE /webhooks/{endpoint_id}      — delete a webhook endpoint
+POST   /webhooks/{endpoint_id}/test — send a test event to an endpoint
+GET    /webhooks/deliveries         — list delivery records (paginated, filterable)
+GET    /webhooks/stats              — aggregate webhook delivery statistics
+
+GET    /feedback                    — list feedback records (paginated, filterable)
+POST   /feedback                    — submit user feedback (rating, comment, tags)
+GET    /feedback/{record_id}        — get feedback record detail
+PATCH  /feedback/{record_id}        — update feedback (rating, comment, tags)
+DELETE /feedback/{record_id}        — delete a feedback record
+GET    /feedback/stats              — aggregate feedback statistics
+
+     GET    /notifications               — list notifications (paginated, filterable)
+     POST   /notifications               — create a notification
+     GET    /notifications/stats         — aggregate notification statistics
+     GET    /notifications/unread-count  — unread count for a user
+     POST   /notifications/broadcast     — broadcast to all users
+     GET    /notifications/{id}          — get notification detail
+     PATCH  /notifications/{id}          — update notification fields
+     POST   /notifications/{id}/read     — mark notification as read
+     POST   /notifications/{id}/unread   — mark notification as unread
+     POST   /notifications/read-all      — mark all as read for a user
+     DELETE /notifications/{id}          — delete a notification
 
 
      WS     /ws/agents/{name}           — real-time agent communication
@@ -113,6 +157,7 @@ from collections import defaultdict
 from typing import Any
 
 from fastapi import (
+    Body,
     FastAPI,
     File,
     Form,
@@ -224,7 +269,44 @@ def _verify_auth(request: Request, app_config: Any) -> tuple[bool, dict[str, Any
     For API Key mode: returns (True, None) if key is valid.
     For JWT mode: returns (True, payload_dict) if token is valid.
     For no-auth mode: returns (True, None).
+
+    When API Key management (``apikey_manager.enabled``) is active,
+    Bearer tokens and ``X-API-Key`` headers are also checked against
+    the managed key store.  This allows per-user/per-app keys with
+    independent roles and revocation — independent of the global
+    ``AGENTBASE_API_KEY``.
     """
+    # First: try API Key manager (if enabled)
+    _apikey_mgr = _get_apikey_manager()
+    if _apikey_mgr is not None and _apikey_mgr.enabled:
+        # Check Bearer token
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            entry = _apikey_mgr.verify(token)
+            if entry is not None:
+                # Build a synthetic JWT-like payload from the key's roles
+                payload = {
+                    "sub": entry.user_id or entry.key_id,
+                    "roles": entry.roles,
+                    "key_id": entry.key_id,
+                    "source": "apikey_manager",
+                }
+                return True, payload
+        # Check X-API-Key header
+        api_key_header = request.headers.get("X-API-Key", "")
+        if api_key_header:
+            entry = _apikey_mgr.verify(api_key_header)
+            if entry is not None:
+                payload = {
+                    "sub": entry.user_id or entry.key_id,
+                    "roles": entry.roles,
+                    "key_id": entry.key_id,
+                    "source": "apikey_manager",
+                }
+                return True, payload
+
+    # Second: JWT auth (if configured)
     jwt_auth = _get_jwt_auth(app_config)
     if jwt_auth is not None:
         auth_header = request.headers.get("Authorization", "")
@@ -233,6 +315,9 @@ def _verify_auth(request: Request, app_config: Any) -> tuple[bool, dict[str, Any
             payload = jwt_auth.verify_token(token)
             if payload is not None:
                 return True, payload
+            # If API key manager is also enabled, fall through to return False
+            if _apikey_mgr is not None and _apikey_mgr.enabled:
+                return False, None
             return False, None
         # Also check X-API-Key as fallback (constant-time comparison)
         api_key = request.headers.get("X-API-Key", "")
@@ -241,7 +326,7 @@ def _verify_auth(request: Request, app_config: Any) -> tuple[bool, dict[str, Any
             return True, None
         return False, None
 
-    # API Key mode
+    # Third: global API Key mode
     if not _is_auth_enabled():
         return True, None
     if _verify_api_key(request):
@@ -250,10 +335,28 @@ def _verify_auth(request: Request, app_config: Any) -> tuple[bool, dict[str, Any
 
 
 def _check_rbac(request: Request, payload: dict[str, Any] | None, app_config: Any) -> bool:
-    """Check RBAC permissions for the request path."""
+    """Check RBAC permissions for the request path.
+
+    When JWT auth is configured, uses JWTAuth's path-permission mapping.
+    When only API Key manager is active (no JWT), builds a JWTAuth
+    instance from default role permissions to perform the same check.
+    Returns ``True`` if no RBAC is configured at all.
+    """
     jwt_auth = _get_jwt_auth(app_config)
-    if jwt_auth is None or payload is None:
-        return True  # No RBAC configured or no JWT payload
+    if jwt_auth is None:
+        # If API key manager is enabled, still do RBAC with defaults
+        _apikey_mgr = _get_apikey_manager()
+        if _apikey_mgr is not None and _apikey_mgr.enabled and payload is not None:
+            from agentbase.extensions.auth import JWTAuth, DEFAULT_ROLE_PERMISSIONS
+
+            jwt_auth = JWTAuth(
+                secret="rbac-only-defaults",
+                role_permissions=DEFAULT_ROLE_PERMISSIONS,
+            )
+        else:
+            return True  # No RBAC configured or no payload
+    if payload is None:
+        return True  # No payload = no RBAC check (global API key mode)
     return jwt_auth.check_path_permission(payload, request.method, request.url.path)
 
 
@@ -711,6 +814,31 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class CreateApiKeyRequest(BaseModel):
+    """Request body for creating an API key."""
+    name: str = ""
+    roles: list[str] = Field(default_factory=lambda: ["user"])
+    user_id: str = ""
+    description: str = ""
+    expires_at: str = ""  # ISO 8601 UTC timestamp, empty = never
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class UpdateApiKeyRequest(BaseModel):
+    """Request body for updating an API key."""
+    name: str | None = None
+    roles: list[str] | None = None
+    description: str | None = None
+    enabled: bool | None = None
+    expires_at: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class VerifyApiKeyRequest(BaseModel):
+    """Request body for verifying an API key."""
+    key: str
+
+
 class AgentInfo(BaseModel):
     name: str
     description: str
@@ -895,6 +1023,209 @@ def _reset_user_manager() -> None:
     _user_manager = None
 
 
+# API key manager singleton (lazily built from app config)
+_apikey_manager: Any = None
+_apikey_manager_lock = threading.Lock()
+
+
+def _get_apikey_manager() -> Any:
+    """Get or create the ApiKeyManager singleton from app config."""
+    global _apikey_manager
+    if _apikey_manager is None:
+        with _apikey_manager_lock:
+            if _apikey_manager is None:
+                from agentbase.core.apikey_manager import (
+                    ApiKeyManager,
+                    set_apikey_manager,
+                )
+
+                rt = get_runtime()
+                cfg = rt.app_config.apikey_manager
+                mgr = ApiKeyManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    **cfg.options,
+                )
+                set_apikey_manager(mgr)
+                _apikey_manager = mgr
+    return _apikey_manager
+
+
+def _reset_apikey_manager() -> None:
+    """Reset API key manager singleton (for testing)."""
+    global _apikey_manager
+    _apikey_manager = None
+
+
+# Usage manager singleton (lazily built from app config)
+_usage_manager: Any = None
+_usage_manager_lock = threading.Lock()
+
+
+def _get_usage_manager() -> Any:
+    """Get or create the UsageManager singleton from app config."""
+    global _usage_manager
+    if _usage_manager is None:
+        with _usage_manager_lock:
+            if _usage_manager is None:
+                from agentbase.core.usage import UsageManager, set_usage_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.usage
+                mgr = UsageManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    pricing=cfg.pricing or None,
+                    max_records=cfg.max_records,
+                    **cfg.options,
+                )
+                set_usage_manager(mgr)
+                _usage_manager = mgr
+    return _usage_manager
+
+
+def _reset_usage_manager() -> None:
+    """Reset usage manager singleton (for testing)."""
+    global _usage_manager
+    _usage_manager = None
+
+
+# Webhook manager singleton (lazily built from app config)
+_webhook_manager: Any = None
+_webhook_manager_lock = threading.Lock()
+
+
+def _get_webhook_manager() -> Any:
+    """Get or create the WebhookManager singleton from app config."""
+    global _webhook_manager
+    if _webhook_manager is None:
+        with _webhook_manager_lock:
+            if _webhook_manager is None:
+                from agentbase.core.webhook import WebhookManager, set_webhook_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.webhook
+                mgr = WebhookManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    timeout_seconds=cfg.timeout_seconds,
+                    max_retries=cfg.max_retries,
+                    retry_backoff=cfg.retry_backoff,
+                    **cfg.options,
+                )
+                set_webhook_manager(mgr)
+                _webhook_manager = mgr
+    return _webhook_manager
+
+
+def _reset_webhook_manager() -> None:
+    """Reset webhook manager singleton (for testing)."""
+    global _webhook_manager
+    _webhook_manager = None
+
+
+# Feedback manager singleton (lazily built from app config)
+_feedback_manager: Any = None
+_feedback_manager_lock = threading.Lock()
+
+
+def _get_feedback_manager() -> Any:
+    """Get or create the FeedbackManager singleton from app config."""
+    global _feedback_manager
+    if _feedback_manager is None:
+        with _feedback_manager_lock:
+            if _feedback_manager is None:
+                from agentbase.core.feedback import FeedbackManager, set_feedback_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.feedback
+                mgr = FeedbackManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    max_records=cfg.max_records,
+                    **cfg.options,
+                )
+                set_feedback_manager(mgr)
+                _feedback_manager = mgr
+    return _feedback_manager
+
+
+def _reset_feedback_manager() -> None:
+    """Reset feedback manager singleton (for testing)."""
+    global _feedback_manager
+    _feedback_manager = None
+
+
+# Notification manager singleton (lazily built from app config)
+_notification_manager: Any = None
+_notification_manager_lock = threading.Lock()
+
+
+def _get_notification_manager() -> Any:
+    """Get or create the NotificationManager singleton from app config."""
+    global _notification_manager
+    if _notification_manager is None:
+        with _notification_manager_lock:
+            if _notification_manager is None:
+                from agentbase.core.notification import (
+                    NotificationManager,
+                    set_notification_manager,
+                )
+
+                rt = get_runtime()
+                cfg = rt.app_config.notification
+                mgr = NotificationManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    max_records=cfg.max_records,
+                    **cfg.options,
+                )
+                set_notification_manager(mgr)
+                _notification_manager = mgr
+    return _notification_manager
+
+
+def _reset_notification_manager() -> None:
+    """Reset notification manager singleton (for testing)."""
+    global _notification_manager
+    _notification_manager = None
+
+
+# Conversation manager singleton (lazily built from app config)
+_conversation_manager: Any = None
+_conversation_manager_lock = threading.Lock()
+
+
+def _get_conversation_manager() -> Any:
+    """Get or create the ConversationManager singleton from app config."""
+    global _conversation_manager
+    if _conversation_manager is None:
+        with _conversation_manager_lock:
+            if _conversation_manager is None:
+                from agentbase.core.conversation import (
+                    ConversationManager,
+                    set_conversation_manager,
+                )
+
+                rt = get_runtime()
+                cfg = rt.app_config.conversation
+                mgr = ConversationManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    max_conversations=cfg.max_conversations,
+                    **cfg.options,
+                )
+                set_conversation_manager(mgr)
+                _conversation_manager = mgr
+    return _conversation_manager
+
+
+def _reset_conversation_manager() -> None:
+    """Reset conversation manager singleton (for testing)."""
+    global _conversation_manager
+    _conversation_manager = None
+
+
 def _make_error_response(
     error: str,
     code: str,
@@ -1022,8 +1353,15 @@ def create_app(*, runtime=None) -> FastAPI:
 {"name": "models", "description": "Model configuration CRUD and connectivity testing"},
 {"name": "prompts", "description": "Prompt template CRUD and rendering"},
 {"name": "users", "description": "User management CRUD and authentication"},
+{"name": "oauth2", "description": "OAuth2 third-party login (Google/GitHub)"},
+{"name": "apikeys", "description": "API Key management CRUD, verification, and revocation"},
 {"name": "sessions", "description": "Session management and conversation history"},
 {"name": "admin", "description": "Admin operations (rate-limit quota management)"},
+{"name": "usage", "description": "Token usage tracking and cost statistics"},
+{"name": "webhooks", "description": "Webhook endpoint management and delivery records"},
+{"name": "feedback", "description": "User feedback collection (ratings, comments, tags)"},
+            {"name": "notifications", "description": "In-app notification center (create, query, mark-read)"},
+            {"name": "conversations", "description": "Conversation history management (query, update, delete)"},
             {"name": "websocket", "description": "WebSocket real-time communication"},
         ],
     )
@@ -1708,6 +2046,67 @@ def create_app(*, runtime=None) -> FastAPI:
 
         return {"count": manager.count_events(flt)}
 
+    @app.get("/audit/events/export", tags=["audit"])
+    def export_audit_events(
+        format: str = Query("json", description="Export format: json, csv, or yaml"),
+        actor: str | None = Query(None, description="Filter by actor"),
+        action: str | None = Query(None, description="Filter by action type"),
+        resource: str | None = Query(None, description="Filter by resource"),
+        result: str | None = Query(None, description="Filter by result"),
+        since: str | None = Query(None, description="ISO timestamp, inclusive lower bound"),
+        until: str | None = Query(None, description="ISO timestamp, exclusive upper bound"),
+    ):
+        """Export audit log events as a downloadable file.
+
+        Supports JSON, CSV, and YAML formats. All filter parameters
+        are optional — when omitted, all events (up to 10,000) are
+        exported.
+
+        The response includes a ``Content-Disposition`` header with a
+        suggested filename (``audit_export.<ext>``).
+
+        When audit logging is disabled (``audit.enabled=false``), returns
+        an empty file with the appropriate format headers.
+        """
+        rt = get_runtime()
+        manager = rt.factory.audit_manager
+
+        from agentbase.core.audit import AuditFilter
+
+        flt = AuditFilter(
+            actor=actor,
+            action=action,
+            resource=resource,
+            result=result,
+            since=since,
+            until=until,
+            limit=10000,
+        )
+
+        content, events = manager.export_events_stream(format=format, filter=flt)
+
+        # Determine media type and file extension
+        if format == "csv":
+            media_type = "text/csv"
+            ext = "csv"
+        elif format == "yaml":
+            media_type = "application/x-yaml"
+            ext = "yaml"
+        else:
+            media_type = "application/json"
+            ext = "json"
+
+        filename = f"audit_export.{ext}"
+
+        return PlainTextResponse(
+            content=content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Export-Count": str(len(events)),
+            },
+        )
+
     # ------------------------------------------------------------------ #
     # Experiments — A/B testing framework                                 #
     # ------------------------------------------------------------------ #
@@ -2194,6 +2593,352 @@ def create_app(*, runtime=None) -> FastAPI:
         return user.to_dict()
 
     # ------------------------------------------------------------------ #
+    # OAuth2 — third-party login (Google / GitHub)                        #
+    # ------------------------------------------------------------------ #
+    _oauth2_mgr: Any = None
+    _oauth2_lock = threading.Lock()
+
+    def _get_oauth2_mgr() -> Any:
+        """Get or create the OAuth2 manager singleton from app config."""
+        nonlocal _oauth2_mgr
+        if _oauth2_mgr is None:
+            with _oauth2_lock:
+                if _oauth2_mgr is None:
+                    from agentbase.core.oauth2 import (
+        OAuth2Manager,
+        OAuth2ProviderConfig,
+        set_oauth2_manager,
+    )
+
+                    rt = get_runtime()
+                    cfg = rt.app_config.oauth2
+                    providers = {}
+                    for name, pcfg in cfg.providers.items():
+                        providers[name] = OAuth2ProviderConfig(
+                            name=name,
+                            client_id=pcfg.client_id,
+                            client_secret=pcfg.client_secret,
+                            redirect_uri=pcfg.redirect_uri,
+                            scopes=pcfg.scopes,
+                            default_roles=pcfg.default_roles,
+                        )
+                    mgr = OAuth2Manager(
+                        providers=providers,
+                        enabled=cfg.enabled,
+                    )
+                    set_oauth2_manager(mgr)
+                    _oauth2_mgr = mgr
+        return _oauth2_mgr
+
+    def _reset_oauth2_mgr() -> None:
+        """Reset OAuth2 manager singleton (for testing)."""
+        nonlocal _oauth2_mgr
+        from agentbase.core.oauth2 import reset_oauth2_manager as _reset
+
+        _oauth2_mgr = None
+        _reset()
+
+    @app.get("/auth/oauth2/{provider}/authorize", tags=["oauth2"])
+    def oauth2_authorize(provider: str):
+        """Redirect to the OAuth2 provider's authorization page.
+
+        This is a public endpoint (no auth required) — it generates a
+        random state token for CSRF protection and redirects the user's
+        browser to the provider's consent screen.
+
+        Path parameter:
+            provider: ``google`` or ``github``
+        """
+        mgr = _get_oauth2_mgr()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="OAuth2 login is disabled. Set oauth2.enabled=true to enable.",
+            )
+        if not mgr.has_provider(provider):
+            raise HTTPException(
+                status_code=404,
+                detail=f"OAuth2 provider '{provider}' is not configured.",
+            )
+
+        state = mgr.generate_state()
+        url = mgr.get_authorize_url(provider, state=state)
+        from fastapi.responses import RedirectResponse
+
+        return RedirectResponse(url=url, status_code=302)
+
+    @app.get("/auth/oauth2/{provider}/callback", tags=["oauth2"])
+    def oauth2_callback(
+        provider: str,
+        code: str = Query(..., description="Authorization code from provider"),
+        state: str = Query(..., description="State token for CSRF verification"),
+    ):
+        """Handle the OAuth2 callback — exchange code, get user info, issue JWT.
+
+        This endpoint:
+        1. Validates the state token (CSRF protection)
+        2. Exchanges the authorization code for an access token
+        3. Fetches user info from the provider
+        4. Auto-registers or matches the user in UserManager
+        5. Issues a JWT token for subsequent API authentication
+
+        Returns JSON with ``token`` (JWT), ``user`` (user info), and
+        ``provider`` (provider name).
+        """
+        mgr = _get_oauth2_mgr()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="OAuth2 login is disabled.",
+            )
+        if not mgr.has_provider(provider):
+            raise HTTPException(
+                status_code=404,
+                detail=f"OAuth2 provider '{provider}' is not configured.",
+            )
+
+        # 1. Validate state
+        if not mgr.validate_state(state):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or expired state token (possible CSRF attack).",
+            )
+
+        # 2. Exchange code for access token
+        try:
+            token_data = mgr.exchange_code(provider, code=code)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OAuth2 token exchange failed: {exc}",
+            ) from exc
+
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OAuth2 provider did not return an access token: {token_data}",
+            )
+
+        # 3. Fetch user info
+        try:
+            user_info = mgr.get_user_info(provider, access_token=access_token)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OAuth2 user info fetch failed: {exc}",
+            ) from exc
+
+        # 4. Auto-register or match user in UserManager
+        user_mgr = _get_user_manager()
+        user_entry = None
+        if user_mgr.enabled and user_info.email:
+            # Try to find existing user by email
+            existing = user_mgr.provider.get_by_email(user_info.email)
+            if existing is not None:
+                # Update metadata with OAuth2 info
+                meta = dict(existing.metadata or {})
+                meta["oauth2_provider"] = user_info.provider
+                meta["oauth2_provider_user_id"] = user_info.provider_user_id
+                if user_info.avatar_url:
+                    meta["avatar_url"] = user_info.avatar_url
+                if user_info.name:
+                    meta["full_name"] = user_info.name
+                user_entry = user_mgr.update(
+                    existing.username, {"metadata": meta}
+                )
+            else:
+                # Auto-register a new user
+                cfg = mgr.get_provider_config(provider)
+                username = f"{user_info.provider}_{user_info.provider_user_id}"
+                user_entry = user_mgr.register(
+                    username=username,
+                    email=user_info.email,
+                    password="",  # OAuth2 users don't have a password
+                    roles=cfg.default_roles,
+                    metadata={
+                        "oauth2_provider": user_info.provider,
+                        "oauth2_provider_user_id": user_info.provider_user_id,
+                        "full_name": user_info.name,
+                        "avatar_url": user_info.avatar_url,
+                    },
+                )
+
+        # 5. Issue JWT token (if JWT auth is configured)
+        jwt_token = None
+        jwt_auth = _get_jwt_auth(get_runtime().app_config)
+        if jwt_auth is not None and user_entry is not None:
+            jwt_token = jwt_auth.create_token(
+                user_id=user_entry.username,
+                roles=user_entry.roles,
+                extra_claims={
+                    "oauth2_provider": user_info.provider,
+                    "oauth2_user_id": user_info.provider_user_id,
+                },
+            )
+
+        return {
+            "provider": user_info.provider,
+            "token": jwt_token,
+            "user": user_entry.to_dict() if user_entry else None,
+            "user_info": user_info.to_dict(),
+        }
+
+    @app.get("/auth/oauth2/providers", tags=["oauth2"])
+    def list_oauth2_providers():
+        """List configured OAuth2 providers.
+
+        Returns a list of provider names and their configuration (without
+        secrets).
+        """
+        mgr = _get_oauth2_mgr()
+        if not mgr.enabled:
+            return {"enabled": False, "providers": []}
+        names = mgr.list_providers()
+        return {
+            "enabled": True,
+            "providers": [
+                mgr.get_provider_config(name).to_dict()
+                for name in names
+            ],
+        }
+
+    # ------------------------------------------------------------------ #
+    # API Keys — multi-key CRUD, verification, and revocation             #
+    # ------------------------------------------------------------------ #
+    @app.get("/apikeys", tags=["apikeys"])
+    def list_apikeys():
+        """List all registered API keys.
+
+        Returns empty list when API key management is disabled.
+        Key hashes are never included in the response — only the
+        key prefix (first 12 chars) for identification.
+        """
+        mgr = _get_apikey_manager()
+        if not mgr.enabled:
+            return {"enabled": False, "items": [], "total": 0}
+        keys = mgr.list()
+        return {
+            "enabled": True,
+            "items": [k.to_dict() for k in keys],
+            "total": len(keys),
+        }
+
+    @app.post("/apikeys", tags=["apikeys"])
+    def create_apikey(req: CreateApiKeyRequest):
+        """Create a new API key.
+
+        Returns the key entry and the **raw key string**.  The raw key
+        is only visible once at creation time — it is hashed before
+        storage and cannot be recovered.
+        """
+        mgr = _get_apikey_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="API key management is disabled. Set apikey_manager.enabled=true to enable.",
+            )
+        try:
+            entry, raw_key = mgr.create(
+                name=req.name,
+                roles=req.roles,
+                user_id=req.user_id,
+                description=req.description,
+                expires_at=req.expires_at,
+                metadata=req.metadata,
+            )
+            return {
+                **entry.to_dict(),
+                "raw_key": raw_key,
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/apikeys/{key_id}", tags=["apikeys"])
+    def get_apikey(key_id: str):
+        """Get an API key by ID."""
+        mgr = _get_apikey_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="API key management is disabled.",
+            )
+        entry = mgr.get(key_id)
+        if entry is None:
+            raise HTTPException(status_code=404, detail=f"API key '{key_id}' not found")
+        return entry.to_dict()
+
+    @app.patch("/apikeys/{key_id}", tags=["apikeys"])
+    def update_apikey(key_id: str, req: UpdateApiKeyRequest):
+        """Update fields on an existing API key.
+
+        Only non-None fields in the request body are applied.
+        Updatable fields: name, roles, description, enabled, expires_at, metadata.
+        """
+        mgr = _get_apikey_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="API key management is disabled.",
+            )
+        changes = {k: v for k, v in req.model_dump().items() if v is not None}
+        if not changes:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        updated = mgr.update(key_id, changes)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"API key '{key_id}' not found")
+        return updated.to_dict()
+
+    @app.delete("/apikeys/{key_id}", tags=["apikeys"])
+    def delete_apikey(key_id: str):
+        """Delete an API key permanently."""
+        mgr = _get_apikey_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="API key management is disabled.",
+            )
+        deleted = mgr.delete(key_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"API key '{key_id}' not found")
+        return {"deleted": True, "key_id": key_id}
+
+    @app.post("/apikeys/{key_id}/revoke", tags=["apikeys"])
+    def revoke_apikey(key_id: str):
+        """Revoke an API key by disabling it (without deleting).
+
+        The key remains in storage but will fail verification.
+        """
+        mgr = _get_apikey_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="API key management is disabled.",
+            )
+        revoked = mgr.revoke(key_id)
+        if revoked is None:
+            raise HTTPException(status_code=404, detail=f"API key '{key_id}' not found")
+        return {"revoked": True, "key_id": key_id}
+
+    @app.post("/apikeys/verify", tags=["apikeys"])
+    def verify_apikey(req: VerifyApiKeyRequest):
+        """Verify an API key (check if it's valid, enabled, and not expired).
+
+        Returns the key entry (without hash) on success, or an error
+        on failure.  Updates usage stats on successful verification.
+        """
+        mgr = _get_apikey_manager()
+        if not mgr.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="API key management is disabled.",
+            )
+        entry = mgr.verify(req.key)
+        if entry is None:
+            return {"valid": False, "reason": "invalid or revoked"}
+        return {"valid": True, "key": entry.to_dict()}
+
+    # ------------------------------------------------------------------ #
     # Sessions — session management and conversation history           #
     # ------------------------------------------------------------------ #
     @app.get("/sessions", tags=["sessions"])
@@ -2328,6 +3073,808 @@ def create_app(*, runtime=None) -> FastAPI:
                 status_code=400,
                 detail=f"Invalid mode '{mode}'. Valid values: expired, stale, completed",
             )
+
+    # ------------------------------------------------------------------ #
+    # Usage tracking — token & cost statistics                           #
+    # ------------------------------------------------------------------ #
+    @app.get("/usage/stats", tags=["usage"])
+    def get_usage_stats(
+        agent: str | None = Query(None),
+        model: str | None = Query(None),
+        user: str | None = Query(None),
+        thread_id: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+    ):
+        """Get aggregated usage statistics (token counts, costs, breakdowns).
+
+        Requires authentication. Returns 0-values when usage tracking is
+        disabled (``usage.enabled=false``).
+
+        Query params:
+            agent: Filter by agent name.
+            model: Filter by model name.
+            user: Filter by user identifier.
+            thread_id: Filter by thread ID.
+            since: ISO timestamp, inclusive.
+            until: ISO timestamp, exclusive.
+        """
+        from agentbase.core.usage import UsageFilter
+
+        mgr = _get_usage_manager()
+        flt = UsageFilter(
+            agent=agent,
+            model=model,
+            user=user,
+            thread_id=thread_id,
+            since=since,
+            until=until,
+            limit=0,  # no limit for stats
+        )
+        stats = mgr.get_stats(flt)
+        return stats.to_dict()
+
+    @app.get("/usage/records", tags=["usage"])
+    def list_usage_records(
+        agent: str | None = Query(None),
+        model: str | None = Query(None),
+        user: str | None = Query(None),
+        thread_id: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List usage records with filtering and pagination.
+
+        Requires authentication. Returns records in descending timestamp
+        order. Returns empty list when usage tracking is disabled.
+        """
+        from agentbase.core.usage import UsageFilter
+
+        mgr = _get_usage_manager()
+        page_size_clamped = min(page_size, 100)
+        offset = (page - 1) * page_size_clamped
+        flt = UsageFilter(
+            agent=agent,
+            model=model,
+            user=user,
+            thread_id=thread_id,
+            since=since,
+            until=until,
+            limit=page_size_clamped,
+            offset=offset,
+        )
+        records = mgr.query_records(flt)
+        total = mgr.count_records(UsageFilter(
+            agent=agent,
+            model=model,
+            user=user,
+            thread_id=thread_id,
+            since=since,
+            until=until,
+            limit=0,
+            offset=0,
+        ))
+        return {
+            "items": [r.to_dict() for r in reversed(records)],  # newest first
+            "total": total,
+            "page": page,
+            "page_size": page_size_clamped,
+        }
+
+    @app.get("/usage/summary", tags=["usage"])
+    def get_usage_summary():
+        """Get a high-level usage summary (totals only, no breakdowns).
+
+        Requires authentication. Returns 0-values when disabled.
+        """
+        mgr = _get_usage_manager()
+        stats = mgr.get_stats()
+        return {
+            "enabled": mgr.enabled,
+            "total_calls": stats.total_calls,
+            "total_prompt_tokens": stats.total_prompt_tokens,
+            "total_completion_tokens": stats.total_completion_tokens,
+            "total_tokens": stats.total_tokens,
+            "total_cost_usd": round(stats.total_cost_usd, 6),
+            "avg_duration_ms": round(stats.avg_duration_ms, 2),
+        }
+
+    @app.delete("/usage/records", tags=["usage"])
+    def clear_usage_records():
+        """Clear all usage records. Requires admin role.
+
+        Returns the count of deleted records.
+        """
+        mgr = _get_usage_manager()
+        deleted = mgr.clear_records()
+        return {"deleted": deleted}
+
+    # ------------------------------------------------------------------ #
+    # Webhook management — endpoint CRUD, delivery records, test         #
+    # ------------------------------------------------------------------ #
+    @app.get("/webhooks", tags=["webhooks"])
+    def list_webhooks(active_only: bool = Query(False)):
+        """List all registered webhook endpoints.
+
+        Requires authentication. Returns empty list when webhook
+        notifications are disabled.
+        """
+        mgr = _get_webhook_manager()
+        endpoints = mgr.list_endpoints(active_only=active_only)
+        return {"items": [e.to_dict() for e in endpoints], "total": len(endpoints)}
+
+    @app.post("/webhooks", tags=["webhooks"])
+    def create_webhook(
+        url: str = Body(..., embed=True),
+        events: list[str] = Body(default_factory=lambda: ["*"], embed=True),
+        secret: str = Body("", embed=True),
+        description: str = Body("", embed=True),
+        active: bool = Body(True, embed=True),
+    ):
+        """Register a new webhook endpoint.
+
+        Requires authentication. The ``url`` must be a valid HTTP(S) URL.
+        ``events`` is a list of event types to subscribe to (``["*"]`` = all).
+        """
+        mgr = _get_webhook_manager()
+        try:
+            endpoint = mgr.register_endpoint(
+                url=url,
+                events=events,
+                secret=secret,
+                description=description,
+                active=active,
+            )
+            return endpoint.to_dict()
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+
+    @app.get("/webhooks/deliveries", tags=["webhooks"])
+    def list_webhook_deliveries(
+        endpoint_id: str | None = Query(None),
+        event: str | None = Query(None),
+        status: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List webhook delivery records with filtering and pagination.
+
+        Requires authentication. Returns records in descending timestamp order.
+        """
+        from agentbase.core.webhook import WebhookDeliveryFilter
+
+        mgr = _get_webhook_manager()
+        offset = (page - 1) * page_size
+        flt = WebhookDeliveryFilter(
+            endpoint_id=endpoint_id,
+            event=event,
+            status=status,
+            since=since,
+            until=until,
+            limit=page_size,
+            offset=offset,
+        )
+        records = mgr.query_deliveries(flt)
+        return {
+            "items": [r.to_dict() for r in reversed(records)],
+            "total": len(records),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    @app.get("/webhooks/stats", tags=["webhooks"])
+    def get_webhook_stats():
+        """Get aggregate webhook delivery statistics.
+
+        Requires authentication. Returns 0-values when disabled.
+        """
+        mgr = _get_webhook_manager()
+        stats = mgr.get_stats()
+        return stats.to_dict()
+
+    @app.get("/webhooks/{endpoint_id}", tags=["webhooks"])
+    def get_webhook(endpoint_id: str):
+        """Get webhook endpoint details.
+
+        Requires authentication. Returns 404 if not found.
+        """
+        mgr = _get_webhook_manager()
+        endpoint = mgr.get_endpoint(endpoint_id)
+        if endpoint is None:
+            raise HTTPException(status_code=404, detail=f"Webhook endpoint not found: {endpoint_id}")
+        return endpoint.to_dict()
+
+    @app.patch("/webhooks/{endpoint_id}", tags=["webhooks"])
+    def update_webhook(
+        endpoint_id: str,
+        url: str | None = Body(None, embed=True),
+        events: list[str] | None = Body(None, embed=True),
+        secret: str | None = Body(None, embed=True),
+        description: str | None = Body(None, embed=True),
+        active: bool | None = Body(None, embed=True),
+    ):
+        """Update webhook endpoint fields.
+
+        Requires authentication. Only provided fields are updated.
+        """
+        mgr = _get_webhook_manager()
+        result = mgr.update_endpoint(
+            endpoint_id,
+            url=url,
+            events=events,
+            secret=secret,
+            description=description,
+            active=active,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Webhook endpoint not found: {endpoint_id}")
+        return result.to_dict()
+
+    @app.delete("/webhooks/{endpoint_id}", tags=["webhooks"])
+    def delete_webhook(endpoint_id: str):
+        """Delete a webhook endpoint.
+
+        Requires authentication. Returns 404 if not found.
+        """
+        mgr = _get_webhook_manager()
+        deleted = mgr.delete_endpoint(endpoint_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Webhook endpoint not found: {endpoint_id}")
+        return {"deleted": True, "endpoint_id": endpoint_id}
+
+    @app.post("/webhooks/{endpoint_id}/test", tags=["webhooks"])
+    def test_webhook(endpoint_id: str):
+        """Send a test event to a webhook endpoint.
+
+        Requires authentication. Delivery is synchronous (not background)
+        so the caller gets immediate feedback. Returns the delivery record.
+        """
+        mgr = _get_webhook_manager()
+        if not mgr.enabled:
+            return {"status": "disabled", "message": "Webhook notifications are disabled"}
+        delivery = mgr.test_endpoint(endpoint_id)
+        if delivery is None:
+            raise HTTPException(status_code=404, detail=f"Webhook endpoint not found: {endpoint_id}")
+        return delivery.to_dict()
+
+    # Note: /webhooks/deliveries and /webhooks/stats routes are declared
+    # above (before /webhooks/{endpoint_id}) to avoid path parameter capture.
+
+    # ------------------------------------------------------------------ #
+    # Feedback management — user ratings, comments, and tags            #
+    # ------------------------------------------------------------------ #
+    @app.get("/feedback", tags=["feedback"])
+    def list_feedback(
+        thread_id: str | None = Query(None),
+        message_id: str | None = Query(None),
+        user_id: str | None = Query(None),
+        agent_name: str | None = Query(None),
+        sentiment: str | None = Query(None),
+        min_rating: float | None = Query(None),
+        max_rating: float | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+        tags: str | None = Query(None, description="Comma-separated tags to filter by"),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List user feedback records with filtering and pagination.
+
+        Requires authentication. Returns records in descending timestamp
+        order. Returns empty list when feedback collection is disabled.
+        """
+        mgr = _get_feedback_manager()
+        tag_list = [t.strip() for t in tags.split(",")] if tags else None
+        offset = (page - 1) * page_size
+        records = mgr.list_feedback(
+            thread_id=thread_id,
+            message_id=message_id,
+            user_id=user_id,
+            agent_name=agent_name,
+            sentiment=sentiment,
+            min_rating=min_rating,
+            max_rating=max_rating,
+            since=since,
+            until=until,
+            tags=tag_list,
+            limit=page_size,
+            offset=offset,
+        )
+        return {
+            "items": [r.to_dict() for r in records],
+            "total": len(records),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    @app.post("/feedback", tags=["feedback"])
+    def create_feedback(
+        thread_id: str = Body(..., embed=True),
+        message_id: str = Body("", embed=True),
+        rating: float | None = Body(None, embed=True),
+        comment: str = Body("", embed=True),
+        user_id: str = Body("", embed=True),
+        agent_name: str = Body("", embed=True),
+        tags: list[str] = Body(default_factory=list, embed=True),
+        metadata: dict[str, Any] = Body(default_factory=dict, embed=True),
+    ):
+        """Submit user feedback for an agent response.
+
+        Requires authentication. ``thread_id`` is required — it links the
+        feedback to a specific conversation thread.
+
+        ``rating`` can be:
+        - 1-5 for star ratings (5 = best)
+        - -1/+1 for thumbs down/up
+        - ``null`` for comment-only feedback
+
+        ``comment`` is optional free-text feedback.
+        ``tags`` is an optional list of categorisation tags.
+        """
+        mgr = _get_feedback_manager()
+        try:
+            record = mgr.create_feedback(
+                thread_id=thread_id,
+                message_id=message_id,
+                rating=rating,
+                comment=comment,
+                user_id=user_id,
+                agent_name=agent_name,
+                tags=tags,
+                metadata=metadata,
+            )
+            return record.to_dict()
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+
+    @app.get("/feedback/stats", tags=["feedback"])
+    def get_feedback_stats(
+        agent_name: str | None = Query(None),
+        thread_id: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+    ):
+        """Get aggregate feedback statistics.
+
+        Requires authentication. Returns 0-values when disabled or
+        when no records match the filters.
+        """
+        mgr = _get_feedback_manager()
+        stats = mgr.get_stats(
+            agent_name=agent_name,
+            thread_id=thread_id,
+            since=since,
+            until=until,
+        )
+        return stats.to_dict()
+
+    @app.get("/feedback/{record_id}", tags=["feedback"])
+    def get_feedback(record_id: str):
+        """Get a feedback record by ID.
+
+        Requires authentication. Returns 404 if not found.
+        """
+        mgr = _get_feedback_manager()
+        record = mgr.get_feedback(record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"Feedback record not found: {record_id}")
+        return record.to_dict()
+
+    @app.patch("/feedback/{record_id}", tags=["feedback"])
+    def update_feedback(
+        record_id: str,
+        rating: float | None = Body(None, embed=True),
+        comment: str | None = Body(None, embed=True),
+        tags: list[str] | None = Body(None, embed=True),
+        metadata: dict[str, Any] | None = Body(None, embed=True),
+    ):
+        """Update a feedback record.
+
+        Requires authentication. Only provided fields are updated.
+        Returns 404 if the record doesn't exist.
+        """
+        mgr = _get_feedback_manager()
+        result = mgr.update_feedback(
+            record_id,
+            rating=rating,
+            comment=comment,
+            tags=tags,
+            metadata=metadata,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Feedback record not found: {record_id}")
+        return result.to_dict()
+
+    @app.delete("/feedback/{record_id}", tags=["feedback"])
+    def delete_feedback(record_id: str):
+        """Delete a feedback record.
+
+        Requires authentication. Returns 404 if not found.
+        """
+        mgr = _get_feedback_manager()
+        deleted = mgr.delete_feedback(record_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Feedback record not found: {record_id}")
+        return {"deleted": True, "record_id": record_id}
+
+    # Note: /feedback/stats route is declared before /feedback/{record_id}
+    # to avoid path parameter capture.
+
+    # ------------------------------------------------------------------ #
+    # Notification center — in-app notifications                        #
+    # ------------------------------------------------------------------ #
+    @app.get("/notifications", tags=["notifications"])
+    def list_notifications(
+        user_id: str | None = Query(None),
+        category: str | None = Query(None),
+        severity: str | None = Query(None),
+        unread_only: bool = Query(False),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+        include_broadcast: bool = Query(True),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List notifications with filtering and pagination.
+
+        Requires authentication. Returns notifications in descending timestamp
+        order. Returns empty list when notifications are disabled.
+        """
+        mgr = _get_notification_manager()
+        offset = (page - 1) * page_size
+        records = mgr.list_notifications(
+            user_id=user_id,
+            category=category,
+            severity=severity,
+            unread_only=unread_only,
+            since=since,
+            until=until,
+            include_broadcast=include_broadcast,
+            limit=page_size,
+            offset=offset,
+        )
+        return {
+            "items": [n.to_dict() for n in records],
+            "total": len(records),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    @app.post("/notifications", tags=["notifications"])
+    def create_notification(
+        user_id: str = Body(..., embed=True),
+        title: str = Body(..., embed=True),
+        message: str = Body("", embed=True),
+        category: str = Body("system", embed=True),
+        severity: str = Body("info", embed=True),
+        action_url: str = Body("", embed=True),
+        action_label: str = Body("", embed=True),
+        metadata: dict[str, Any] = Body(default_factory=dict, embed=True),
+        expires_at: str = Body("", embed=True),
+    ):
+        """Create a new notification for a specific user.
+
+        Requires authentication. ``user_id`` and ``title`` are required.
+        Use ``"*"`` as ``user_id`` to broadcast to all users.
+        """
+        mgr = _get_notification_manager()
+        try:
+            record = mgr.create_notification(
+                user_id=user_id,
+                title=title,
+                message=message,
+                category=category,
+                severity=severity,
+                action_url=action_url,
+                action_label=action_label,
+                metadata=metadata,
+                expires_at=expires_at,
+            )
+            return record.to_dict()
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+
+    @app.get("/notifications/stats", tags=["notifications"])
+    def get_notification_stats(
+        user_id: str | None = Query(None),
+        category: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+    ):
+        """Get aggregate notification statistics.
+
+        Requires authentication. Returns 0-values when disabled or when
+        no records match the filters.
+        """
+        mgr = _get_notification_manager()
+        stats = mgr.get_stats(
+            user_id=user_id,
+            category=category,
+            since=since,
+            until=until,
+        )
+        return stats.to_dict()
+
+    @app.get("/notifications/unread-count", tags=["notifications"])
+    def get_unread_count(user_id: str = Query(...)):
+        """Get the unread notification count for a specific user.
+
+        Requires authentication. Includes broadcast notifications that
+        haven't been marked as read.
+        """
+        mgr = _get_notification_manager()
+        count = mgr.get_unread_count(user_id)
+        return {"user_id": user_id, "unread_count": count}
+
+    @app.post("/notifications/broadcast", tags=["notifications"])
+    def broadcast_notification(
+        title: str = Body(..., embed=True),
+        message: str = Body("", embed=True),
+        category: str = Body("system", embed=True),
+        severity: str = Body("info", embed=True),
+        action_url: str = Body("", embed=True),
+        action_label: str = Body("", embed=True),
+        metadata: dict[str, Any] = Body(default_factory=dict, embed=True),
+        expires_at: str = Body("", embed=True),
+    ):
+        """Broadcast a notification to all users.
+
+        Requires authentication. Creates a notification with ``user_id="*"``
+        which is included in all users' notification lists.
+        """
+        mgr = _get_notification_manager()
+        try:
+            record = mgr.broadcast(
+                title=title,
+                message=message,
+                category=category,
+                severity=severity,
+                action_url=action_url,
+                action_label=action_label,
+                metadata=metadata,
+                expires_at=expires_at,
+            )
+            return record.to_dict()
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+
+    @app.post("/notifications/read-all", tags=["notifications"])
+    def mark_all_read(user_id: str = Body(..., embed=True)):
+        """Mark all notifications for a user as read.
+
+        Requires authentication. Also marks broadcast notifications as read
+        for this user. Returns the number of notifications marked as read.
+        """
+        mgr = _get_notification_manager()
+        count = mgr.mark_all_read(user_id)
+        return {"user_id": user_id, "marked_read": count}
+
+    @app.get("/notifications/{notification_id}", tags=["notifications"])
+    def get_notification(notification_id: str):
+        """Get a notification by ID.
+
+        Requires authentication. Returns 404 if not found.
+        """
+        mgr = _get_notification_manager()
+        record = mgr.get_notification(notification_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"Notification not found: {notification_id}")
+        return record.to_dict()
+
+    @app.patch("/notifications/{notification_id}", tags=["notifications"])
+    def update_notification(
+        notification_id: str,
+        title: str | None = Body(None, embed=True),
+        message: str | None = Body(None, embed=True),
+        category: str | None = Body(None, embed=True),
+        severity: str | None = Body(None, embed=True),
+        action_url: str | None = Body(None, embed=True),
+        action_label: str | None = Body(None, embed=True),
+        metadata: dict[str, Any] | None = Body(None, embed=True),
+        expires_at: str | None = Body(None, embed=True),
+    ):
+        """Update a notification.
+
+        Requires authentication. Only provided fields are updated.
+        Returns 404 if not found.
+        """
+        mgr = _get_notification_manager()
+        result = mgr.update_notification(
+            notification_id,
+            title=title,
+            message=message,
+            category=category,
+            severity=severity,
+            action_url=action_url,
+            action_label=action_label,
+            metadata=metadata,
+            expires_at=expires_at,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Notification not found: {notification_id}")
+        return result.to_dict()
+
+    @app.post("/notifications/{notification_id}/read", tags=["notifications"])
+    def mark_notification_read(notification_id: str):
+        """Mark a notification as read.
+
+        Requires authentication. Returns 404 if not found.
+        """
+        mgr = _get_notification_manager()
+        result = mgr.mark_read(notification_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Notification not found: {notification_id}")
+        return result.to_dict()
+
+    @app.post("/notifications/{notification_id}/unread", tags=["notifications"])
+    def mark_notification_unread(notification_id: str):
+        """Mark a notification as unread.
+
+        Requires authentication. Returns 404 if not found.
+        """
+        mgr = _get_notification_manager()
+        result = mgr.mark_unread(notification_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Notification not found: {notification_id}")
+        return result.to_dict()
+
+    @app.delete("/notifications/{notification_id}", tags=["notifications"])
+    def delete_notification(notification_id: str):
+        """Delete a notification.
+
+        Requires authentication. Returns 404 if not found.
+        """
+        mgr = _get_notification_manager()
+        deleted = mgr.delete_notification(notification_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Notification not found: {notification_id}")
+        return {"deleted": True, "notification_id": notification_id}
+
+    # Note: /notifications/stats, /notifications/unread-count,
+    # /notifications/broadcast, /notifications/read-all routes are declared
+    # before /notifications/{notification_id} to avoid path parameter capture.
+
+    # ------------------------------------------------------------------ #
+    # Conversations — conversation history management                   #
+    # ------------------------------------------------------------------ #
+    @app.get("/conversations", tags=["conversations"])
+    def list_conversations(
+        user_id: str | None = None,
+        agent_name: str | None = None,
+        archived: bool | None = None,
+        tag: str | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
+    ):
+        """List conversations with optional filtering and pagination.
+
+        Query params:
+            user_id: Filter by user ID.
+            agent_name: Filter by agent name.
+            archived: Filter by archived status (true/false).
+            tag: Filter by tag.
+            start_time: Filter by creation time (ISO 8601, inclusive).
+            end_time: Filter by creation time (ISO 8601, inclusive).
+            limit: Maximum results (default 100, capped at 500).
+            offset: Pagination offset.
+            sort_by: Sort field — updated_at/created_at/message_count.
+            sort_order: Sort order — asc/desc.
+        """
+        mgr = _get_conversation_manager()
+        limit = min(max(limit, 1), 500)
+        offset = max(offset, 0)
+        convs = mgr.list_conversations(
+            user_id=user_id,
+            agent_name=agent_name,
+            archived=archived,
+            tag=tag,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+        total = mgr.count(
+            user_id=user_id,
+            agent_name=agent_name,
+        )
+        return {
+            "items": [c.to_dict(include_messages=False) for c in convs],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    @app.get("/conversations/stats", tags=["conversations"])
+    def get_conversation_stats(
+        user_id: str | None = None,
+        agent_name: str | None = None,
+    ):
+        """Get aggregate statistics for conversations.
+
+        Query params:
+            user_id: Limit stats to a specific user.
+            agent_name: Limit stats to a specific agent.
+        """
+        mgr = _get_conversation_manager()
+        stats = mgr.get_stats(user_id=user_id, agent_name=agent_name)
+        return stats.to_dict()
+
+    @app.get("/conversations/{thread_id}", tags=["conversations"])
+    def get_conversation_history(
+        thread_id: str,
+        include_messages: bool = True,
+    ):
+        """Get conversation history by thread ID.
+
+        Returns the full conversation including messages.
+
+        Query params:
+            include_messages: Whether to include messages (default true).
+
+        Returns 404 if the conversation is not found.
+        """
+        mgr = _get_conversation_manager()
+        conv = mgr.get_history(thread_id=thread_id, include_messages=include_messages)
+        if conv is None:
+            raise HTTPException(status_code=404, detail=f"Conversation not found: {thread_id}")
+        return conv.to_dict(include_messages=include_messages)
+
+    @app.patch("/conversations/{thread_id}", tags=["conversations"])
+    def update_conversation(thread_id: str, body: dict[str, Any]):
+        """Update conversation metadata (title, tags, archived, metadata).
+
+        All fields are optional — only provided fields are updated.
+
+        Returns 404 if the conversation is not found.
+        """
+        mgr = _get_conversation_manager()
+        try:
+            conv = mgr.update_conversation(
+                thread_id=thread_id,
+                title=body.get("title"),
+                tags=body.get("tags"),
+                archived=body.get("archived"),
+                metadata=body.get("metadata"),
+            )
+        except Exception as exc:
+            if "not found" in str(exc).lower() or "not_found" in str(exc.code).lower():
+                raise HTTPException(status_code=404, detail=f"Conversation not found: {thread_id}") from exc
+            raise
+        return conv.to_dict(include_messages=False)
+
+    @app.delete("/conversations/{thread_id}", tags=["conversations"])
+    def delete_conversation(thread_id: str):
+        """Delete a conversation and all its messages.
+
+        Returns 404 if the conversation is not found.
+        """
+        mgr = _get_conversation_manager()
+        deleted = mgr.delete_conversation(thread_id=thread_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Conversation not found: {thread_id}")
+        return {"deleted": True, "thread_id": thread_id}
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

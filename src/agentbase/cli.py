@@ -351,7 +351,6 @@ def cmd_version(args: argparse.Namespace) -> int:
 
 def cmd_config_validate(args: argparse.Namespace) -> int:
     """Validate configuration files without starting the server."""
-    from pathlib import Path
 
     from agentbase.config.loader import list_agent_names, load_agent_config, load_app_config
     from agentbase.runtime.errors import AgentbaseError
@@ -384,7 +383,7 @@ def cmd_config_validate(args: argparse.Namespace) -> int:
         agent_names = list_agent_names(config_dir)
         if not agent_names:
             warnings.append("No agent configs found")
-            console.print(f"  [yellow]WARN[/yellow] no agent configs found")
+            console.print("  [yellow]WARN[/yellow] no agent configs found")
         for name in agent_names:
             try:
                 cfg = load_agent_config(config_dir, name)
@@ -412,7 +411,7 @@ def cmd_config_validate(args: argparse.Namespace) -> int:
     elif warnings:
         console.print(f"[yellow]VALIDATION PASSED with {len(warnings)} warning(s)[/yellow]")
     else:
-        console.print(f"[green]VALIDATION PASSED: all checks OK[/green]")
+        console.print("[green]VALIDATION PASSED: all checks OK[/green]")
     return 0
 
 
@@ -493,6 +492,41 @@ def build_parser() -> argparse.ArgumentParser:
     _add_root_arg(worker)
     worker.add_argument("--poll-interval", type=float, default=2.0, help="Seconds between polls when idle")
     worker.set_defaults(func=cmd_worker)
+
+    # --- database migration commands ---
+    db = sub.add_parser("db", help="Database migration operations (Alembic)")
+    db_sub = db.add_subparsers(dest="db_command", required=True)
+
+    db_init = db_sub.add_parser("init", help="Initialize migration scripts directory")
+    _add_root_arg(db_init)
+    db_init.set_defaults(func=cmd_db_init)
+
+    db_upgrade = db_sub.add_parser("upgrade", help="Upgrade database to latest or specified revision")
+    _add_root_arg(db_upgrade)
+    db_upgrade.add_argument("--revision", default="head", help="Target revision (default: head)")
+    db_upgrade.set_defaults(func=cmd_db_upgrade)
+
+    db_downgrade = db_sub.add_parser("downgrade", help="Downgrade database by one step or to a revision")
+    _add_root_arg(db_downgrade)
+    db_downgrade.add_argument("--revision", default="-1", help="Target revision (default: -1 = one step back)")
+    db_downgrade.set_defaults(func=cmd_db_downgrade)
+
+    db_current = db_sub.add_parser("current", help="Show current migration revision")
+    _add_root_arg(db_current)
+    db_current.set_defaults(func=cmd_db_current)
+
+    db_heads = db_sub.add_parser("heads", help="Show head migration revisions")
+    _add_root_arg(db_heads)
+    db_heads.set_defaults(func=cmd_db_heads)
+
+    db_history = db_sub.add_parser("history", help="Show migration history")
+    _add_root_arg(db_history)
+    db_history.set_defaults(func=cmd_db_history)
+
+    db_stamp = db_sub.add_parser("stamp", help="Stamp database with a revision without running migrations")
+    _add_root_arg(db_stamp)
+    db_stamp.add_argument("--revision", default="head", help="Revision to stamp (default: head)")
+    db_stamp.set_defaults(func=cmd_db_stamp)
 
     return parser
 
@@ -684,6 +718,170 @@ def cmd_restore(args: argparse.Namespace) -> int:
         console.print(f"  [green]OK[/green] {len(statements)} statements executed")
 
     console.print("[green]✓ Restore complete[/green]")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Database migration commands (agentbase db ...)
+# ---------------------------------------------------------------------------
+
+def _get_migration_manager(args: argparse.Namespace):
+    """Build a MigrationManager from the resolved configuration."""
+    from pathlib import Path
+
+    from agentbase.core.migration import create_migration_manager
+
+    root = resolve_root_dir(args.root)
+    rt = build_runtime(root)
+    cfg = rt.app_config
+
+    scripts_path = Path(cfg.migration.scripts_dir)
+    # If scripts_dir is relative, resolve relative to project root
+    if not scripts_path.is_absolute():
+        scripts_path = root / scripts_path
+
+    return create_migration_manager(
+        storage_type=cfg.storage.type,
+        db_dir=cfg.storage.db_dir,
+        dsn=cfg.storage.dsn,
+        scripts_dir=str(scripts_path),
+        enabled=cfg.migration.enabled,
+    )
+
+
+def cmd_db_upgrade(args: argparse.Namespace) -> int:
+    """Run database migrations to the latest (or specified) revision."""
+    mgr = _get_migration_manager(args)
+    if not mgr.enabled:
+        console.print("[yellow]Migration is disabled (migration.enabled=false)[/yellow]")
+        return 0
+    revision = args.revision
+    console.print(f"[green]Upgrading database to: {revision}[/green]")
+    try:
+        mgr.upgrade(revision=revision)
+    except Exception as exc:
+        console.print(f"[red]ERROR[/red] Migration upgrade failed: {exc}")
+        return 1
+    console.print(f"[green]✓ Database upgraded to: {revision}[/green]")
+    return 0
+
+
+def cmd_db_downgrade(args: argparse.Namespace) -> int:
+    """Downgrade database by one step (or to a specified revision)."""
+    mgr = _get_migration_manager(args)
+    if not mgr.enabled:
+        console.print("[yellow]Migration is disabled[/yellow]")
+        return 0
+    revision = args.revision
+    console.print(f"[yellow]Downgrading database by: {revision}[/yellow]")
+    try:
+        mgr.downgrade(revision=revision)
+    except Exception as exc:
+        console.print(f"[red]ERROR[/red] Migration downgrade failed: {exc}")
+        return 1
+    console.print(f"[green]✓ Database downgraded by: {revision}[/green]")
+    return 0
+
+
+def cmd_db_current(args: argparse.Namespace) -> int:
+    """Show the current migration revision."""
+    mgr = _get_migration_manager(args)
+    if not mgr.enabled:
+        console.print("[yellow]Migration is disabled[/yellow]")
+        return 0
+    current = mgr.current()
+    if current is None:
+        console.print("[yellow]No migrations applied yet[/yellow]")
+    else:
+        console.print(f"Current revision: [cyan]{current}[/cyan]")
+    return 0
+
+
+def cmd_db_heads(args: argparse.Namespace) -> int:
+    """Show the head migration revisions."""
+    mgr = _get_migration_manager(args)
+    if not mgr.enabled:
+        console.print("[yellow]Migration is disabled[/yellow]")
+        return 0
+    heads = mgr.heads()
+    if not heads:
+        console.print("[yellow]No migrations found[/yellow]")
+    else:
+        for h in heads:
+            console.print(f"  Head: [cyan]{h}[/cyan]")
+    return 0
+
+
+def cmd_db_history(args: argparse.Namespace) -> int:
+    """Show migration history."""
+    mgr = _get_migration_manager(args)
+    if not mgr.enabled:
+        console.print("[yellow]Migration is disabled[/yellow]")
+        return 0
+    history = mgr.history()
+    if not history:
+        console.print("[yellow]No migration history[/yellow]")
+    else:
+        for entry in history:
+            console.print(f"  {entry}")
+    return 0
+
+
+def cmd_db_init(args: argparse.Namespace) -> int:
+    """Initialize the migration scripts directory."""
+    from pathlib import Path
+
+    from agentbase.core.migration import MigrationManager, _storage_url_to_sqlalchemy
+
+    root = resolve_root_dir(args.root)
+    rt = build_runtime(root)
+    cfg = rt.app_config
+
+    scripts_path = Path(cfg.migration.scripts_dir)
+    if not scripts_path.is_absolute():
+        scripts_path = root / scripts_path
+
+    db_url = _storage_url_to_sqlalchemy(
+        storage_type=cfg.storage.type,
+        db_dir=cfg.storage.db_dir,
+        dsn=cfg.storage.dsn,
+    )
+
+    # Create directory structure
+    scripts_path.mkdir(parents=True, exist_ok=True)
+    versions_dir = scripts_path / "versions"
+    versions_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write env.py and script.py.mako using init_scripts
+    mgr = MigrationManager(
+        scripts_dir=scripts_path,
+        db_url=db_url,
+        enabled=True,
+        skip_dir_check=True,
+    )
+    mgr.init_scripts()
+
+    console.print(f"[green]✓ Migration scripts initialized in: {scripts_path}[/green]")
+    console.print(f"  versions/ directory: {versions_dir}")
+    console.print(f"  env.py: {scripts_path / 'env.py'}")
+    console.print(f"  script.py.mako: {scripts_path / 'script.py.mako'}")
+    return 0
+
+
+def cmd_db_stamp(args: argparse.Namespace) -> int:
+    """Stamp the database with a specific revision without running migrations."""
+    mgr = _get_migration_manager(args)
+    if not mgr.enabled:
+        console.print("[yellow]Migration is disabled[/yellow]")
+        return 0
+    revision = args.revision
+    console.print(f"[green]Stamping database as: {revision}[/green]")
+    try:
+        mgr.stamp(revision=revision)
+    except Exception as exc:
+        console.print(f"[red]ERROR[/red] Migration stamp failed: {exc}")
+        return 1
+    console.print(f"[green]✓ Database stamped as: {revision}[/green]")
     return 0
 
 

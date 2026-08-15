@@ -416,6 +416,167 @@ class UserManagerConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class ApiKeyManagerConfig(BaseModel):
+    """API Key management service configuration.
+
+    - ``enabled = false`` (default) → API key management disabled (NullApiKeyProvider)
+    - ``enabled = true``             → enables multi-key CRUD, verification, and revocation
+    - ``provider = memory`` (default) → in-memory storage (zero-config)
+    - ``options``: extra kwargs passed to the provider factory
+    - Register custom providers with ``@register_apikey_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class UsageConfig(BaseModel):
+    """Token usage tracking and cost statistics configuration.
+
+    - ``enabled = false`` (default) → usage tracking disabled (NullUsageProvider)
+    - ``enabled = true``              → records prompt/completion/total tokens + cost
+    - ``provider = memory`` (default) → in-memory storage (zero-config, thread-safe)
+    - ``pricing``: optional custom pricing table for cost estimation
+    - ``max_records``: max records in memory before FIFO eviction (default 100,000)
+    - Register custom providers with ``@register_usage_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    max_records: int = 100_000
+    pricing: dict[str, dict[str, float]] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class WebhookConfig(BaseModel):
+    """Webhook event notification configuration.
+
+    - ``enabled = false`` (default) → webhook notifications disabled (NullWebhookProvider)
+    - ``enabled = true``              → enables endpoint registration and event delivery
+    - ``provider = memory`` (default) → in-memory storage (zero-config, thread-safe)
+    - ``timeout_seconds``: HTTP delivery timeout per attempt (default 10.0)
+    - ``max_retries``: max delivery attempts on retriable failures (default 3)
+    - ``retry_backoff``: base backoff seconds for exponential retry (default 1.0)
+    - Register custom providers with ``@register_webhook_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    timeout_seconds: float = 10.0
+    max_retries: int = 3
+    retry_backoff: float = 1.0
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class FeedbackConfig(BaseModel):
+    """User feedback collection configuration.
+
+    - ``enabled = false`` (default) → feedback collection disabled (NullFeedbackProvider)
+    - ``enabled = true``              → records user ratings, comments, tags
+    - ``provider = memory`` (default) → in-memory storage (zero-config, thread-safe)
+    - ``max_records``: max records in memory before FIFO eviction (default 50,000)
+    - Register custom providers with ``@register_feedback_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    max_records: int = 50_000
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class NotificationConfig(BaseModel):
+    """Notification center configuration.
+
+    - ``enabled = false`` (default) → notifications disabled (NullNotificationProvider)
+    - ``enabled = true``              → enables in-app notifications (create, query, mark-read)
+    - ``provider = memory`` (default) → in-memory storage (zero-config, thread-safe)
+    - ``max_records``: max records in memory before FIFO eviction (default 100,000)
+    - Register custom providers with ``@register_notification_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    max_records: int = 100_000
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConversationConfig(BaseModel):
+    """Conversation history service configuration.
+
+    - ``enabled = false`` (default) → conversation history disabled (NullConversationProvider)
+    - ``enabled = true``              → records and queries conversation message history
+    - ``provider = memory`` (default) → in-memory storage (zero-config, thread-safe)
+    - ``max_conversations``: max conversations in memory before eviction (default 10,000)
+    - Register custom providers with ``@register_conversation_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    max_conversations: int = 10_000
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class MigrationConfig(BaseModel):
+    """Database migration (Alembic) configuration.
+
+    - ``enabled = true`` (default) → migration commands available via CLI
+    - ``scripts_dir``: path to Alembic migrations directory (default: ``migrations``)
+    - When ``storage.type = sqlite``, migrations operate on the SQLite file.
+    - When ``storage.type = postgres``, migrations operate on the PostgreSQL DSN.
+    - MySQL and MongoDB are not managed by Alembic (MySQL uses raw SQL,
+      MongoDB is NoSQL).
+    """
+
+    enabled: bool = True
+    scripts_dir: str = "migrations"
+
+
+class OAuth2ProviderConfigItem(BaseModel):
+    """Configuration for a single OAuth2 provider (google/github).
+
+    - ``client_id``: OAuth2 client ID from the provider.
+    - ``client_secret``: OAuth2 client secret.
+    - ``redirect_uri``: Callback URL registered with the provider.
+    - ``scopes``: OAuth2 scopes to request.
+    - ``default_roles``: Roles assigned to auto-registered users (default: ``["user"]``).
+    """
+
+    client_id: str = ""
+    client_secret: str = ""
+    redirect_uri: str = ""
+    scopes: list[str] = Field(default_factory=list)
+    default_roles: list[str] = Field(default_factory=lambda: ["user"])
+
+
+class OAuth2Config(BaseModel):
+    """OAuth2 third-party login configuration.
+
+    - ``enabled = false`` (default) → OAuth2 login disabled
+    - ``enabled = true``             → enables Google/GitHub OAuth2 login
+    - ``providers``: dict of provider configs keyed by name (``google``, ``github``)
+
+    Example::
+
+        oauth2:
+          enabled: true
+          providers:
+            google:
+              client_id: "xxx.apps.googleusercontent.com"
+              client_secret: "${GOOGLE_OAUTH_SECRET}"
+              redirect_uri: "http://localhost:8000/auth/oauth2/google/callback"
+              scopes: ["openid", "email", "profile"]
+            github:
+              client_id: "Iv1.xxx"
+              client_secret: "${GITHUB_OAUTH_SECRET}"
+              redirect_uri: "http://localhost:8000/auth/oauth2/github/callback"
+              scopes: ["user:email"]
+    """
+
+    enabled: bool = False
+    providers: dict[str, OAuth2ProviderConfigItem] = Field(default_factory=dict)
+
+
 class MCPConfig(BaseModel):
     """MCP (Model Context Protocol) server configuration.
 
@@ -482,6 +643,14 @@ class AppConfig(BaseModel):
     model_manager: ModelManagerConfig = Field(default_factory=ModelManagerConfig)
     prompt_manager: PromptManagerConfig = Field(default_factory=PromptManagerConfig)
     user_manager: UserManagerConfig = Field(default_factory=UserManagerConfig)
+    apikey_manager: ApiKeyManagerConfig = Field(default_factory=ApiKeyManagerConfig)
+    migration: MigrationConfig = Field(default_factory=MigrationConfig)
+    oauth2: OAuth2Config = Field(default_factory=OAuth2Config)
+    usage: UsageConfig = Field(default_factory=UsageConfig)
+    webhook: WebhookConfig = Field(default_factory=WebhookConfig)
+    feedback: FeedbackConfig = Field(default_factory=FeedbackConfig)
+    notification: NotificationConfig = Field(default_factory=NotificationConfig)
+    conversation: ConversationConfig = Field(default_factory=ConversationConfig)
 
 
 class PermissionRule(BaseModel):

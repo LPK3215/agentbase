@@ -117,8 +117,12 @@ class AuditLogProvider(Protocol):
         """Query audit events matching the filter."""
         ...
 
-    def export(self, path: str, *, format: str = "json") -> int:
-        """Export all events to a file. Returns count exported."""
+    def export(self, path: str, *, format: str = "json", filter: AuditFilter | None = None) -> int:
+        """Export events to a file. Returns count exported."""
+        ...
+
+    def export_stream(self, *, format: str = "json", filter: AuditFilter | None = None) -> tuple[str, list[AuditEvent]]:
+        """Export events as an in-memory string. Returns (content, events)."""
         ...
 
     def count(self, filter: AuditFilter | None = None) -> int:
@@ -146,8 +150,36 @@ class NullAuditProvider:
     def query(self, filter: AuditFilter | None = None) -> list[AuditEvent]:
         return []
 
-    def export(self, path: str, *, format: str = "json") -> int:
+    def export(
+        self,
+        path: str,
+        *,
+        format: str = "json",
+        filter: AuditFilter | None = None,
+    ) -> int:
         return 0
+
+    def export_stream(
+        self,
+        *,
+        format: str = "json",
+        filter: AuditFilter | None = None,
+    ) -> tuple[str, list[AuditEvent]]:
+        # Return format-appropriate empty content
+        if format == "csv":
+            import csv as _csv
+            import io
+
+            buf = io.StringIO()
+            writer = _csv.writer(buf)
+            writer.writerow([
+                "id", "timestamp", "actor", "action",
+                "resource", "result", "detail",
+            ])
+            return buf.getvalue(), []
+        elif format == "yaml":
+            return "[]\n", []
+        return "[]", []
 
     def count(self, filter: AuditFilter | None = None) -> int:
         return 0
@@ -327,13 +359,50 @@ class SQLiteAuditProvider:
         except (KeyError, IndexError):
             return getattr(row, "cnt", 0)
 
-    def export(self, path: str, *, format: str = "json") -> int:
-        """Export all events to a file. Returns count exported."""
-        events = self.query(AuditFilter(limit=10000))
+    def export(
+        self,
+        path: str,
+        *,
+        format: str = "json",
+        filter: AuditFilter | None = None,
+    ) -> int:
+        """Export events to a file. Returns count exported.
+
+        Args:
+            path: Output file path.
+            format: ``"json"`` (default), ``"csv"``, or ``"yaml"``.
+            filter: Optional filter criteria. When ``None``, exports all
+                events (up to 10,000).
+        """
+        # Use provided filter or default (all events, up to 10k)
+        flt = filter or AuditFilter(limit=10000)
+        events = self.query(flt)
         output_path = Path(path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if format == "yaml":
+        if format == "csv":
+            import csv as _csv
+            import io
+
+            output_buf = io.StringIO()
+            writer = _csv.writer(output_buf)
+            # Header row
+            writer.writerow([
+                "id", "timestamp", "actor", "action",
+                "resource", "result", "detail",
+            ])
+            for event in events:
+                writer.writerow([
+                    event.id or "",
+                    event.timestamp,
+                    event.actor,
+                    event.action,
+                    event.resource,
+                    event.result,
+                    json.dumps(event.detail, ensure_ascii=False, default=str),
+                ])
+            output_path.write_text(output_buf.getvalue(), encoding="utf-8")
+        elif format == "yaml":
             import yaml
             data = [e.to_dict() for e in events]
             output_path.write_text(
@@ -347,6 +416,60 @@ class SQLiteAuditProvider:
                 encoding="utf-8",
             )
         return len(events)
+
+    def export_stream(
+        self,
+        *,
+        format: str = "json",
+        filter: AuditFilter | None = None,
+    ) -> tuple[str, list[AuditEvent]]:
+        """Export events as an in-memory string. Returns (content, events).
+
+        This is used by the API layer to stream exports via HTTP without
+        writing to the server's filesystem.
+
+        Args:
+            format: ``"json"`` (default), ``"csv"``, or ``"yaml"``.
+            filter: Optional filter criteria.
+
+        Returns:
+            A tuple of (serialized content, event list).
+        """
+        flt = filter or AuditFilter(limit=10000)
+        events = self.query(flt)
+
+        if format == "csv":
+            import csv as _csv
+            import io
+
+            output_buf = io.StringIO()
+            writer = _csv.writer(output_buf)
+            writer.writerow([
+                "id", "timestamp", "actor", "action",
+                "resource", "result", "detail",
+            ])
+            for event in events:
+                writer.writerow([
+                    event.id or "",
+                    event.timestamp,
+                    event.actor,
+                    event.action,
+                    event.resource,
+                    event.result,
+                    json.dumps(event.detail, ensure_ascii=False, default=str),
+                ])
+            return output_buf.getvalue(), events
+        elif format == "yaml":
+            import yaml
+            data = [e.to_dict() for e in events]
+            return yaml.dump(
+                data, default_flow_style=False, sort_keys=False, allow_unicode=True,
+            ), events
+        else:
+            data = [e.to_dict() for e in events]
+            return json.dumps(
+                data, indent=2, ensure_ascii=False, default=str,
+            ), events
 
     def close(self) -> None:
         with self._lock:
@@ -494,9 +617,32 @@ class AuditManager:
         """Query audit events. Returns empty list when disabled."""
         return self._provider.query(filter)
 
-    def export_events(self, path: str, *, format: str = "json") -> int:
-        """Export all events to a file. Returns 0 when disabled."""
-        return self._provider.export(path, format=format)
+    def export_events(
+        self,
+        path: str,
+        *,
+        format: str = "json",
+        filter: AuditFilter | None = None,
+    ) -> int:
+        """Export events to a file. Returns 0 when disabled."""
+        return self._provider.export(path, format=format, filter=filter)
+
+    def export_events_stream(
+        self,
+        *,
+        format: str = "json",
+        filter: AuditFilter | None = None,
+    ) -> tuple[str, list[AuditEvent]]:
+        """Export events as an in-memory string. Returns empty when disabled.
+
+        Args:
+            format: ``"json"`` (default), ``"csv"``, or ``"yaml"``.
+            filter: Optional filter criteria.
+
+        Returns:
+            A tuple of (serialized content, event list).
+        """
+        return self._provider.export_stream(format=format, filter=filter)
 
     def count_events(self, filter: AuditFilter | None = None) -> int:
         """Count events matching the filter. Returns 0 when disabled."""

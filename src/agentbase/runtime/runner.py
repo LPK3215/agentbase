@@ -9,9 +9,96 @@ from agentbase.factories.agent_factory import AgentFactory
 from agentbase.runtime.errors import ErrorCode, RuntimeExecutionError, _classify_error
 from agentbase.runtime.events import EventType, RuntimeEvent
 from agentbase.runtime.logging import get_logger
-from agentbase.runtime.session import Session, SessionStatus
+from agentbase.runtime.session import Session
 
 logger = get_logger(__name__)
+
+
+def _get_usage_manager() -> Any:
+    """Get the UsageManager singleton if initialised, else None."""
+    try:
+        from agentbase.core.usage import get_usage_manager
+        return get_usage_manager()
+    except RuntimeError:
+        return None
+    except Exception:
+        return None
+
+
+def _get_webhook_manager() -> Any:
+    """Get the WebhookManager singleton if initialised, else None."""
+    try:
+        from agentbase.core.webhook import get_webhook_manager
+        return get_webhook_manager()
+    except RuntimeError:
+        return None
+    except Exception:
+        return None
+
+
+def _get_conversation_manager() -> Any:
+    """Get the ConversationManager singleton if initialised, else None."""
+    try:
+        from agentbase.core.conversation import get_conversation_manager
+        return get_conversation_manager()
+    except RuntimeError:
+        return None
+    except Exception:
+        return None
+
+
+def _record_conversation(
+    *,
+    agent_name: str,
+    thread_id: str,
+    message: str,
+    result: Any,
+    metadata: dict[str, Any] | None,
+    duration_ms: float,
+) -> None:
+    """Record a conversation if the ConversationManager is available.
+
+    Fire-and-forget — errors are logged but never propagated.
+    """
+    conv_mgr = _get_conversation_manager()
+    if conv_mgr is not None and conv_mgr.enabled:
+        try:
+            from agentbase.core.conversation import extract_messages_from_result
+            messages = extract_messages_from_result(result)
+            # Prepend the user's input message
+            messages.insert(0, {"role": "user", "content": message})
+            conv_mgr.record_conversation(
+                thread_id=thread_id,
+                agent_name=agent_name,
+                user_id=(metadata or {}).get("user_id", ""),
+                messages=messages,
+                metadata=metadata or {},
+                duration_ms=duration_ms,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to record conversation: %s",
+                exc,
+                extra={"event": "conversation.record_failed", "thread_id": thread_id},
+            )
+
+
+def _dispatch_webhook(event: str, payload: dict[str, Any]) -> None:
+    """Dispatch a webhook event if the WebhookManager is available.
+
+    This is fire-and-forget — errors are logged but never propagated.
+    """
+    wh_mgr = _get_webhook_manager()
+    if wh_mgr is not None and wh_mgr.enabled:
+        try:
+            wh_mgr.dispatch_event(event=event, payload=payload)
+        except Exception as exc:
+            logger.warning(
+                "Failed to dispatch webhook event %s: %s",
+                event,
+                exc,
+                extra={"event": "webhook.dispatch_failed", "event_type": event},
+            )
 
 
 def _message_content(message: Any) -> str:
@@ -162,6 +249,48 @@ class AgentRunner:
 
         session.mark_completed()
 
+        # Record token usage if the UsageManager is available
+        usage_mgr = _get_usage_manager()
+        if usage_mgr is not None and usage_mgr.enabled:
+            try:
+                from agentbase.core.usage import extract_usage_from_result
+                usage = extract_usage_from_result(result)
+                if usage["prompt_tokens"] or usage["completion_tokens"]:
+                    usage_mgr.record(
+                        agent=agent_name,
+                        model=metadata.get("model", "") if metadata else "",
+                        prompt_tokens=usage["prompt_tokens"],
+                        completion_tokens=usage["completion_tokens"],
+                        total_tokens=usage["total_tokens"],
+                        thread_id=session.thread_id,
+                        request_id=request_id,
+                        duration_ms=duration_ms,
+                    )
+            except Exception as exc:
+                logger.warning("Failed to record usage: %s", exc, extra={"event": "usage.record_failed"})
+
+        # Dispatch webhook event for invoke completion
+        _dispatch_webhook(
+            "agent.invoke.completed",
+            {
+                "agent": agent_name,
+                "thread_id": session.thread_id,
+                "request_id": request_id,
+                "duration_ms": duration_ms,
+                "model": metadata.get("model", "") if metadata else "",
+            },
+        )
+
+        # Record conversation history if the ConversationManager is available
+        _record_conversation(
+            agent_name=agent_name,
+            thread_id=session.thread_id,
+            message=message,
+            result=result,
+            metadata=metadata,
+            duration_ms=duration_ms,
+        )
+
         logger.info(
             "Invoke completed agent=%s thread_id=%s duration_ms=%.1f",
             agent_name,
@@ -298,6 +427,49 @@ class AgentRunner:
         if span is not None:
             span.set_attribute("duration_ms", duration_ms)
             span.finish()
+
+        # Record token usage if the UsageManager is available
+        usage_mgr = _get_usage_manager()
+        if usage_mgr is not None and usage_mgr.enabled:
+            try:
+                from agentbase.core.usage import extract_usage_from_result
+                usage = extract_usage_from_result(final_text)
+                if usage["prompt_tokens"] or usage["completion_tokens"]:
+                    usage_mgr.record(
+                        agent=agent_name,
+                        model="",
+                        prompt_tokens=usage["prompt_tokens"],
+                        completion_tokens=usage["completion_tokens"],
+                        total_tokens=usage["total_tokens"],
+                        thread_id=session.thread_id,
+                        request_id=request_id,
+                        duration_ms=duration_ms,
+                    )
+            except Exception as exc:
+                logger.warning("Failed to record stream usage: %s", exc, extra={"event": "usage.record_failed"})
+
+        # Dispatch webhook event for stream completion
+        _dispatch_webhook(
+            "agent.stream.completed",
+            {
+                "agent": agent_name,
+                "thread_id": session.thread_id,
+                "request_id": request_id,
+                "duration_ms": duration_ms,
+                "output_text": final_text[:500] if final_text else "",
+            },
+        )
+
+        # Record conversation history if the ConversationManager is available
+        _record_conversation(
+            agent_name=agent_name,
+            thread_id=session.thread_id,
+            message=message,
+            result={"messages": [{"role": "user", "content": message}, {"role": "assistant", "content": final_text}]},
+            metadata=metadata,
+            duration_ms=duration_ms,
+        )
+
         logger.info(
             "Stream completed agent=%s thread_id=%s duration_ms=%.1f",
             agent_name,
@@ -368,6 +540,47 @@ class AgentRunner:
                 span.finish()
 
         session.mark_completed()
+
+        # Record token usage if the UsageManager is available
+        usage_mgr = _get_usage_manager()
+        if usage_mgr is not None and usage_mgr.enabled:
+            try:
+                from agentbase.core.usage import extract_usage_from_result
+                usage = extract_usage_from_result(result)
+                if usage["prompt_tokens"] or usage["completion_tokens"]:
+                    usage_mgr.record(
+                        agent=agent_name,
+                        model="",
+                        prompt_tokens=usage["prompt_tokens"],
+                        completion_tokens=usage["completion_tokens"],
+                        total_tokens=usage["total_tokens"],
+                        thread_id=session.thread_id,
+                        request_id=session.request_id or "-",
+                        duration_ms=duration_ms,
+                    )
+            except Exception as exc:
+                logger.warning("Failed to record resume usage: %s", exc, extra={"event": "usage.record_failed"})
+
+        # Dispatch webhook event for resume completion
+        _dispatch_webhook(
+            "agent.resume.completed",
+            {
+                "agent": agent_name,
+                "thread_id": session.thread_id,
+                "request_id": session.request_id or "-",
+                "duration_ms": duration_ms,
+            },
+        )
+
+        # Record conversation history if the ConversationManager is available
+        _record_conversation(
+            agent_name=agent_name,
+            thread_id=session.thread_id,
+            message="(resume)",
+            result=result,
+            metadata=None,
+            duration_ms=duration_ms,
+        )
 
         logger.info(
             "Resume completed agent=%s thread_id=%s duration_ms=%.1f",

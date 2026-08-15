@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import re
 import threading
-from pathlib import Path
 from typing import Any
 
 from agentbase.runtime.logging import get_logger
