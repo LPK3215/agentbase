@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（104 个端点）
+### 已实现（100 个端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -132,7 +132,7 @@
 ### 未实现
 
 - 无前端 UI（只有 Swagger API 文档）
-- OAuth2 第三方登录已实现（Google/GitHub），详见上方端点表
+- ~~OAuth2 第三方登录~~ → 已实现（Google/GitHub），详见上方端点表
 
 ---
 
@@ -291,7 +291,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（17 个注册表）
+## 7. 可插拔 Provider（25 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -313,6 +313,15 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 用户反馈 | InMemoryFeedbackProvider / NullFeedbackProvider | ✅ | `@register_feedback_provider("name")` |
 | 通知中心 | InMemoryNotificationProvider / NullNotificationProvider | ✅ | `@register_notification_provider("name")` |
 | 对话历史 | InMemoryConversationProvider / NullConversationProvider | ✅ | `@register_conversation_provider("name")` |
+| 审计日志 | SQLiteAuditProvider / NullAuditProvider | ✅ | `@register_audit_provider("name")` |
+| A/B 实验 | InMemoryExperimentProvider / NullExperimentProvider | ✅ | `@register_experiment_provider("name")` |
+| 敏感信息脱敏 | RuleRedactionProvider / NullRedactionProvider | ✅ | `@register_redaction_provider("name")` |
+| 密钥加密存储 | FernetSecretsProvider / NullSecretsProvider | ✅ | `@register_secrets_provider("name")` |
+| 工具（扩展注册表） | 37 个内置工具 | ✅ | `@register_tool("name")` |
+| 子代理（扩展注册表） | researcher | ✅ | `@register_subagent("name")` |
+| 中间件（扩展注册表） | 9 个内置中间件 | ✅ | `@register_middleware("name")` |
+
+> **不可替换的内置服务**：数据库迁移（`MigrationManager`，内部使用 Alembic）和 OAuth2 登录（`GoogleOAuth2Provider` / `GitHubOAuth2Provider`，内置 Google/GitHub）不通过注册表机制替换。
 
 ### 内置但未默认启用的 Provider
 
@@ -357,7 +366,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，传播到 runner 日志和 tracer span |
 | 追踪 (Tracing) | ✅ 已实现 | NullTracer + InMemoryTracer + LangfuseTracer + OpenTelemetryTracer，已集成到 invoke/stream/resume |
 | 健康检查 | ✅ 已实现 | `GET /health` — 组件级探活（storage/queue/embedding/search/tracer），受 `health_check` 配置开关控制，返回 `status`/`components`/`storage_connected`/`queue_connected`/`embedding_connected`/`search_connected`/`tracer_connected` |
-| 错误码体系 | ✅ 已实现 | `ErrorCode` 常量类，16 个领域（CONFIG/REG/FACTORY/RT/AUTH/RATE/QUEUE/KB/UPLOAD/WS/MIGRATION/USAGE/WEBHOOK/FEEDBACK/NOTIFICATION/CONVERSATION），HTTP 状态映射 |
+| 错误码体系 | ✅ 已实现 | `ErrorCode` 常量类，16 个领域（CONFIG/REG/FACTORY/RT/AUTH/RATE/QUEUE/KB/UPLOAD/WS/MIGRATION/USAGE/WEBHOOK/FEEDBACK/NOTIFICATION/CONVERSATION），HTTP 状态映射。另有 OAuth2 复用 AUTH 域 |
 
 ---
 
@@ -475,7 +484,7 @@ pip install agentbase[all]          # 全部安装
 |------|------|
 | 总测试数 | 2686 |
 | 失败数 | 0 |
-| 覆盖率 | 74% |
+| 覆盖率 | 79% |
 | 覆盖率门槛 | 60%（CI 强制） |
 | ruff lint | 0 errors |
 | isort | 0 errors |
@@ -491,7 +500,7 @@ pip install agentbase[all]          # 全部安装
 | README.md | ✅ 完整 |
 | docs/quickstart.md | ✅ 11 步端到端教程 |
 | docs/configuration.md | ✅ 全部配置项 |
-| docs/core-services.md | ✅ 14 个核心模块说明 |
+| docs/core-services.md | ✅ 25 个核心服务说明 |
 | docs/extensions.md | ✅ 扩展开发指南 |
 | docs/error-codes.md | ✅ 错误码注册表 |
 | docs/backend-boundaries.md | ✅ 本文档 |

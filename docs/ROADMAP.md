@@ -11,9 +11,9 @@
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 核心服务（17+） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / oauth2 / migration / usage / webhook / feedback / notification / conversation |
-| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation（21 个注册表） |
+| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation + tool / subagent / middleware（25 个注册表） |
 | 扩展体系 | done | tools(37) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 104 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / admin(rate-limit) |
+| API 层 | done | 100 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / admin(rate-limit) |
 | CLI 层 | done | 17 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
 | 测试基座 | done | 2686 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |

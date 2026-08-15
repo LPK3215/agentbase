@@ -5,7 +5,7 @@
 [![CI](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml/badge.svg)](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-2686-brightgreen.svg)](#)
-[![Coverage](https://img.shields.io/badge/coverage-74%25-green.svg)](#)
+[![Coverage](https://img.shields.io/badge/coverage-79%25-green.svg)](#)
 
 <p align="center">
   <em>
@@ -17,25 +17,25 @@
 
 **Configuration-driven AI Agent backend for secondary development** — a production-grade **AI Agent framework / LLM agent scaffold** built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade **AI agents / intelligent agent systems** from YAML configuration, without writing boilerplate. Use it as an **agent application scaffolding** layer, an **AI agent service framework**, or an **intelligent agent development starter kit**.
 
-`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 17-command CLI, and a FastAPI service layer with 104 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
+`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 17-command CLI, and a FastAPI service layer with 100 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
 
 ## Key Features
 
 - **Config-driven agent assembly** — agents, models, storage, embeddings defined in YAML, validated by `agentbase doctor`
-- **Pluggable registry system** — 17 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer, model manager, prompt manager, user manager, API key manager, OAuth2 providers, usage tracking, webhook notifications, user feedback, notification center, conversation history); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
-- **Full API server** — FastAPI with 104 routes: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, audit query + export, A/B experiments, model CRUD + connectivity testing, prompt template CRUD + rendering, user CRUD + authentication, API key CRUD + revocation + verification, OAuth2 third-party login (Google/GitHub), session management + cleanup, token usage tracking + cost statistics, webhook event notification + endpoint CRUD + delivery records, user feedback collection + ratings + statistics, notification center (create/broadcast/query/mark-read), conversation history management, rate-limit admin, Prometheus metrics, OpenAPI docs
+- **Pluggable registry system** — 25 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer, graph, storage, checkpointer, model manager, prompt manager, user manager, API key manager, usage tracking, webhook, feedback, notification, conversation, audit, experiment, redaction, secrets); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
+- **Full API server** — FastAPI with 100 routes: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, audit query + export, A/B experiments, model CRUD + connectivity testing, prompt template CRUD + rendering, user CRUD + authentication, API key CRUD + revocation + verification, OAuth2 third-party login (Google/GitHub), session management + cleanup, token usage tracking + cost statistics, webhook event notification + endpoint CRUD + delivery records, user feedback collection + ratings + statistics, notification center (create/broadcast/query/mark-read), conversation history management, rate-limit admin, Prometheus metrics, OpenAPI docs
 - **RAG knowledge base** — 9 document formats (PDF/DOCX/HTML/XLSX/PPTX…), 3 chunking strategies, pgvector native `<=>` cosine retrieval, in-memory fallback
 - **37 built-in tools** — file ops, skill/memory/knowledge-base CRUD, web search & fetch, HTTP request, read-only DB query, MCP client, sandboxed code execution, email sending, audio transcription
 - **9 middleware** — request_logger, retry, timeout, summary, cache, redact_output, rate_limit, model_router, audit_log
 - **Enterprise hardening** — API key auth, JWT/RBAC, OAuth2 (Google/GitHub), CORS, rate limiting, request tracing, structured `agentbase_<domain>_<nnn>` error codes, Docker deployment
-- **2,686 tests, 74% coverage** — full CI pipeline via GitHub Actions
+- **2,686 tests, 79% coverage** — full CI pipeline via GitHub Actions
 
 ## Architecture
 
 ```mermaid
 graph TD
     subgraph "Entry Points (CLI / FastAPI / WebSocket)"
-        A[agentbase CLI<br/>17 commands] --> C[Service Layer<br/>104 REST + WS routes]
+        A[agentbase CLI<br/>17 commands] --> C[Service Layer<br/>100 REST + WS routes]
         B[FastAPI App] --> C
     end
 
@@ -174,7 +174,7 @@ export AGENTBASE_API_KEY=""
 
 Endpoints marked **public** don't require authentication.
 
-### Endpoints (104 total)
+### Endpoints (100 total)
 
 <details>
 <summary>Click to expand full endpoint list</summary>
@@ -461,7 +461,7 @@ agentbase/
 │   ├── default.yaml       # App config (model, storage, embedding, search, mcp, queue, tracer)
 │   └── agents/            # Agent profiles
 ├── src/agentbase/
-│   ├── api.py             # FastAPI service layer (104 routes, auth, CORS, rate limit, metrics)
+│   ├── api.py             # FastAPI service layer (100 routes, auth, CORS, rate limit, metrics)
 │   ├── cli.py             # CLI entry point (17 commands)
 │   ├── config/            # Config loading & schema
 │   ├── core/              # 17 core services (memory, knowledge, queue, skills, workspace, agent, session, mcp, tracing, graph, config, registry, checkpointer, audit, redaction, secrets, experiment, migration, model_manager, prompt_manager, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation)
@@ -469,8 +469,8 @@ agentbase/
 │   ├── registry/          # Extension registries (13 pluggable providers)
 │   ├── runtime/           # AgentRunner, events, errors, logging
 │   └── extensions/        # Built-in extensions (tools, middleware, subagents, parsers, auth)
-│   └── registry/          # Extension registries (17 pluggable providers)
-├── tests/                 # 2,686 tests, 74% coverage
+│   └── registry/          # Extension registries (25 pluggable providers)
+├── tests/                 # 2,686 tests, 79% coverage
 ├── Dockerfile             # Container image
 ├── docker-compose.yml     # PostgreSQL (pgvector) + API
 ├── .env.example           # Environment variable template
