@@ -10,7 +10,6 @@ from agentbase.runtime.session import (
     Session,
     SessionRegistry,
     SessionStatus,
-    get_session_registry,
 )
 
 

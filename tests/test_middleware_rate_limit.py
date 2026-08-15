@@ -118,7 +118,6 @@ class TestBuildRateLimit:
     def test_middleware_allows_under_limit(self):
         """Middleware should allow calls under the rate limit."""
         rate_limiter = build_rate_limit(context={})
-        limiter = AgentRateLimiter(max_requests=60, window_seconds=60, burst=10)
 
         def mock_invoke(*, agent_name="default", **kwargs):
             return {"result": "ok"}

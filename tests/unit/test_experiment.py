@@ -10,7 +10,6 @@ Covers:
 from __future__ import annotations
 
 import threading
-from unittest.mock import patch
 
 import pytest
 
@@ -23,7 +22,6 @@ from agentbase.core.experiment import (
     InMemoryExperimentProvider,
     NullExperimentProvider,
     Variant,
-    VariantStats,
     experiment_registry,
     register_experiment_provider,
 )

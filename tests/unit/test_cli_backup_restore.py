@@ -19,7 +19,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +425,6 @@ class TestCmdRestore:
         storage = _make_sqlite_storage({"good_table": [], "bad_table": []})
 
         # Override execute to fail for bad_table
-        original_execute = storage.execute
         def _execute(sql, params=None):
             if "bad_table" in sql.lower():
                 raise RuntimeError("Table error")

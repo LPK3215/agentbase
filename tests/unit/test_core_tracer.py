@@ -12,7 +12,7 @@ Tests verify:
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -275,7 +275,7 @@ class TestInMemoryTracer:
         tracer = InMemoryTracer()
         trace_id = tracer.start_trace("root")
         span1 = tracer.start_span("active1", trace_id=trace_id)
-        span2 = tracer.start_span("active2", trace_id=trace_id)
+        tracer.start_span("active2", trace_id=trace_id)
         tracer.finish_span(span1)
         active = tracer.list_active_spans()
         assert len(active) == 2  # root span + span2 are still active

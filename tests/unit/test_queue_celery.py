@@ -11,7 +11,7 @@ to verify:
 from __future__ import annotations
 
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -367,8 +367,8 @@ class TestCeleryListTasks:
         mock_async_result.id = "celery-1"
         queue._celery_task.apply_async = MagicMock(return_value=mock_async_result)
 
-        t1 = queue.submit(agent_name="agent1", message="task1")
-        t2 = queue.submit(agent_name="agent2", message="task2")
+        queue.submit(agent_name="agent1", message="task1")
+        queue.submit(agent_name="agent2", message="task2")
 
         # Mock AsyncResult for listing
         mock_result = MagicMock()
@@ -388,8 +388,8 @@ class TestCeleryListTasks:
         mock_async_result.id = "celery-1"
         queue._celery_task.apply_async = MagicMock(return_value=mock_async_result)
 
-        t1 = queue.submit(agent_name="agent1", message="task1")
-        t2 = queue.submit(agent_name="agent2", message="task2")
+        queue.submit(agent_name="agent1", message="task1")
+        queue.submit(agent_name="agent2", message="task2")
 
         mock_result = MagicMock()
         mock_result.state = "PENDING"

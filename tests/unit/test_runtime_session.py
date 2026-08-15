@@ -16,7 +16,6 @@ from __future__ import annotations
 import time
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +63,7 @@ class TestSessionCreate:
     def test_create_auto_registers(self):
         from agentbase.runtime.session import Session, _registry
 
-        session = Session.create(agent_name="test_agent", thread_id="test-auto-reg")
+        Session.create(agent_name="test_agent", thread_id="test-auto-reg")
         assert _registry.get("test-auto-reg") is not None
 
 

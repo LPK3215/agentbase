@@ -13,8 +13,7 @@ Tests verify:
 """
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -151,8 +150,6 @@ class TestExtractFinalText:
 
 class TestAgentRunnerBuildInput:
     def test_build_input(self):
-        from agentbase.config.schema import AppConfig
-        from agentbase.factories.agent_factory import AgentFactory
         from agentbase.runtime.runner import AgentRunner
 
         mock_factory = MagicMock()
@@ -172,8 +169,6 @@ class TestAgentRunnerBuildInput:
 
 class TestAgentRunnerInvoke:
     def _make_runner(self):
-        from agentbase.config.schema import AppConfig
-        from agentbase.factories.agent_factory import AgentFactory
         from agentbase.runtime.runner import AgentRunner
 
         mock_factory = MagicMock()
@@ -259,8 +254,6 @@ class TestAgentRunnerInvoke:
 
 class TestAgentRunnerStream:
     def _make_runner(self):
-        from agentbase.config.schema import AppConfig
-        from agentbase.factories.agent_factory import AgentFactory
         from agentbase.runtime.runner import AgentRunner
 
         mock_factory = MagicMock()
@@ -338,8 +331,6 @@ class TestAgentRunnerStream:
 
 class TestAgentRunnerResume:
     def _make_runner(self, checkpointer=None):
-        from agentbase.config.schema import AppConfig
-        from agentbase.factories.agent_factory import AgentFactory
         from agentbase.runtime.runner import AgentRunner
 
         mock_factory = MagicMock()
@@ -408,8 +399,6 @@ class TestAgentRunnerResume:
 
 class TestAgentRunnerGetStats:
     def test_get_stats(self):
-        from agentbase.config.schema import AppConfig
-        from agentbase.factories.agent_factory import AgentFactory
         from agentbase.runtime.runner import AgentRunner
 
         mock_factory = MagicMock()
@@ -433,8 +422,6 @@ class TestAgentRunnerGetStats:
 
 class TestAgentRunnerNormalizeEvent:
     def _make_runner(self):
-        from agentbase.config.schema import AppConfig
-        from agentbase.factories.agent_factory import AgentFactory
         from agentbase.runtime.runner import AgentRunner
 
         mock_factory = MagicMock()
@@ -498,8 +485,6 @@ class TestAgentRunnerNormalizeEvent:
 
 class TestAgentRunnerFromModePayload:
     def _make_runner(self):
-        from agentbase.config.schema import AppConfig
-        from agentbase.factories.agent_factory import AgentFactory
         from agentbase.runtime.runner import AgentRunner
 
         mock_factory = MagicMock()

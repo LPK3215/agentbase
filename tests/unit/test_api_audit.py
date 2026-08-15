@@ -107,7 +107,7 @@ def _record_sample_events(manager, n=5):
         event = AuditEvent(
             actor=f"user{i}@example.com" if i < 3 else "admin@example.com",
             action="agent.invoke" if i % 2 == 0 else "document.delete",
-            resource=f"agent:default" if i % 2 == 0 else f"doc:{i}",
+            resource="agent:default" if i % 2 == 0 else f"doc:{i}",
             result="success" if i < 4 else "failure",
             detail={"index": i},
         )
@@ -200,7 +200,7 @@ class TestAuditEmpty:
 class TestAuditQuery:
     def test_list_returns_events(self, client_no_auth, audit_manager):
         """Recorded events are returned by the API."""
-        events = _record_sample_events(audit_manager, n=5)
+        _record_sample_events(audit_manager, n=5)
         resp = client_no_auth.get("/audit/events")
         assert resp.status_code == 200
         data = resp.json()
@@ -228,7 +228,6 @@ class TestAuditQuery:
         _record_sample_events(audit_manager, n=3)
         # Add a small delay to ensure different timestamps
         time.sleep(0.05)
-        from agentbase.core.audit import AuditEvent
 
         audit_manager.record_event(
             actor="late_user",

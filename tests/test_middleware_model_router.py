@@ -1,6 +1,7 @@
 """Tests for model_router middleware — covers strategy selection, failover, config parsing."""
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -338,8 +339,6 @@ class TestModelRouterMiddlewareBehavior:
     def test_failover_tries_next_on_error(self):
         """Failover should try the next model when the current one fails."""
         m1, m2 = MagicMock(), MagicMock()
-        router = ModelRouter(models=[m1, m2], strategy="failover")
-
         request = MagicMock()
         request.model = m1
 
