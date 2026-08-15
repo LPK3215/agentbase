@@ -27,6 +27,7 @@ dependencies = [
   # tzdata is required on Windows (and bundled-free Linux builds) for
   # `zoneinfo` to resolve IANA timezone keys such as "America/New_York".
   "tzdata>=2024.1",
+  "alembic>=1.13.0",
 ]
 
 [project.optional-dependencies]

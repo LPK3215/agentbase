@@ -61,3 +61,67 @@ extensions:
     - agentbase.extensions.middleware
     - agentbase.extensions.subagents
   extra_modules: []
+
+# OAuth2 third-party login (Google/GitHub)
+# Enable to allow users to log in via Google or GitHub accounts.
+# Auto-registers new users or matches existing users by email.
+# Requires user_manager.enabled=true for auto-registration.
+# oauth2:
+#   enabled: true
+#   providers:
+#     google:
+#       client_id: "xxx.apps.googleusercontent.com"
+#       client_secret: "${GOOGLE_OAUTH_SECRET}"
+#       redirect_uri: "http://localhost:8000/auth/oauth2/google/callback"
+#       scopes: ["openid", "email", "profile"]
+#       default_roles: ["user"]
+#     github:
+#       client_id: "Iv1.xxx"
+#       client_secret: "${GITHUB_OAUTH_SECRET}"
+#       redirect_uri: "http://localhost:8000/auth/oauth2/github/callback"
+#       scopes: ["user:email"]
+#       default_roles: ["user"]
+
+# Token usage tracking and cost statistics
+# Enable to record prompt/completion/total tokens + estimated USD cost
+# for every model invocation. Provides /usage/* API endpoints.
+# usage:
+#   enabled: true
+#   provider: memory
+#   max_records: 100000
+#   pricing: {}  # optional custom pricing table (model -> {prompt, completion} per 1K tokens)
+
+# Webhook event notification service
+# Enable to register endpoints and receive HTTP POST notifications
+# for agent lifecycle events (invoke/stream/resume completed).
+# webhook:
+#   enabled: true
+#   provider: memory
+#   timeout_seconds: 10.0
+#   max_retries: 3
+#   retry_backoff: 1.0
+
+# User feedback collection
+# Enable to record user ratings (1-5 stars or thumbs up/down),
+# comments, and tags for agent responses. Provides /feedback/* API.
+# feedback:
+#   enabled: true
+#   provider: memory
+#   max_records: 50000
+
+# Notification center — in-app notification management
+# Enable to create, query, and manage user notifications
+# (system announcements, quota alerts, task completion, etc.).
+# Provides /notifications/* API endpoints.
+# notification:
+#   enabled: true
+#   provider: memory
+#   max_records: 100000
+
+# Conversation history service
+# Enable to record and query conversation message history for
+# agent invoke/stream/resume operations. Provides /conversations/* API.
+# conversation:
+#   enabled: true
+#   provider: memory
+#   max_conversations: 10000

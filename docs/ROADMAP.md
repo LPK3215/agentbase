@@ -10,12 +10,12 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 核心服务（17） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment |
-| 11 大可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager |
+| 核心服务（17+） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / oauth2 / migration / usage / webhook / feedback / notification / conversation |
+| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation（21 个注册表） |
 | 扩展体系 | done | tools(37) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 57 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / admin(rate-limit) |
-| CLI 层 | done | 10 条命令，含 run / stream / resume / serve / doctor / version / config / backup / restore / worker |
-| 测试基座 | done | 1808 测试全绿，conftest 统一 fixture |
+| API 层 | done | 104 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / admin(rate-limit) |
+| CLI 层 | done | 17 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
+| 测试基座 | done | 2686 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -203,6 +203,69 @@
 - **API**：`/users` CRUD + `/auth/register` + `/auth/login`（7 条路由）。
 - **密码**：PBKDF2-HMAC-SHA256，100k rounds，随机 salt，常数时间比较。
 - **测试**：密码哈希（12）+ 数据模型（8）+ InMemory CRUD（18）+ Null（7）+ Manager（31）+ Registry（7）+ Singleton（3）+ 并发（4）+ Protocol（3）= 95 测试。
+
+#### G9. Token 用量追踪服务（UsageProvider）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：记录每次模型调用的 prompt/completion/total tokens + 成本估算，按 Agent/模型/用户/时间聚合统计——标准 AI 后台系统的核心运维能力。
+- **接口**：`UsageProvider` Protocol（`record` / `query` / `stats` / `count` / `clear` / `close`）。
+- **默认实现**：`InMemoryUsageProvider`（零配置，进程内存储，线程安全，FIFO 淘汰）；`NullUsageProvider`（禁用时 no-op）。
+- **注册**：`usage_registry`，`@register_usage_provider("name")`。
+- **开关**：config `usage.enabled=false`（默认关）。
+- **成本估算**：内置 30+ 主流模型定价表（OpenAI/Anthropic/DeepSeek/Google），支持自定义 `pricing` 配置，未知模型使用回退费率。
+- **集成**：AgentRunner.invoke/stream/resume 自动提取 `usage_metadata` / `response_metadata` 中的 token 用量并记录。
+- **API**：`/usage/stats` + `/usage/records` + `/usage/summary` + `DELETE /usage/records`（4 条路由）。
+- **错误码**：`AGENTBASE_USAGE_001`/`002`/`003`。
+- **测试**：成本估算（10）+ 数据模型（6）+ InMemory（21）+ Null（6）+ Manager（16）+ Registry（10）+ Singleton（3）+ Token 提取（10）+ Filter/Stats（5）+ Protocol（2）= 89 核心 + 19 API = 108 测试。
+
+#### G10. Webhook 事件通知服务（WebhookProvider）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：注册 Webhook 端点并投递实时 HTTP POST 事件通知——标准 AI 后台系统的核心集成能力。
+- **接口**：`WebhookProvider` Protocol（`register_endpoint` / `update_endpoint` / `delete_endpoint` / `dispatch` / `query_deliveries` / `get_stats` / `test_endpoint`）。
+- **默认实现**：`InMemoryWebhookProvider`（零配置，进程内存储，线程安全，FIFO 淘汰）；`NullWebhookProvider`（禁用时 no-op）。
+- **注册**：`webhook_registry`，`@register_webhook_provider("name")`。
+- **开关**：config `webhook.enabled=false`（默认关）。
+- **特性**：通配符事件订阅、HMAC-SHA256 签名、指数退避重试、背景线程非阻塞投递。
+- **集成**：AgentRunner.invoke/stream/resume 自动触发 `agent.invoke.completed` / `agent.stream.completed` / `agent.resume.completed` 事件。
+- **API**：`/webhooks` CRUD + `/webhooks/{id}/test` + `/webhooks/deliveries` + `/webhooks/stats`（8 条路由）。
+- **错误码**：`AGENTBASE_WEBHOOK_001`/`002`/`003`。
+- **测试**：70 核心 + 31 API = 101 测试。
+
+#### G11. 用户反馈收集服务（FeedbackProvider）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：收集用户评分（1-5 星或 ±1 thumbs）+ 评论 + 标签，按 Agent/线程/情感聚合统计——标准 AI 后台系统的核心用户反馈能力。
+- **接口**：`FeedbackProvider` Protocol（`create` / `update` / `get` / `list` / `delete` / `clear_all`）。
+- **默认实现**：`InMemoryFeedbackProvider`（零配置，进程内存储，线程安全，FIFO 淘汰）；`NullFeedbackProvider`（禁用时 no-op）。
+- **注册**：`feedback_registry`，`@register_feedback_provider("name")`。
+- **开关**：config `feedback.enabled=false`（默认关）。
+- **特性**：自动检测评分尺度（±1 thumbs vs 1-5 stars），自动情感分类（positive/neutral/negative），多维度过滤与聚合统计。
+- **API**：`/feedback` CRUD + `/feedback/stats`（6 条路由）。
+- **错误码**：`AGENTBASE_FEEDBACK_001`/`002`/`003`。
+- **测试**：73 核心 + 33 API = 106 测试。
+
+#### G12. 通知中心服务（NotificationProvider）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：应用内通知管理（系统公告、配额告警、任务完成、阈值预警）——标准 AI 后台系统的核心通知能力。
+- **接口**：`NotificationProvider` Protocol（`create` / `broadcast` / `get` / `list` / `update` / `mark_read` / `mark_unread` / `mark_all_read` / `delete` / `get_stats` / `get_unread_count` / `clear_all`）。
+- **默认实现**：`InMemoryNotificationProvider`（零配置，进程内存储，线程安全，FIFO 淘汰）；`NullNotificationProvider`（禁用时 no-op）。
+- **注册**：`notification_registry`，`@register_notification_provider("name")`。
+- **开关**：config `notification.enabled=false`（默认关）。
+- **特性**：广播通知（`user_id="*"`）、过期自动过滤、多维度过滤（用户/分类/严重度/已读）、聚合统计。
+- **API**：`/notifications` CRUD + `/notifications/broadcast` + `/notifications/stats` + `/notifications/unread-count` + `/notifications/read-all` + `/notifications/{id}/read` + `/notifications/{id}/unread`（11 条路由）。
+- **错误码**：`AGENTBASE_NOTIFICATION_001`/`002`/`003`。
+- **测试**：90+ 核心 + 40+ API = 130+ 测试。
+
+#### G13. 对话历史服务（ConversationProvider）
+- **状态**：done ｜ **优先级**：P5
+- **定位**：记录和查询 Agent 对话消息历史（invoke/stream/resume 自动记录）——标准 AI 后台系统的核心上下文管理能力。
+- **接口**：`ConversationProvider` Protocol（`record` / `get_history` / `list` / `update` / `delete` / `get_stats` / `count` / `close`）。
+- **默认实现**：`InMemoryConversationProvider`（零配置，进程内存储，线程安全，FIFO 淘汰）；`NullConversationProvider`（禁用时 no-op）。
+- **注册**：`conversation_registry`，`@register_conversation_provider("name")`。
+- **开关**：config `conversation.enabled=false`（默认关）。
+- **特性**：自动从 LangChain/LangGraph 消息中提取对话记录，支持标题/标签/归档管理，多维度过滤（用户/Agent/时间/标签/归档）。
+- **集成**：AgentRunner.invoke/stream/resume 自动提取消息并记录对话历史。
+- **API**：`/conversations` list + `/conversations/stats` + `/conversations/{thread_id}` GET/PATCH/DELETE（5 条路由）。
+- **错误码**：`AGENTBASE_CONVERSATION_001`/`002`/`003`。
+- **测试**：90+ 核心 + 25+ API = 115+ 测试。
 
 ---
 

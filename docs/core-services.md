@@ -20,6 +20,15 @@ EvaluationRunner      ───────►       Metric calculators
 ModelManager          ───────►       In-memory / custom (model configs)
 PromptManager         ───────►       In-memory / custom (prompt templates)
 UserManager           ───────►       In-memory / custom (users + auth)
+OAuth2Manager         ───────►       Google / GitHub (third-party login)
+ApiKeyManager         ───────►       In-memory / custom (API keys + revocation)
+UsageManager         ───────►       In-memory / custom (token usage + cost)
+WebhookManager        ───────►       In-memory / custom (event notifications)
+FeedbackManager       ───────►       In-memory / custom (user feedback + ratings)
+NotificationManager   ───────►       In-memory / custom (in-app notifications)
+ConversationManager   ───────►       In-memory / custom (conversation history)
+AuditManager          ───────►       In-memory / SQLite / PostgreSQL (audit log)
+MigrationManager      ───────►       Alembic (database schema migration)
                                       ↓
                             ┌─────────────────────────┐
                             │ ParserRegistry          │ → txt, md, pdf, docx, html, xlsx
@@ -184,3 +193,12 @@ Built-in metrics: `KeywordMatchMetric`, `ExactMatchMetric`, `SubstringMatchMetri
 | Model Manager | null | `@register_model_provider()` | `model_manager` |
 | Prompt Manager | null | `@register_prompt_provider()` | `prompt_manager` |
 | User Manager | null | `@register_user_provider()` | `user_manager` |
+| API Key Manager | null | `@register_apikey_provider()` | `apikey_manager` |
+| Audit Log | null | `@register_audit_provider()` | `audit` |
+| Migration | Alembic | No (uses Alembic internally) | `migration` |
+| OAuth2 | Google / GitHub | No (built-in providers) | `oauth2` |
+| Usage Tracking | In-memory | `@register_usage_provider()` | `usage` |
+| Webhook | In-memory | `@register_webhook_provider()` | `webhook` |
+| Feedback | In-memory | `@register_feedback_provider()` | `feedback` |
+| Notification | In-memory | `@register_notification_provider()` | `notification` |
+| Conversation | In-memory | `@register_conversation_provider()` | `conversation` |

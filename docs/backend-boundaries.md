@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（55 个端点）
+### 已实现（104 个端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -31,6 +31,41 @@
 | `/documents/search` | POST | 需要 | 搜索知识库 |
 | `/audit/events` | GET | 需要 | 查询审计日志（分页、过滤） |
 | `/audit/events/count` | GET | 需要 | 统计审计事件数量（支持过滤） |
+| `/audit/events/export` | GET | 需要 | 导出审计日志（JSON/CSV/YAML，支持过滤，文件下载） |
+| `/usage/stats` | GET | 需要 | 聚合用量统计（token 计数、成本、按模型/Agent/用户分组） |
+| `/usage/records` | GET | 需要 | 查询用量记录（分页、过滤） |
+| `/usage/summary` | GET | 需要 | 用量汇总（总调用数、总 token、总成本） |
+| `/usage/records` | DELETE | 需要 | 清除所有用量记录 |
+| `/webhooks` | GET | 需要 | 列出所有 Webhook 端点 |
+| `/webhooks` | POST | 需要 | 注册 Webhook 端点 |
+| `/webhooks/{endpoint_id}` | GET | 需要 | 获取 Webhook 端点详情 |
+| `/webhooks/{endpoint_id}` | PATCH | 需要 | 更新 Webhook 端点字段 |
+| `/webhooks/{endpoint_id}` | DELETE | 需要 | 删除 Webhook 端点 |
+| `/webhooks/{endpoint_id}/test` | POST | 需要 | 发送测试事件到端点（同步） |
+| `/webhooks/deliveries` | GET | 需要 | 查询投递记录（分页、过滤） |
+| `/webhooks/stats` | GET | 需要 | Webhook 投递聚合统计 |
+| `/feedback` | GET | 需要 | 查询用户反馈记录（分页、多维度过滤） |
+| `/feedback` | POST | 需要 | 提交用户反馈（评分/评论/标签） |
+| `/feedback/stats` | GET | 需要 | 聚合反馈统计（平均分/情感分布/按 Agent 分组） |
+| `/feedback/{record_id}` | GET | 需要 | 获取反馈记录详情 |
+| `/feedback/{record_id}` | PATCH | 需要 | 更新反馈字段（评分/评论/标签） |
+| `/feedback/{record_id}` | DELETE | 需要 | 删除反馈记录 |
+| `/notifications` | GET | 需要 | 列出通知（分页、多维度过滤） |
+| `/notifications` | POST | 需要 | 创建通知（指定用户或广播） |
+| `/notifications/stats` | GET | 需要 | 聚合通知统计（未读数/按分类/按严重度） |
+| `/notifications/unread-count` | GET | 需要 | 获取用户未读通知数 |
+| `/notifications/broadcast` | POST | 需要 | 广播通知给所有用户 |
+| `/notifications/read-all` | POST | 需要 | 标记用户所有通知为已读 |
+| `/notifications/{notification_id}` | GET | 需要 | 获取通知详情 |
+| `/notifications/{notification_id}` | PATCH | 需要 | 更新通知字段 |
+| `/notifications/{notification_id}/read` | POST | 需要 | 标记通知为已读 |
+| `/notifications/{notification_id}/unread` | POST | 需要 | 标记通知为未读 |
+| `/notifications/{notification_id}` | DELETE | 需要 | 删除通知 |
+| `/conversations` | GET | 需要 | 列出对话历史（分页、多维度过滤） |
+| `/conversations/stats` | GET | 需要 | 聚合对话统计（总数/消息数/按 Agent/用户分组） |
+| `/conversations/{thread_id}` | GET | 需要 | 获取对话历史（含消息列表） |
+| `/conversations/{thread_id}` | PATCH | 需要 | 更新对话元数据（标题/标签/归档） |
+| `/conversations/{thread_id}` | DELETE | 需要 | 删除对话及其所有消息 |
 | `/experiments` | GET | 需要 | 列出所有 A/B 测试实验 |
 | `/experiments` | POST | 需要 | 创建 A/B 测试实验 |
 | `/experiments/{name}` | GET | 需要 | 获取实验详情 |
@@ -57,11 +92,24 @@
 | `/users/{username}` | DELETE | 需要 | 删除用户 |
 | `/auth/register` | POST | 需要 | 用户注册（注册流程） |
 | `/auth/login` | POST | 需要 | 用户登录认证 |
+| `/auth/oauth2/{provider}/authorize` | GET | 公开 | OAuth2 授权重定向（Google/GitHub） |
+| `/auth/oauth2/{provider}/callback` | GET | 公开 | OAuth2 回调（交换 Token、自动注册/匹配用户、签发 JWT） |
+| `/auth/oauth2/providers` | GET | 公开 | 列出已配置的 OAuth2 提供商 |
 | `/sessions` | GET | 需要 | 列出所有会话（支持 agent/status 过滤） |
 | `/sessions/stats` | GET | 需要 | 会话统计（按状态计数） |
 | `/sessions/{thread_id}` | GET | 需要 | 获取会话详情 |
 | `/sessions/{thread_id}` | DELETE | 需要 | 取消会话（标记为 cancelled） |
 | `/sessions/cleanup` | POST | 需要 | 清理会话（expired/stale/completed 模式） |
+| `/admin/rate-limit` | GET | 需要 | 查看当前速率限制桶状态 |
+| `/admin/rate-limit/buckets` | DELETE | 需要 | 清空所有速率限制桶 |
+| `/admin/rate-limit/quotas/{role}` | POST | 需要 | 设置角色速率限制配额 |
+| `/apikeys` | GET | 需要 | 列出所有 API Key（不含 hash） |
+| `/apikeys` | POST | 需要 | 创建 API Key（返回原始 key） |
+| `/apikeys/{key_id}` | GET | 需要 | 获取 API Key 详情 |
+| `/apikeys/{key_id}` | PATCH | 需要 | 更新 API Key 字段 |
+| `/apikeys/{key_id}` | DELETE | 需要 | 删除 API Key |
+| `/apikeys/{key_id}/revoke` | POST | 需要 | 吊销（禁用）API Key |
+| `/apikeys/verify` | POST | 需要 | 验证 API Key 有效性 |
 | `/ws/agents/{name}` | WebSocket | Token | 实时双向 Agent 对话 |
 | `/docs` | GET | 公开 | Swagger UI |
 | `/redoc` | GET | 公开 | ReDoc 文档 |
@@ -75,6 +123,7 @@
 | RBAC 角色权限 | ✅ 已实现 | admin/user/readonly 三级角色，路径级权限控制，JWT payload 自动校验 |
 | CORS 中间件 | ✅ 已实现 | `cors.allow_origins` 配置，默认 `*`；支持 `AGENTBASE_CORS_ORIGINS` 环境变量 |
 | 速率限制 | ✅ 已实现 | `rate_limit` 配置段：`max_requests`/`window_seconds`/`burst`，可配置 |
+| OAuth2 第三方登录 | ✅ 已实现 | `oauth2` 配置段：Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户 |
 | 全局异常处理 | ✅ 已实现 | 返回 `{"error": "...", "code": "...", "http_status": N, "request_id": "..."}` |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，自动生成 UUID，传播到日志和 tracer |
 | 分页 | ✅ 已实现 | `/queue`、`/documents`、`/audit/events` 支持 `page`/`page_size` 参数 |
@@ -83,7 +132,7 @@
 ### 未实现
 
 - 无前端 UI（只有 Swagger API 文档）
-- 无 OAuth2 第三方登录（Google/GitHub 等）
+- OAuth2 第三方登录已实现（Google/GitHub），详见上方端点表
 
 ---
 
@@ -132,7 +181,6 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 ### 未实现
 
 - 向量数据库（Milvus、Pinecone、Weaviate）—— 当前用 pgvector 替代
-- 数据库 Schema 迁移工具（Alembic）—— 当前使用 `backup` / `restore` 命令 + 自动方言转换替代
 
 ---
 
@@ -243,7 +291,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（12 个注册表）
+## 7. 可插拔 Provider（17 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -259,6 +307,12 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 模型管理 | InMemoryModelProvider / NullModelProvider | ✅ | `@register_model_provider("name")` |
 | 提示词管理 | InMemoryPromptProvider / NullPromptProvider | ✅ | `@register_prompt_provider("name")` |
 | 用户管理 | InMemoryUserProvider / NullUserProvider | ✅ | `@register_user_provider("name")` |
+| API Key 管理 | InMemoryApiKeyProvider / NullApiKeyProvider | ✅ | `@register_apikey_provider("name")` |
+| 用量追踪 | InMemoryUsageProvider / NullUsageProvider | ✅ | `@register_usage_provider("name")` |
+| Webhook 通知 | InMemoryWebhookProvider / NullWebhookProvider | ✅ | `@register_webhook_provider("name")` |
+| 用户反馈 | InMemoryFeedbackProvider / NullFeedbackProvider | ✅ | `@register_feedback_provider("name")` |
+| 通知中心 | InMemoryNotificationProvider / NullNotificationProvider | ✅ | `@register_notification_provider("name")` |
+| 对话历史 | InMemoryConversationProvider / NullConversationProvider | ✅ | `@register_conversation_provider("name")` |
 
 ### 内置但未默认启用的 Provider
 
@@ -280,6 +334,12 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 模型管理 | ✅ 已验证 | `model_manager.enabled: true` + `model_manager.provider: memory` |
 | 提示词管理 | ✅ 已验证 | `prompt_manager.enabled: true` + `prompt_manager.provider: memory` |
 | 用户管理 | ✅ 已验证 | `user_manager.enabled: true` + `user_manager.provider: memory` |
+| API Key 管理 | ✅ 已验证 | `apikey_manager.enabled: true` + `apikey_manager.provider: memory` |
+| Token 用量追踪 | ✅ 已验证 | `usage.enabled: true` + `usage.provider: memory` |
+| Webhook 事件通知 | ✅ 已验证 | `webhook.enabled: true` + `webhook.provider: memory` |
+| 用户反馈收集 | ✅ 已验证 | `feedback.enabled: true` + `feedback.provider: memory` |
+| 通知中心 | ✅ 已验证 | `notification.enabled: true` + `notification.provider: memory` |
+| 对话历史 | ✅ 已验证 | `conversation.enabled: true` + `conversation.provider: memory` |
 
 ### 未实现
 
@@ -297,7 +357,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，传播到 runner 日志和 tracer span |
 | 追踪 (Tracing) | ✅ 已实现 | NullTracer + InMemoryTracer + LangfuseTracer + OpenTelemetryTracer，已集成到 invoke/stream/resume |
 | 健康检查 | ✅ 已实现 | `GET /health` — 组件级探活（storage/queue/embedding/search/tracer），受 `health_check` 配置开关控制，返回 `status`/`components`/`storage_connected`/`queue_connected`/`embedding_connected`/`search_connected`/`tracer_connected` |
-| 错误码体系 | ✅ 已实现 | `ErrorCode` 常量类，10 个领域（CONFIG/REG/FACTORY/RT/AUTH/RATE/QUEUE/KB/UPLOAD/WS），HTTP 状态映射 |
+| 错误码体系 | ✅ 已实现 | `ErrorCode` 常量类，16 个领域（CONFIG/REG/FACTORY/RT/AUTH/RATE/QUEUE/KB/UPLOAD/WS/MIGRATION/USAGE/WEBHOOK/FEEDBACK/NOTIFICATION/CONVERSATION），HTTP 状态映射 |
 
 ---
 
@@ -358,10 +418,19 @@ pip install agentbase[all]          # 全部安装
 | `agentbase stream` | ✅ 已实现 | 流式调用 Agent |
 | `agentbase resume` | ✅ 已实现 | 恢复中断的 Agent |
 | `agentbase serve` | ✅ 已实现 | 启动 API 服务 |
+| `agentbase worker` | ✅ 已实现 | 启动队列 worker 进程 |
 | `agentbase version` | ✅ 已实现 | 打印版本信息（Python 版本、平台） |
 | `agentbase config validate` | ✅ 已实现 | 验证配置文件（app config + agent configs + workspace 结构） |
+| `agentbase config show` | ✅ 已实现 | 显示已解析的配置 |
 | `agentbase backup` | ✅ 已实现 | 数据库备份（SQL/JSON 格式） |
 | `agentbase restore` | ✅ 已实现 | 数据库恢复（SQL/JSON 格式） |
+| `agentbase db init` | ✅ 已实现 | 初始化迁移脚本目录 |
+| `agentbase db upgrade` | ✅ 已实现 | 升级数据库到最新 schema |
+| `agentbase db downgrade` | ✅ 已实现 | 回退一步数据库 schema |
+| `agentbase db current` | ✅ 已实现 | 查看当前迁移版本 |
+| `agentbase db heads` | ✅ 已实现 | 查看头部迁移版本 |
+| `agentbase db history` | ✅ 已实现 | 查看迁移历史 |
+| `agentbase db stamp` | ✅ 已实现 | 标记数据库版本（不执行迁移） |
 
 ---
 
@@ -374,11 +443,19 @@ pip install agentbase[all]          # 全部安装
 | RBAC 权限控制 | ✅ 已实现 | admin/user/readonly 三级角色，路径级权限 |
 | CORS | ✅ 已实现 | 可配置 origins，通配符 `*` 时自动禁用 credentials（CORS 规范） |
 | 速率限制 | ✅ 已实现 | 每 IP 60 req/min，支持按角色动态配额（`quotas` 配置 + `/admin/rate-limit` API） |
+| API Key 多 Key 管理 | ✅ 已实现 | `apikey_manager.enabled=true`，多 Key 生成/CRUD/吊销/验证/过期/使用统计，与 Bearer Token 认证集成 |
+| Token 用量追踪 | ✅ 已实现 | `usage.enabled=true`，自动记录 prompt/completion/total tokens + 成本估算，按 Agent/模型/用户/时间聚合统计 |
+| Webhook 事件通知 | ✅ 已实现 | `webhook.enabled=true`，注册端点接收 HTTP POST 事件通知，支持通配符事件订阅、HMAC-SHA256 签名、指数退避重试 |
+| 用户反馈收集 | ✅ 已实现 | `feedback.enabled=true`，用户评分（1-5 星或 ±1 thumbs）+ 评论 + 标签，按 Agent/线程/情感聚合统计 |
+| 通知中心 | ✅ 已实现 | `notification.enabled=true`，应用内通知（创建/查询/标记已读/广播），按用户/分类/严重度聚合统计，支持过期自动过滤 |
+| 对话历史 | ✅ 已实现 | `conversation.enabled=true`，自动记录 invoke/stream/resume 对话消息，按用户/Agent/时间过滤，支持标题/标签/归档管理 |
 
 ### 未实现
 
-- OAuth2 第三方登录
+- ~~OAuth2 第三方登录~~ → 已实现（Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户，签发 JWT）
 - ~~API 限流配额管理（只有固定阈值）~~ → 已实现（按角色动态配额 + `/admin/rate-limit` 管理端点）
+
+> 安全与认证功能已全部实现。
 
 ---
 
@@ -396,14 +473,14 @@ pip install agentbase[all]          # 全部安装
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 1808 |
+| 总测试数 | 2686 |
 | 失败数 | 0 |
 | 覆盖率 | 74% |
 | 覆盖率门槛 | 60%（CI 强制） |
 | ruff lint | 0 errors |
 | isort | 0 errors |
-| CLI 命令 | 10 |
-| 错误码领域 | 10 |
+| CLI 命令 | 17 |
+| 错误码领域 | 16 |
 
 ---
 
@@ -414,7 +491,7 @@ pip install agentbase[all]          # 全部安装
 | README.md | ✅ 完整 |
 | docs/quickstart.md | ✅ 11 步端到端教程 |
 | docs/configuration.md | ✅ 全部配置项 |
-| docs/core-services.md | ✅ 13 个核心模块说明 |
+| docs/core-services.md | ✅ 14 个核心模块说明 |
 | docs/extensions.md | ✅ 扩展开发指南 |
 | docs/error-codes.md | ✅ 错误码注册表 |
 | docs/backend-boundaries.md | ✅ 本文档 |
@@ -428,12 +505,19 @@ pip install agentbase[all]          # 全部安装
 
 | 优先级 | 功能 | 说明 |
 |--------|------|------|
-| P5 | OAuth2 第三方登录 | Google/GitHub 登录 |
+| P5 | ~~OAuth2 第三方登录~~ | ~~✅ 已实现~~ Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户，签发 JWT |
 | P5 | ~~审计日志中间件~~ | ~~✅ 已实现~~ `middleware: audit_log`，自动记录模型调用审计事件 |
-| P5 | Alembic 数据库迁移 | 版本化 schema |
+| P5 | ~~审计日志导出~~ | ~~✅ 已实现~~ `GET /audit/events/export`，支持 JSON/CSV/YAML 格式 + 全部过滤条件 + 文件下载 |
+| P5 | ~~Alembic 数据库迁移~~ | ~~✅ 已实现~~ `agentbase db upgrade/downgrade/current/heads/history/stamp/init`，版本化 schema 管理，支持 SQLite/PostgreSQL |
 | P5 | ~~MongoDB 存储~~ | ~~✅ 已实现~~ `storage.type: mongodb`，SQL→MongoDB 适配层 |
 | P5 | ~~Celery/RabbitMQ 队列~~ | ~~✅ 已实现~~ `queue.provider: celery`，分布式任务（RabbitMQ/Redis broker） |
 | P5 | ~~模型管理 CRUD~~ | ~~✅ 已实现~~ `model_manager.enabled=true`，多模型注册/查询/更新/删除 + 连通性测试 + `/models` API（6 条路由） |
 | P5 | ~~提示词模板管理~~ | ~~✅ 已实现~~ `prompt_manager.enabled=true`，提示词模板 CRUD + 变量渲染 + `/prompts` API（6 条路由） |
 | P5 | ~~用户管理服务~~ | ~~✅ 已实现~~ `user_manager.enabled=true`，用户 CRUD + 密码哈希 + 认证 + `/users` + `/auth` API（7 条路由） |
+| P5 | ~~API Key 多 Key 管理~~ | ~~✅ 已实现~~ `apikey_manager.enabled=true`，多 Key 生成/CRUD/吊销/验证/过期/使用统计 + `/apikeys` API（7 条路由），与 Bearer Token 认证集成 |
+| P5 | ~~Token 用量追踪~~ | ~~✅ 已实现~~ `usage.enabled=true`，自动记录 prompt/completion/total tokens + 成本估算，内置 30+ 模型定价表，按 Agent/模型/用户聚合统计，4 条 API 路由 |
+| P5 | ~~Webhook 事件通知~~ | ~~✅ 已实现~~ `webhook.enabled=true`，注册端点接收 HTTP POST 事件通知，支持通配符事件订阅、HMAC-SHA256 签名、指数退避重试，8 条 API 路由 |
+| P5 | ~~用户反馈收集~~ | ~~✅ 已实现~~ `feedback.enabled=true`，用户评分（1-5 星或 ±1 thumbs）+ 评论 + 标签，按 Agent/线程/情感聚合统计，6 条 API 路由 |
+| P5 | ~~通知中心~~ | ~~✅ 已实现~~ `notification.enabled=true`，应用内通知（创建/查询/标记已读/广播），按用户/分类/严重度聚合统计，支持过期自动过滤，11 条 API 路由 |
+| P5 | ~~对话历史~~ | ~~✅ 已实现~~ `conversation.enabled=true`，自动记录 invoke/stream/resume 对话消息，按用户/Agent/时间过滤，支持标题/标签/归档管理，5 条 API 路由 |
 | P5 | 前端 UI | Web 管理界面 |

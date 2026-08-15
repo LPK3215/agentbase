@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/agentbase.svg)](https://pypi.org/project/agentbase/)
 [![CI](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml/badge.svg)](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-1808-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-2686-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-74%25-green.svg)](#)
 
 <p align="center">
@@ -17,24 +17,25 @@
 
 **Configuration-driven AI Agent backend for secondary development** — a production-grade **AI Agent framework / LLM agent scaffold** built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade **AI agents / intelligent agent systems** from YAML configuration, without writing boilerplate. Use it as an **agent application scaffolding** layer, an **AI agent service framework**, or an **intelligent agent development starter kit**.
 
-`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 10-command CLI, and a FastAPI service layer with 57 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
+`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 17-command CLI, and a FastAPI service layer with 104 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
 
 ## Key Features
 
 - **Config-driven agent assembly** — agents, models, storage, embeddings defined in YAML, validated by `agentbase doctor`
-- **Pluggable registry system** — 12 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer, model manager, prompt manager, user manager); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
-- **Full API server** — FastAPI with 57 routes: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, audit query, A/B experiments, model CRUD + connectivity testing, prompt template CRUD + rendering, user CRUD + authentication, session management + cleanup, Prometheus metrics, OpenAPI docs
+- **Pluggable registry system** — 17 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer, model manager, prompt manager, user manager, API key manager, OAuth2 providers, usage tracking, webhook notifications, user feedback, notification center, conversation history); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
+- **Full API server** — FastAPI with 104 routes: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, audit query + export, A/B experiments, model CRUD + connectivity testing, prompt template CRUD + rendering, user CRUD + authentication, API key CRUD + revocation + verification, OAuth2 third-party login (Google/GitHub), session management + cleanup, token usage tracking + cost statistics, webhook event notification + endpoint CRUD + delivery records, user feedback collection + ratings + statistics, notification center (create/broadcast/query/mark-read), conversation history management, rate-limit admin, Prometheus metrics, OpenAPI docs
 - **RAG knowledge base** — 9 document formats (PDF/DOCX/HTML/XLSX/PPTX…), 3 chunking strategies, pgvector native `<=>` cosine retrieval, in-memory fallback
 - **37 built-in tools** — file ops, skill/memory/knowledge-base CRUD, web search & fetch, HTTP request, read-only DB query, MCP client, sandboxed code execution, email sending, audio transcription
-- **Enterprise hardening** — API key auth, CORS, rate limiting, request tracing, structured `agentbase_<domain>_<nnn>` error codes, Docker deployment
-- **1,627 tests, 74% coverage** — full CI pipeline via GitHub Actions
+- **9 middleware** — request_logger, retry, timeout, summary, cache, redact_output, rate_limit, model_router, audit_log
+- **Enterprise hardening** — API key auth, JWT/RBAC, OAuth2 (Google/GitHub), CORS, rate limiting, request tracing, structured `agentbase_<domain>_<nnn>` error codes, Docker deployment
+- **2,686 tests, 74% coverage** — full CI pipeline via GitHub Actions
 
 ## Architecture
 
 ```mermaid
 graph TD
     subgraph "Entry Points (CLI / FastAPI / WebSocket)"
-        A[agentbase CLI<br/>10 commands] --> C[Service Layer<br/>57 REST + WS routes]
+        A[agentbase CLI<br/>17 commands] --> C[Service Layer<br/>104 REST + WS routes]
         B[FastAPI App] --> C
     end
 
@@ -131,6 +132,13 @@ agentbase serve --reload
 | `agentbase version` | Print version information |
 | `agentbase config validate` | Validate configuration files |
 | `agentbase config show` | Display resolved configuration |
+| `agentbase db init` | Initialize migration scripts directory |
+| `agentbase db upgrade` | Upgrade database to latest schema |
+| `agentbase db downgrade` | Downgrade database by one step |
+| `agentbase db current` | Show current migration revision |
+| `agentbase db heads` | Show head migration revisions |
+| `agentbase db history` | Show migration history |
+| `agentbase db stamp --revision REV` | Stamp database with a revision |
 
 ### Common Options
 
@@ -166,7 +174,10 @@ export AGENTBASE_API_KEY=""
 
 Endpoints marked **public** don't require authentication.
 
-### Endpoints (21 total)
+### Endpoints (104 total)
+
+<details>
+<summary>Click to expand full endpoint list</summary>
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -188,9 +199,121 @@ Endpoints marked **public** don't require authentication.
 | GET | `/documents/{id}` | Get document | Required |
 | DELETE | `/documents/{id}` | Delete document | Required |
 | POST | `/documents/search` | Search knowledge base | Required |
+| GET | `/audit/events` | Query audit logs | Required |
+| GET | `/audit/events/count` | Count audit events | Required |
+| GET | `/audit/events/export` | Export audit logs (JSON/CSV/YAML) | Required |
+| GET | `/experiments` | List A/B test experiments | Required |
+| POST | `/experiments` | Create experiment | Required |
+| GET | `/experiments/{name}` | Get experiment details | Required |
+| DELETE | `/experiments/{name}` | Delete experiment | Required |
+| POST | `/experiments/{name}/assign` | Assign request to variant | Required |
+| POST | `/experiments/{name}/results` | Record experiment result | Required |
+| GET | `/experiments/{name}/stats` | Get experiment statistics | Required |
+| GET | `/models` | List model configs | Required |
+| POST | `/models` | Register model config | Required |
+| GET | `/models/{name}` | Get model config | Required |
+| PATCH | `/models/{name}` | Update model config | Required |
+| DELETE | `/models/{name}` | Delete model config | Required |
+| POST | `/models/{name}/test` | Test model connectivity | Required |
+| GET | `/prompts` | List prompt templates | Required |
+| POST | `/prompts` | Register prompt template | Required |
+| GET | `/prompts/{name}` | Get prompt template | Required |
+| PATCH | `/prompts/{name}` | Update prompt template | Required |
+| DELETE | `/prompts/{name}` | Delete prompt template | Required |
+| POST | `/prompts/{name}/render` | Render prompt with variables | Required |
+| GET | `/users` | List users | Required |
+| POST | `/users` | Register user | Required |
+| GET | `/users/{username}` | Get user details | Required |
+| PATCH | `/users/{username}` | Update user | Required |
+| DELETE | `/users/{username}` | Delete user | Required |
+| POST | `/auth/register` | User registration | Required |
+| POST | `/auth/login` | User login | Required |
+| GET | `/auth/oauth2/providers` | List OAuth2 providers | Public |
+| GET | `/auth/oauth2/{provider}/authorize` | OAuth2 authorize redirect | Public |
+| GET | `/auth/oauth2/{provider}/callback` | OAuth2 callback + JWT | Public |
+| GET | `/sessions` | List sessions | Required |
+| GET | `/sessions/stats` | Session statistics | Required |
+| GET | `/sessions/{thread_id}` | Get session details | Required |
+| DELETE | `/sessions/{thread_id}` | Cancel session | Required |
+| POST | `/sessions/cleanup` | Cleanup sessions | Required |
+| GET | `/apikeys` | List API keys | Required |
+| POST | `/apikeys` | Create API key | Required |
+| GET | `/apikeys/{key_id}` | Get API key | Required |
+| PATCH | `/apikeys/{key_id}` | Update API key | Required |
+| DELETE | `/apikeys/{key_id}` | Delete API key | Required |
+| POST | `/apikeys/{key_id}/revoke` | Revoke API key | Required |
+| POST | `/apikeys/verify` | Verify API key | Required |
+| GET | `/admin/rate-limit` | View rate-limit bucket status | Required |
+| DELETE | `/admin/rate-limit/buckets` | Clear all rate-limit buckets | Required |
+| POST | `/admin/rate-limit/quotas/{role}` | Set role rate-limit quota | Required |
+| GET | `/usage/stats` | Aggregated usage statistics | Required |
+| GET | `/usage/records` | Query usage records (paginated) | Required |
+| GET | `/usage/summary` | Usage summary (totals) | Required |
+| DELETE | `/usage/records` | Clear all usage records | Required |
+| GET | `/webhooks` | List webhook endpoints | Required |
+| POST | `/webhooks` | Register webhook endpoint | Required |
+| GET | `/webhooks/{endpoint_id}` | Get webhook endpoint detail | Required |
+| PATCH | `/webhooks/{endpoint_id}` | Update webhook endpoint | Required |
+| DELETE | `/webhooks/{endpoint_id}` | Delete webhook endpoint | Required |
+| POST | `/webhooks/{endpoint_id}/test` | Test webhook endpoint (sync) | Required |
+| GET | `/webhooks/deliveries` | Query webhook deliveries (paginated) | Required |
+| GET | `/webhooks/stats` | Webhook delivery statistics | Required |
+| GET | `/feedback` | Query user feedback (paginated) | Required |
+| POST | `/feedback` | Submit user feedback (rating/comment) | Required |
+| GET | `/feedback/stats` | Aggregate feedback statistics | Required |
+| GET | `/feedback/{record_id}` | Get feedback record detail | Required |
+| PATCH | `/feedback/{record_id}` | Update feedback fields | Required |
+| DELETE | `/feedback/{record_id}` | Delete feedback record | Required |
 | WS | `/ws/agents/{name}` | WebSocket real-time agent | Token |
+| GET | `/notifications` | List notifications | Required |
+| POST | `/notifications` | Create notification | Required |
+| GET | `/notifications/stats` | Notification statistics | Required |
+| GET | `/notifications/unread-count` | Unread count for user | Required |
+| POST | `/notifications/broadcast` | Broadcast to all users | Required |
+| POST | `/notifications/read-all` | Mark all as read | Required |
+| GET | `/notifications/{id}` | Get notification detail | Required |
+| PATCH | `/notifications/{id}` | Update notification | Required |
+| POST | `/notifications/{id}/read` | Mark as read | Required |
+| POST | `/notifications/{id}/unread` | Mark as unread | Required |
+| DELETE | `/notifications/{id}` | Delete notification | Required |
+| GET | `/conversations` | List conversations (paginated, filterable) | Required |
+| GET | `/conversations/stats` | Aggregate conversation statistics | Required |
+| GET | `/conversations/{thread_id}` | Get conversation history (with messages) | Required |
+| PATCH | `/conversations/{thread_id}` | Update conversation metadata | Required |
+| DELETE | `/conversations/{thread_id}` | Delete conversation | Required |
 | GET | `/docs` | OpenAPI docs (Swagger) | Public |
 | GET | `/redoc` | API docs (ReDoc) | Public |
+
+</details>
+
+### OAuth2 Third-Party Login (Google/GitHub)
+
+Enable OAuth2 login to allow users to authenticate via Google or GitHub accounts:
+
+```yaml
+# configs/default.yaml
+oauth2:
+  enabled: true
+  providers:
+    google:
+      client_id: "xxx.apps.googleusercontent.com"
+      client_secret: "${GOOGLE_OAUTH_SECRET}"
+      redirect_uri: "http://localhost:8000/auth/oauth2/google/callback"
+      scopes: ["openid", "email", "profile"]
+      default_roles: ["user"]
+    github:
+      client_id: "Iv1.xxx"
+      client_secret: "${GITHUB_OAUTH_SECRET}"
+      redirect_uri: "http://localhost:8000/auth/oauth2/github/callback"
+      scopes: ["user:email"]
+      default_roles: ["user"]
+```
+
+**Flow**: `GET /auth/oauth2/{provider}/authorize` → redirect to provider → callback with authorization code → exchange for access token → fetch user info → auto-register or match existing user by email → issue JWT.
+
+**CSRF protection**: Each authorize request generates a one-time state token (10-minute expiry). The callback endpoint validates the state before proceeding.
+
+Requires `user_manager.enabled=true` for auto-registration.
 
 ### WebSocket
 
@@ -245,6 +368,18 @@ Key files:
 | `AGENTBASE_STORAGE__DSN` | from config | PostgreSQL connection string |
 | `AGENTBASE_CHECKPOINTER__TYPE` | `postgres` | Checkpointer type (`postgres`/`sqlite`/`memory`/`mysql`) |
 | `AGENTBASE_EMBEDDING__PROVIDER` | `hash` | Embedding provider (`hash`/`openai`/`none`) |
+| `AGENTBASE_AUTH__TYPE` | `api_key` | Auth type (`api_key`/`jwt`) |
+| `AGENTBASE_AUTH__SECRET` | (empty) | JWT signing secret (required when `type=jwt`) |
+| `AGENTBASE_OAUTH2__ENABLED` | `false` | Enable OAuth2 login (Google/GitHub) |
+| `AGENTBASE_USER_MANAGER__ENABLED` | `false` | Enable user CRUD + auth |
+| `AGENTBASE_MODEL_MANAGER__ENABLED` | `false` | Enable model CRUD + connectivity testing |
+| `AGENTBASE_PROMPT_MANAGER__ENABLED` | `false` | Enable prompt template CRUD + rendering |
+| `AGENTBASE_APIKEY_MANAGER__ENABLED` | `false` | Enable API key CRUD + revocation + verification |
+| `AGENTBASE_USAGE__ENABLED` | `false` | Enable token usage tracking + cost statistics |
+| `AGENTBASE_WEBHOOK__ENABLED` | `false` | Enable webhook event notification |
+| `AGENTBASE_FEEDBACK__ENABLED` | `false` | Enable user feedback collection |
+| `AGENTBASE_NOTIFICATION__ENABLED` | `false` | Enable in-app notification center |
+| `AGENTBASE_CONVERSATION__ENABLED` | `false` | Enable conversation history recording |
 | `AGENTBASE_APP__ENV` | `dev` | Environment label |
 | `AGENTBASE_APP__LOG_LEVEL` | `INFO` | Log level |
 
@@ -252,36 +387,56 @@ Key files:
 
 | Layer | Default | How to Replace |
 |-------|---------|----------------|
-| Storage | PostgreSQL (pgvector) | `storage.type: sqlite` |
-| Document Parsing | txt, md, pdf, docx, html, xlsx | `@register_parser()` |
+| Storage | PostgreSQL (pgvector) | `storage.type: sqlite` / `mysql` / `mongodb` |
+| Document Parsing | txt, md, pdf, docx, html, xlsx, pptx | `@register_parser()` |
 | Embeddings | Hash (zero-dep) | `@register_embedding_provider("openai")` |
 | Web Search | DuckDuckGo | `@register_search_provider("tavily")` |
 | MCP | None | `mcp.provider: memory` |
-| Queue | None (sync) | `queue.provider: memory` |
-| Tracer | Null (no-op) | `tracer.provider: memory` |
+| Queue | None (sync) | `queue.provider: memory` / `redis` / `celery` |
+| Tracer | Null (no-op) | `tracer.provider: memory` / `langfuse` / `opentelemetry` |
 | Knowledge Graph | Null (no-op) | `@register_graph_provider("neo4j")` |
+| Model Manager | Null (disabled) | `model_manager.provider: memory` |
+| Prompt Manager | Null (disabled) | `prompt_manager.provider: memory` |
+| User Manager | Null (disabled) | `user_manager.provider: memory` |
+| API Key Manager | Null (disabled) | `apikey_manager.provider: memory` |
+| Usage Tracking | Null (disabled) | `usage.provider: memory` |
+| Webhook | Null (disabled) | `webhook.provider: memory` |
+| Feedback | Null (disabled) | `feedback.provider: memory` |
+| Notification Center | Null (disabled) | `notification.provider: memory` |
+| Conversation History | Null (disabled) | `conversation.provider: memory` |
+| OAuth2 Login | Disabled | `oauth2.enabled: true` (Google/GitHub) |
 | Workspace | Filesystem | `WorkspaceManager` |
 
 See [docs/core-services.md](docs/core-services.md) for details.
 
-## Built-in Tools (32)
+## Built-in Tools (37)
 
 | Tool | Description |
 |------|-------------|
-| `echo` | Echo text back |
+| `echo` / `list_workspace` | Workspace utilities |
 | `get_time` / `now_local` | Current UTC/local timestamp |
-| `read_file` / `write_file` / `grep` / `list_workspace` | File operations |
+| `read_file` / `write_file` / `grep` | File operations (1MB limit, binary detection) |
 | `skill_*` (6) | Skill CRUD + search |
-| `memory_*` (5) | Memory CRUD + search |
+| `memory_*` (7) | Memory CRUD + search + batch save + count |
 | `kb_*` (8) | Knowledge base CRUD + ingest + search |
-| `web_search` / `web_fetch` | Web search + fetch |
+| `web_search` / `web_fetch` / `http_request` | Web search, fetch, HTTP requests |
+| `db_query` | Read-only SELECT queries (whitelist, injection prevention) |
 | `mcp_list_tools` / `mcp_call_tool` | MCP server tools |
-| `code_execute` | Execute Python code in a sandboxed subprocess |
-| `transcribe` | Transcribe audio/video to text (Whisper API/local) |
+| `code_execute` | Sandboxed Python execution (timeout, env isolation) |
+| `transcribe` | Audio/video transcription (Whisper API/local) |
+| `email_sender` | SMTP email (text/HTML, multi-recipient, SSL/TLS) |
 
-## Built-in Middleware (5)
+## Built-in Middleware (9)
 
-- `request_logger`, `retry`, `timeout`, `summary`, `cache`
+- `request_logger` — Log model call requests/responses with duration
+- `retry` — Exponential backoff retry with jitter
+- `timeout` — Model call timeout control
+- `summary` — L1/L2 conversation history compaction
+- `cache` — LRU + TTL response caching
+- `redact_output` — PII/sensitive data masking in model outputs
+- `rate_limit` — Per-agent/global model call rate limiting
+- `model_router` — Multi-model routing (round_robin/weighted/random/failover)
+- `audit_log` — Audit event recording for model calls
 
 ## RAG Pipeline
 
@@ -306,15 +461,16 @@ agentbase/
 │   ├── default.yaml       # App config (model, storage, embedding, search, mcp, queue, tracer)
 │   └── agents/            # Agent profiles
 ├── src/agentbase/
-│   ├── api.py             # FastAPI service layer (21 routes, auth, CORS, rate limit, metrics)
-│   ├── cli.py             # CLI entry point (10 commands)
+│   ├── api.py             # FastAPI service layer (104 routes, auth, CORS, rate limit, metrics)
+│   ├── cli.py             # CLI entry point (17 commands)
 │   ├── config/            # Config loading & schema
-│   ├── core/              # 13 core services (skills, memory, knowledge, storage, parsers, embeddings, search, mcp, queue, evaluation, tracer, workspace, graph)
+│   ├── core/              # 17 core services (memory, knowledge, queue, skills, workspace, agent, session, mcp, tracing, graph, config, registry, checkpointer, audit, redaction, secrets, experiment, migration, model_manager, prompt_manager, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation)
 │   ├── factories/         # Component factories
-│   ├── registry/          # Extension registries (11 pluggable providers)
+│   ├── registry/          # Extension registries (13 pluggable providers)
 │   ├── runtime/           # AgentRunner, events, errors, logging
 │   └── extensions/        # Built-in extensions (tools, middleware, subagents, parsers, auth)
-├── tests/                 # 1,588 tests, 74% coverage
+│   └── registry/          # Extension registries (17 pluggable providers)
+├── tests/                 # 2,686 tests, 74% coverage
 ├── Dockerfile             # Container image
 ├── docker-compose.yml     # PostgreSQL (pgvector) + API
 ├── .env.example           # Environment variable template
@@ -340,8 +496,8 @@ AGENTBASE_API_KEY="secret" docker compose up -d
 |-------|---------|
 | [Quick Start](docs/quickstart.md) | End-to-end setup & first agent in 10 steps |
 | [Configuration](docs/configuration.md) | Full config reference (YAML + env vars) |
-| [Core Services](docs/core-services.md) | 13 core services & pluggable provider swaps |
-| [Extensions](docs/extensions.md) | 12 extension registries, tools, middleware |
+| [Core Services](docs/core-services.md) | 17 core services & pluggable provider swaps |
+| [Extensions](docs/extensions.md) | 13 extension registries, tools, middleware |
 | [Error Codes](docs/error-codes.md) | `agentbase_<domain>_<nnn>` structured errors |
 | [Backend Boundaries](docs/backend-boundaries.md) | Architecture & separation of concerns |
 | [Project Positioning](docs/project-positioning.md) | Why agentbase exists, design principles |
