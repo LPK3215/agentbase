@@ -448,7 +448,7 @@ class AgentRunner:
                 if usage["prompt_tokens"] or usage["completion_tokens"]:
                     usage_mgr.record(
                         agent=agent_name,
-                        model="",
+                        model=metadata.get("model", "") if metadata else "",
                         prompt_tokens=usage["prompt_tokens"],
                         completion_tokens=usage["completion_tokens"],
                         total_tokens=usage["total_tokens"],

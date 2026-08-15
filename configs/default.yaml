@@ -125,3 +125,69 @@ extensions:
 #   enabled: true
 #   provider: memory
 #   max_conversations: 10000
+
+# Audit log service
+# Enable to record structured audit events (who/when/what/result).
+# Provides /audit/events/* query + export API. Supports JSON/CSV/YAML export.
+# audit:
+#   enabled: true
+#   provider: sqlite  # sqlite (default) | custom via @register_audit_provider
+#   db_dir: data       # SQLite database directory
+#   # dsn: postgresql://...  # Override to use PostgreSQL/MySQL for audit
+
+# A/B testing experiment framework
+# Enable to compare agent strategies (model/prompt/temperature).
+# Provides /experiments/* API with round_robin/weighted/random assignment.
+# experiment:
+#   enabled: true
+#   provider: memory
+
+# Sensitive information redaction service
+# Enable to mask PII (API keys, phone numbers, emails, IDs) in text.
+# Works with redact_output middleware to mask model outputs.
+# redaction:
+#   enabled: true
+#   provider: regex  # regex (default, zero-dep) | custom via @register_redaction_provider
+
+# Secrets encryption service
+# Enable to encrypt secrets (API keys, etc.) at rest instead of plaintext config.
+# Uses Fernet symmetric encryption with a local key file.
+# secrets:
+#   enabled: true
+#   provider: fernet  # fernet (default) | env (read from env vars)
+#   key_file: .secret_key
+#   secrets_file: .secrets.json
+
+# Model management service
+# Enable multi-model CRUD and connectivity testing.
+# Provides /models/* API (6 routes).
+# model_manager:
+#   enabled: true
+#   provider: memory
+
+# Prompt template management service
+# Enable prompt template CRUD and variable rendering.
+# Provides /prompts/* API (6 routes).
+# prompt_manager:
+#   enabled: true
+#   provider: memory
+
+# User management service
+# Enable user CRUD, password hashing (PBKDF2-HMAC-SHA256), and authentication.
+# Provides /users/* and /auth/register, /auth/login API (7 routes).
+# user_manager:
+#   enabled: true
+#   provider: memory
+
+# API Key management service
+# Enable multi-key CRUD, revocation, verification, and usage statistics.
+# Integrates with Bearer token authentication. Provides /apikeys/* API (7 routes).
+# apikey_manager:
+#   enabled: true
+#   provider: memory
+
+# Database migration (Alembic)
+# Enabled by default. CLI: agentbase db init/upgrade/downgrade/current/heads/history/stamp
+# migration:
+#   enabled: true
+#   scripts_dir: migrations
