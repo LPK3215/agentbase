@@ -504,7 +504,7 @@ pip install agentbase[all]          # 全部安装
 | docs/extensions.md | ✅ 扩展开发指南 |
 | docs/error-codes.md | ✅ 错误码注册表 |
 | docs/backend-boundaries.md | ✅ 本文档 |
-| examples/ | ✅ Cookbook 示例库（11 个可运行脚本，覆盖全部 9 个注册表 + 2 个扩展类型 + 2 个配置切换） |
+| examples/ | ✅ Cookbook 示例库（11 个可运行脚本，覆盖 9 个基础注册表 + 2 个扩展类型 + 2 个配置切换） |
 | deploy/k8s/ | ✅ K8s Helm Chart + Manifests |
 | deploy/nginx/ | ✅ Nginx 反向代理配置 |
 
@@ -514,19 +514,6 @@ pip install agentbase[all]          # 全部安装
 
 | 优先级 | 功能 | 说明 |
 |--------|------|------|
-| P5 | ~~OAuth2 第三方登录~~ | ~~✅ 已实现~~ Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户，签发 JWT |
-| P5 | ~~审计日志中间件~~ | ~~✅ 已实现~~ `middleware: audit_log`，自动记录模型调用审计事件 |
-| P5 | ~~审计日志导出~~ | ~~✅ 已实现~~ `GET /audit/events/export`，支持 JSON/CSV/YAML 格式 + 全部过滤条件 + 文件下载 |
-| P5 | ~~Alembic 数据库迁移~~ | ~~✅ 已实现~~ `agentbase db upgrade/downgrade/current/heads/history/stamp/init`，版本化 schema 管理，支持 SQLite/PostgreSQL |
-| P5 | ~~MongoDB 存储~~ | ~~✅ 已实现~~ `storage.type: mongodb`，SQL→MongoDB 适配层 |
-| P5 | ~~Celery/RabbitMQ 队列~~ | ~~✅ 已实现~~ `queue.provider: celery`，分布式任务（RabbitMQ/Redis broker） |
-| P5 | ~~模型管理 CRUD~~ | ~~✅ 已实现~~ `model_manager.enabled=true`，多模型注册/查询/更新/删除 + 连通性测试 + `/models` API（6 条路由） |
-| P5 | ~~提示词模板管理~~ | ~~✅ 已实现~~ `prompt_manager.enabled=true`，提示词模板 CRUD + 变量渲染 + `/prompts` API（6 条路由） |
-| P5 | ~~用户管理服务~~ | ~~✅ 已实现~~ `user_manager.enabled=true`，用户 CRUD + 密码哈希 + 认证 + `/users` + `/auth` API（7 条路由） |
-| P5 | ~~API Key 多 Key 管理~~ | ~~✅ 已实现~~ `apikey_manager.enabled=true`，多 Key 生成/CRUD/吊销/验证/过期/使用统计 + `/apikeys` API（7 条路由），与 Bearer Token 认证集成 |
-| P5 | ~~Token 用量追踪~~ | ~~✅ 已实现~~ `usage.enabled=true`，自动记录 prompt/completion/total tokens + 成本估算，内置 30+ 模型定价表，按 Agent/模型/用户聚合统计，4 条 API 路由 |
-| P5 | ~~Webhook 事件通知~~ | ~~✅ 已实现~~ `webhook.enabled=true`，注册端点接收 HTTP POST 事件通知，支持通配符事件订阅、HMAC-SHA256 签名、指数退避重试，8 条 API 路由 |
-| P5 | ~~用户反馈收集~~ | ~~✅ 已实现~~ `feedback.enabled=true`，用户评分（1-5 星或 ±1 thumbs）+ 评论 + 标签，按 Agent/线程/情感聚合统计，6 条 API 路由 |
-| P5 | ~~通知中心~~ | ~~✅ 已实现~~ `notification.enabled=true`，应用内通知（创建/查询/标记已读/广播），按用户/分类/严重度聚合统计，支持过期自动过滤，11 条 API 路由 |
-| P5 | ~~对话历史~~ | ~~✅ 已实现~~ `conversation.enabled=true`，自动记录 invoke/stream/resume 对话消息，按用户/Agent/时间过滤，支持标题/标签/归档管理，5 条 API 路由 |
 | P5 | 前端 UI | Web 管理界面 |
+
+> ROADMAP 中规划的全部后端模块（A1–A4, B1–B2, C1–C3, D1–D2, F1–F2, G1–G13）均已实现。详见 [ROADMAP](./ROADMAP.md)。
