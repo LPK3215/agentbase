@@ -100,6 +100,39 @@ services:
       # Application
       - AGENTBASE_APP__ENV=${AGENTBASE_APP__ENV:-prod}
       - AGENTBASE_APP__LOG_LEVEL=${AGENTBASE_APP__LOG_LEVEL:-INFO}
+      # ── Optional services (uncomment / set in .env to enable) ──
+      # Audit log
+      - AGENTBASE_AUDIT__ENABLED=${AGENTBASE_AUDIT__ENABLED:-false}
+      - AGENTBASE_AUDIT__PROVIDER=${AGENTBASE_AUDIT__PROVIDER:-sqlite}
+      - AGENTBASE_AUDIT__DSN=${AGENTBASE_AUDIT__DSN:-postgresql://agentbase:agentbase@postgres:5432/agentbase}
+      # Experiment (A/B testing)
+      - AGENTBASE_EXPERIMENT__ENABLED=${AGENTBASE_EXPERIMENT__ENABLED:-false}
+      # Redaction (PII masking)
+      - AGENTBASE_REDACTION__ENABLED=${AGENTBASE_REDACTION__ENABLED:-false}
+      # Secrets encryption
+      - AGENTBASE_SECRETS__ENABLED=${AGENTBASE_SECRETS__ENABLED:-false}
+      # Model manager
+      - AGENTBASE_MODEL_MANAGER__ENABLED=${AGENTBASE_MODEL_MANAGER__ENABLED:-false}
+      # Prompt manager
+      - AGENTBASE_PROMPT_MANAGER__ENABLED=${AGENTBASE_PROMPT_MANAGER__ENABLED:-false}
+      # User manager
+      - AGENTBASE_USER_MANAGER__ENABLED=${AGENTBASE_USER_MANAGER__ENABLED:-false}
+      # API Key manager
+      - AGENTBASE_APIKEY_MANAGER__ENABLED=${AGENTBASE_APIKEY_MANAGER__ENABLED:-false}
+      # OAuth2 (Google/GitHub)
+      - AGENTBASE_OAUTH2__ENABLED=${AGENTBASE_OAUTH2__ENABLED:-false}
+      # Token usage tracking
+      - AGENTBASE_USAGE__ENABLED=${AGENTBASE_USAGE__ENABLED:-false}
+      # Webhook
+      - AGENTBASE_WEBHOOK__ENABLED=${AGENTBASE_WEBHOOK__ENABLED:-false}
+      # Feedback
+      - AGENTBASE_FEEDBACK__ENABLED=${AGENTBASE_FEEDBACK__ENABLED:-false}
+      # Notification center
+      - AGENTBASE_NOTIFICATION__ENABLED=${AGENTBASE_NOTIFICATION__ENABLED:-false}
+      # Conversation history
+      - AGENTBASE_CONVERSATION__ENABLED=${AGENTBASE_CONVERSATION__ENABLED:-false}
+      # Database migration
+      - AGENTBASE_MIGRATION__ENABLED=${AGENTBASE_MIGRATION__ENABLED:-true}
     ports:
       - "8000:8000"
     volumes:
