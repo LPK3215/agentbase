@@ -464,12 +464,11 @@ agentbase/
 │   ├── api.py             # FastAPI service layer (100 routes, auth, CORS, rate limit, metrics)
 │   ├── cli.py             # CLI entry point (17 commands)
 │   ├── config/            # Config loading & schema
-│   ├── core/              # 17 core services (memory, knowledge, queue, skills, workspace, agent, session, mcp, tracing, graph, config, registry, checkpointer, audit, redaction, secrets, experiment, migration, model_manager, prompt_manager, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation)
+│   ├── core/              # 29 core modules (memory, knowledge, queue, skills, workspace, agent, session, mcp, tracing, graph, audit, redaction, secrets, experiment, migration, model_manager, prompt_manager, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation, evaluation, parsers, embeddings, search, storage)
 │   ├── factories/         # Component factories
-│   ├── registry/          # Extension registries (13 pluggable providers)
+│   ├── registry/          # Extension registries (25 pluggable providers)
 │   ├── runtime/           # AgentRunner, events, errors, logging
 │   └── extensions/        # Built-in extensions (tools, middleware, subagents, parsers, auth)
-│   └── registry/          # Extension registries (25 pluggable providers)
 ├── tests/                 # 2,686 tests, 79% coverage
 ├── Dockerfile             # Container image
 ├── docker-compose.yml     # PostgreSQL (pgvector) + API
@@ -496,8 +495,8 @@ AGENTBASE_API_KEY="secret" docker compose up -d
 |-------|---------|
 | [Quick Start](docs/quickstart.md) | End-to-end setup & first agent in 10 steps |
 | [Configuration](docs/configuration.md) | Full config reference (YAML + env vars) |
-| [Core Services](docs/core-services.md) | 17 core services & pluggable provider swaps |
-| [Extensions](docs/extensions.md) | 13 extension registries, tools, middleware |
+| [Core Services](docs/core-services.md) | 29 core modules & pluggable provider swaps |
+| [Extensions](docs/extensions.md) | 25 extension registries, tools, middleware |
 | [Error Codes](docs/error-codes.md) | `agentbase_<domain>_<nnn>` structured errors |
 | [Backend Boundaries](docs/backend-boundaries.md) | Architecture & separation of concerns |
 | [Project Positioning](docs/project-positioning.md) | Why agentbase exists, design principles |

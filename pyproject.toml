@@ -101,7 +101,7 @@ dev = [
   "pip-audit>=2.7.0",
 ]
 all = [
-  "agentbase[postgres,api,openai,anthropic,google,embeddings,search,rag,queue,tracing,ocr,graph,mysql,mongodb,celery,otel,transcribe]",
+  "agentbase[postgres,api,openai,anthropic,google,embeddings,search,rag,queue,tracing,ocr,graph,mysql,mongodb,celery,secrets,otel,transcribe]",
 ]
 
 [project.scripts]
