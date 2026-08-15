@@ -379,6 +379,7 @@ class AgentRunner:
 
         final_text = ""
         interrupt_seen = False
+        last_raw_result: Any = None  # capture last raw event for usage extraction
         # Hold the semaphore for the entire iteration — not just iterator
         # creation.  ``agent.stream()`` returns a lazy iterator; the actual
         # LLM calls happen during ``for event in event_iter``.  If the
@@ -390,10 +391,18 @@ class AgentRunner:
                 normalized = self._normalize_event(event, thread_id=session.thread_id, agent_name=agent_name)
                 if normalized.type == EventType.MESSAGE_FINAL:
                     final_text = str(normalized.data.get("text") or final_text)
+                    # Capture raw payload for potential usage extraction
+                    raw = normalized.data.get("raw")
+                    if raw is not None:
+                        last_raw_result = raw
                 elif normalized.type == EventType.MESSAGE_DELTA:
                     chunk = str(normalized.data.get("text") or "")
                     if chunk:
                         final_text += chunk
+                    # Capture raw payload for potential usage extraction
+                    raw = normalized.data.get("raw")
+                    if raw is not None:
+                        last_raw_result = raw
                 elif normalized.type == EventType.INTERRUPT:
                     interrupt_seen = True
                 yield normalized
@@ -433,7 +442,9 @@ class AgentRunner:
         if usage_mgr is not None and usage_mgr.enabled:
             try:
                 from agentbase.core.usage import extract_usage_from_result
-                usage = extract_usage_from_result(final_text)
+                # Use the last raw result (which may contain messages with
+                # usage_metadata) instead of the plain text string.
+                usage = extract_usage_from_result(last_raw_result if last_raw_result is not None else final_text)
                 if usage["prompt_tokens"] or usage["completion_tokens"]:
                     usage_mgr.record(
                         agent=agent_name,
