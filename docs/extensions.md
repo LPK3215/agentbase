@@ -77,16 +77,19 @@ def build_retry(context: dict[str, Any] | None = None):
     return []
 ```
 
-## Built-in Middleware (6)
+## Built-in Middleware (9)
 
 | Middleware | Description |
 |------------|-------------|
-| `request_logger` | Log model call requests and responses |
-| `retry` | Retry failed model calls with backoff |
+| `request_logger` | Log model call requests and responses with duration |
+| `retry` | Retry failed model calls with exponential backoff + jitter |
 | `timeout` | Enforce timeout on model calls |
 | `summary` | L1/L2 conversation compaction (compresses history when threshold exceeded) |
 | `cache` | Cache identical model calls (TTL + LRU eviction) |
 | `redact_output` | Redact PII/secrets from model response content (default disabled) |
+| `rate_limit` | Per-agent/global model call rate limiting (default disabled) |
+| `model_router` | Multi-model routing: round_robin/weighted/random/failover (default disabled) |
+| `audit_log` | Audit event recording for model calls (default disabled) |
 
 ## Context Keys
 
@@ -123,7 +126,7 @@ extensions:
 
 Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap automatically.
 
-## Built-in Tools (34)
+## Built-in Tools (37)
 
 | Tool | Description |
 |------|-------------|
@@ -131,7 +134,7 @@ Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap au
 | `get_time` / `now_local` | Current UTC/local timestamp |
 | `read_file` / `write_file` / `grep` / `list_workspace` | File operations |
 | `skill_list` / `skill_get` / `skill_create` / `skill_update` / `skill_delete` / `skill_search` | Skill CRUD |
-| `memory_save` / `memory_get` / `memory_list` / `memory_search` / `memory_delete` | Memory CRUD |
+| `memory_save` / `memory_get` / `memory_list` / `memory_search` / `memory_delete` / `memory_count` / `memory_batch_save` | Memory CRUD + count + batch save |
 | `kb_add` / `kb_get` / `kb_list` / `kb_search` / `kb_update` / `kb_delete` / `kb_ingest` / `kb_batch_ingest` | Knowledge base |
 | `web_search` / `web_fetch` | Web search and fetch |
 | `http_request` | Make HTTP requests (GET/POST/PUT/PATCH/DELETE) with timeout, redirect limits, and structured response |
@@ -139,6 +142,7 @@ Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap au
 | `mcp_list_tools` / `mcp_call_tool` | MCP server tools |
 | `code_execute` | Execute Python code in a sandboxed subprocess |
 | `transcribe` | Transcribe audio/video to text (Whisper API/local) |
+| `email_sender` | Send SMTP email (text/HTML, multi-recipient, SSL/TLS) |
 
 ## Built-in Document Parsers (9)
 
@@ -154,21 +158,34 @@ Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap au
 | `LLMDocumentParser` | any (virtual) | `openai` — LLM API converts to structured Markdown |
 | `OCRParser` | any (virtual) | `pytesseract` + `pillow` + `pdf2image` (`pip install agentbase[ocr]`) |
 
-## Pluggable Provider Registries (9)
+## Pluggable Provider Registries (22)
 
-Beyond tools/middleware/subagents, `agentbase` provides 9 pluggable provider registries:
+Beyond tools/middleware/subagents, `agentbase` provides 22 pluggable provider registries:
 
 | Registry | Default | How to Replace |
 |----------|---------|----------------|
 | `parser_registry` | TextParser, MarkdownParser | `@register_parser(".pdf")` |
-| `embedding_registry` | HashEmbedding | `@register_embedding_provider("openai")` |
-| `search_registry` | DuckDuckGoSearch | `@register_search_provider("tavily")` |
-| `mcp_registry` | MemoryMCPClient | `@register_mcp_client("my_server")` |
-| `queue_registry` | MemoryRequestQueue | `@register_queue_provider("redis")` |
+| `embedding_registry` | NoneEmbeddingProvider (disabled) / HashEmbedding (testing) | `@register_embedding_provider("openai")` |
+| `search_registry` | None (disabled) / DuckDuckGoSearch | `@register_search_provider("tavily")` |
+| `mcp_registry` | None (disabled) / MemoryMCPClient | `@register_mcp_client("my_server")` |
+| `queue_registry` | None (sync) / MemoryRequestQueue | `@register_queue_provider("redis")` |
 | `tracer_registry` | NullTracer | `@register_tracer_provider("langfuse")` |
 | `graph_registry` | NullGraphProvider | `@register_graph_provider("neo4j")` |
-| StorageBackend | SQLite / PostgreSQL / MySQL | Config: `storage.type` |
+| StorageBackend | SQLite / PostgreSQL / MySQL / MongoDB | Config: `storage.type` |
 | Checkpointer | Memory / SQLite / PostgreSQL / MySQL | Config: `checkpointer.type` |
+| `model_registry` | InMemoryModelProvider / NullModelProvider | `@register_model_provider("name")` |
+| `prompt_registry` | InMemoryPromptProvider / NullPromptProvider | `@register_prompt_provider("name")` |
+| `user_registry` | InMemoryUserProvider / NullUserProvider | `@register_user_provider("name")` |
+| `apikey_registry` | InMemoryApiKeyProvider / NullApiKeyProvider | `@register_apikey_provider("name")` |
+| `usage_registry` | InMemoryUsageProvider / NullUsageProvider | `@register_usage_provider("name")` |
+| `webhook_registry` | InMemoryWebhookProvider / NullWebhookProvider | `@register_webhook_provider("name")` |
+| `feedback_registry` | InMemoryFeedbackProvider / NullFeedbackProvider | `@register_feedback_provider("name")` |
+| `notification_registry` | InMemoryNotificationProvider / NullNotificationProvider | `@register_notification_provider("name")` |
+| `conversation_registry` | InMemoryConversationProvider / NullConversationProvider | `@register_conversation_provider("name")` |
+| `audit_registry` | SQLiteAuditProvider / NullAuditProvider | `@register_audit_provider("name")` |
+| `experiment_registry` | InMemoryExperimentProvider / NullExperimentProvider | `@register_experiment_provider("name")` |
+| `redaction_registry` | RuleRedactionProvider / NullRedactionProvider | `@register_redaction_provider("name")` |
+| `secrets_registry` | FernetSecretsProvider / NullSecretsProvider | `@register_secrets_provider("name")` |
 
 ## Interrupt and Resume
 

@@ -10,10 +10,8 @@
 ## 步骤 1：安装依赖
 
 ```bash
-pip install psycopg
+pip install agentbase[postgres]  # installs psycopg + langgraph-checkpoint-postgres
 ```
-
-> 如果使用 `agentbase[postgres]` extras 安装，则已包含。
 
 ## 步骤 2：创建数据库
 

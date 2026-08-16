@@ -188,10 +188,10 @@ def test_middleware():
     run_test("Middleware", "summary registered", test_summary)
 
 
-# ── 7. Pluggable Providers (9 registries) ──────────────────────────────
+# ── 7. Pluggable Providers (25 registries) ─────────────────────────────
 
 def test_registries():
-    section("7. Pluggable Providers (9 registries)")
+    section("7. Pluggable Providers (25 registries)")
 
     def test_parser_registry():
         from agentbase.core.parsers import parser_registry

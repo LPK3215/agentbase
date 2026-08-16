@@ -133,7 +133,7 @@ def main() -> None:
     # 4. 添加实体
     e1_id = provider.add_entity(Entity(
         name="AgentBase", label="Project",
-        description="AI Agent backend scaffold with 33 tools and 9 registries",
+        description="AI Agent backend scaffold with 37 tools and 25 registries",
     ))
     e2_id = provider.add_entity(Entity(
         name="LangChain", label="Framework",

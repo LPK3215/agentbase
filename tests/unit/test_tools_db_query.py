@@ -714,3 +714,161 @@ class TestDbQueryRegistry:
 
         tools = build_tools(["db_query"], context={}, skip_on_error=False)
         assert len(tools) == 1
+
+
+# ---------------------------------------------------------------------------
+# Supplementary tests for missing coverage
+# ---------------------------------------------------------------------------
+
+
+class TestDbQueryExtras:
+    def test_parse_mysql_dsn_full(self):
+        from agentbase.extensions.tools.db_query import _parse_mysql_dsn
+
+        params = _parse_mysql_dsn("mysql://user:pass@localhost:3306/mydb")
+        assert params["user"] == "user"
+        assert params["password"] == "pass"
+        assert params["host"] == "localhost"
+        assert params["port"] == 3306
+        assert params["database"] == "mydb"
+
+    def test_parse_mysql_dsn_no_password(self):
+        from agentbase.extensions.tools.db_query import _parse_mysql_dsn
+
+        params = _parse_mysql_dsn("mysql://user@localhost:3306/mydb")
+        assert params["user"] == "user"
+        assert params["password"] == ""
+        assert params["host"] == "localhost"
+        assert params["port"] == 3306
+
+    def test_parse_mysql_dsn_no_auth(self):
+        from agentbase.extensions.tools.db_query import _parse_mysql_dsn
+
+        params = _parse_mysql_dsn("mysql://localhost:3306/mydb")
+        assert params["user"] == ""
+        assert params["password"] == ""
+        assert params["host"] == "localhost"
+        assert params["port"] == 3306
+
+    def test_parse_mysql_dsn_no_port(self):
+        from agentbase.extensions.tools.db_query import _parse_mysql_dsn
+
+        params = _parse_mysql_dsn("mysql://user:pass@localhost/mydb")
+        assert params["port"] == 3306
+        assert params["host"] == "localhost"
+
+    def test_parse_mysql_dsn_no_database(self):
+        from agentbase.extensions.tools.db_query import _parse_mysql_dsn
+
+        params = _parse_mysql_dsn("mysql://user:pass@localhost:3306")
+        assert params["database"] == ""
+
+    def test_detect_dialect_unknown(self):
+        from agentbase.extensions.tools.db_query import _detect_dialect
+
+        assert _detect_dialect("oracle://localhost") == "unknown"
+        assert _detect_dialect("") == "unknown"
+
+    def test_ensure_limit_replace_higher(self):
+        from agentbase.extensions.tools.db_query import _ensure_limit
+
+        result = _ensure_limit("SELECT * FROM t LIMIT 999", max_rows=50)
+        assert "LIMIT 50" in result
+        assert "LIMIT 999" not in result
+
+    def test_ensure_limit_keep_lower(self):
+        from agentbase.extensions.tools.db_query import _ensure_limit
+
+        result = _ensure_limit("SELECT * FROM t LIMIT 10", max_rows=50)
+        assert "LIMIT 10" in result
+
+    def test_query_unsupported_dialect(self):
+        """Test that unsupported dialect returns error."""
+        from agentbase.extensions.tools.db_query import build_db_query_tool
+
+        ctx = {"app_config": type("Cfg", (), {
+            "db_query": type("DbCfg", (), {
+                "dsn": "oracle://localhost/db",
+                "max_rows": 100,
+                "timeout_seconds": 10,
+                "allowed_tables": [],
+            })()
+        })()}
+        tool_fn = build_db_query_tool(context=ctx)
+        result = tool_fn.invoke({"query": "SELECT * FROM t"})
+        assert result["error"] is not None
+        assert "Unsupported" in result["error"]
+
+    def test_query_postgresql_no_driver(self):
+        """Test PostgreSQL path when psycopg is not installed."""
+        from agentbase.extensions.tools.db_query import build_db_query_tool
+
+        ctx = {"app_config": type("Cfg", (), {
+            "db_query": type("DbCfg", (), {
+                "dsn": "postgresql://user:pass@localhost/db",
+                "max_rows": 100,
+                "timeout_seconds": 10,
+                "allowed_tables": [],
+            })()
+        })()}
+        tool_fn = build_db_query_tool(context=ctx)
+        result = tool_fn.invoke({"query": "SELECT * FROM t"})
+        assert result["error"] is not None
+        assert "psycopg" in result["error"]
+
+    def test_query_mysql_no_driver(self):
+        """Test MySQL path when pymysql is not installed."""
+        from agentbase.extensions.tools.db_query import build_db_query_tool
+
+        ctx = {"app_config": type("Cfg", (), {
+            "db_query": type("DbCfg", (), {
+                "dsn": "mysql://user:pass@localhost:3306/db",
+                "max_rows": 100,
+                "timeout_seconds": 10,
+                "allowed_tables": [],
+            })()
+        })()}
+        tool_fn = build_db_query_tool(context=ctx)
+        result = tool_fn.invoke({"query": "SELECT * FROM t"})
+        assert result["error"] is not None
+        assert "pymysql" in result["error"]
+
+    def test_query_unexpected_error(self, tmp_path):
+        """Test that unexpected exceptions are caught and returned as error dict."""
+        from unittest.mock import patch
+        from agentbase.extensions.tools.db_query import build_db_query_tool
+
+        ctx = {"app_config": type("Cfg", (), {
+            "db_query": type("DbCfg", (), {
+                "dsn": f"sqlite:///{tmp_path / 'test.db'}",
+                "max_rows": 100,
+                "timeout_seconds": 10,
+                "allowed_tables": [],
+            })()
+        })()}
+        tool_fn = build_db_query_tool(context=ctx)
+
+        # Patch sqlite3.connect to raise a non-OperationalError exception
+        with patch("agentbase.extensions.tools.db_query.sqlite3.connect", side_effect=ValueError("unexpected")):
+            result = tool_fn.invoke({"query": "SELECT * FROM sqlite_master"})
+            assert result["error"] is not None
+            assert "Unexpected error" in result["error"]
+
+    def test_extract_tables_with_schema(self):
+        from agentbase.extensions.tools.db_query import _extract_tables
+
+        tables = _extract_tables("SELECT * FROM public.users JOIN public.orders ON users.id = orders.uid")
+        assert "users" in tables
+        assert "orders" in tables
+
+    def test_extract_tables_quoted(self):
+        from agentbase.extensions.tools.db_query import _extract_tables
+
+        tables = _extract_tables('SELECT * FROM "my table"')
+        assert "my table" in tables
+
+    def test_extract_tables_bracketed(self):
+        from agentbase.extensions.tools.db_query import _extract_tables
+
+        tables = _extract_tables("SELECT * FROM [my table]")
+        assert "my table" in tables

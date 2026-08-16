@@ -25,6 +25,7 @@ data/
 dist/
 build/
 .coverage
+coverage.json
 htmlcov/
 # ===== IDE / Agent 工具数据 =====
 .codebuddy/

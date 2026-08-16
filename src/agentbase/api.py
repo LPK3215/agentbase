@@ -1411,8 +1411,8 @@ def create_app(*, runtime=None) -> FastAPI:
     @app.middleware("http")
     async def auth_and_rate_limit(request: Request, call_next):
         path = request.url.path
-        # Skip auth for public paths
-        if path in _PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/redoc"):
+        # Skip auth for public paths and OAuth2 (authorize/callback need to be accessible before login)
+        if path in _PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/redoc") or path.startswith("/auth/oauth2/"):
             return await call_next(request)
 
         rt = get_runtime()

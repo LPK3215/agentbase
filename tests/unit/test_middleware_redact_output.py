@@ -130,18 +130,13 @@ class TestBuildRedactOutputNormal:
         """Middleware should redact PII from model response content."""
         app_config = _MockAppConfig(enabled=True, provider="regex")
 
-        with patch(
-            "agentbase.extensions.middleware.redact_output.wrap_model_call"
-            if False
-            else "langchain.agents.middleware.wrap_model_call"
-        ) as mock_wrap:
+        with patch("langchain.agents.middleware.wrap_model_call") as mock_wrap:
             # Make wrap_model_call pass-through: it wraps the function
             # but we want the inner function to actually execute.
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list), "wrap_model_call should be available"
 
             # Create a mock request and handler that returns an AIMessage
             mock_request = MagicMock()
@@ -166,8 +161,7 @@ class TestBuildRedactOutputNormal:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             mock_request = MagicMock()
             clean_response = _FakeAIMessage(content="The sky is blue.")
@@ -186,8 +180,7 @@ class TestBuildRedactOutputNormal:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             mock_request = MagicMock()
             response = _FakeAIMessage(
@@ -213,8 +206,7 @@ class TestBuildRedactOutputNormal:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             assert hasattr(builder, "redaction_manager")
             assert isinstance(builder.redaction_manager, RedactionManager)
@@ -233,8 +225,7 @@ class TestBuildRedactOutputNormal:
             builder = build_redact_output(
                 context={"app_config": app_config, "agent_config": agent_config}
             )
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             assert builder.redaction_manager.enabled is True
 
@@ -253,8 +244,7 @@ class TestBuildRedactOutputBoundary:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             mock_request = MagicMock()
             original_content = "My key is sk-" + "a" * 30
@@ -272,8 +262,7 @@ class TestBuildRedactOutputBoundary:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             assert builder.redaction_manager.enabled is False
 
@@ -283,8 +272,7 @@ class TestBuildRedactOutputBoundary:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context=None)
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             assert builder.redaction_manager.enabled is False
 
@@ -296,8 +284,7 @@ class TestBuildRedactOutputBoundary:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             mock_request = MagicMock()
 
@@ -315,8 +302,7 @@ class TestBuildRedactOutputBoundary:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             mock_request = MagicMock()
 
@@ -338,8 +324,7 @@ class TestBuildRedactOutputBoundary:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             mock_request = MagicMock()
             frozen = _FrozenAIMessage(content="sk-" + "a" * 30)
@@ -386,8 +371,7 @@ class TestBuildRedactOutputError:
             mock_wrap.side_effect = lambda fn: fn
 
             builder = build_redact_output(context={"app_config": app_config})
-            if isinstance(builder, list):
-                pytest.skip("wrap_model_call not available")
+            assert not isinstance(builder, list)
 
             mock_request = MagicMock()
 
@@ -436,3 +420,64 @@ class TestRedactOutputRegistry:
         meta = middleware_registry.get_meta("redact_output")
         assert meta is not None
         assert "app_config" in meta.requires_context
+
+
+# ---------------------------------------------------------------------------
+# Supplementary coverage — dataclass-like .text items + per-agent options
+# ---------------------------------------------------------------------------
+
+
+class TestRedactMessageContentExtra:
+    def test_redact_dataclass_like_text_item(self):
+        """List items with a .text attribute (not dict) are handled via copy."""
+
+        class _TextPart:
+            def __init__(self, text: str) -> None:
+                self.text = text
+
+        manager = RedactionManager(provider="regex", enabled=True)
+        content = [_TextPart("Email: alice@example.com")]
+        result = _redact_message_content(content, manager)
+        assert isinstance(result, list)
+        assert "alice@example.com" not in result[0].text
+        assert "***@***.***" in result[0].text
+
+    def test_redact_dataclass_like_text_item_copy_failure(self):
+        """If copy fails, the original item is passed through unchanged."""
+
+        class _Uncopyable:
+            text: str = "Email: alice@example.com"
+
+            def __copy__(self):
+                raise TypeError("cannot copy")
+
+        manager = RedactionManager(provider="regex", enabled=True)
+        content = [_Uncopyable()]
+        result = _redact_message_content(content, manager)
+        assert isinstance(result, list)
+        # Original item passed through (copy failed)
+        assert result[0].text == "Email: alice@example.com"
+
+
+class TestPerAgentOptionsOverride:
+    def test_per_agent_options_override(self):
+        """Per-agent metadata.redact_output.options merges into provider_kwargs."""
+        app_config = _MockAppConfig(enabled=True, provider="regex")
+        agent_config = _MockAgentConfig(
+            metadata={
+                "redact_output": {
+                    "enabled": True,
+                    "provider": "regex",
+                    "options": {"custom_rules": True},
+                }
+            }
+        )
+
+        with patch("langchain.agents.middleware.wrap_model_call") as mock_wrap:
+            mock_wrap.side_effect = lambda fn: fn
+
+            builder = build_redact_output(
+                context={"app_config": app_config, "agent_config": agent_config}
+            )
+            assert not isinstance(builder, list)
+            assert builder.redaction_manager.enabled is True

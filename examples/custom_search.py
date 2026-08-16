@@ -30,7 +30,7 @@ class MockSearch:
         {
             "title": "AgentBase Documentation",
             "url": "https://github.com/example/agentbase",
-            "snippet": "AgentBase is an AI Agent backend scaffold with 33 tools, 7 middleware, and 9 pluggable registries.",
+            "snippet": "AgentBase is an AI Agent backend scaffold with 37 tools, 9 middleware, and 25 pluggable registries.",
             "source": "mock",
         },
         {

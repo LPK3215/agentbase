@@ -119,3 +119,107 @@ class TestProtocol:
 
     def test_markdown_parser_is_protocol(self):
         assert isinstance(MarkdownParser(), DocumentParser)
+
+
+class TestRegistryHas:
+    def test_has_returns_true_for_registered(self):
+        reg = ParserRegistry()
+        reg.register(TextParser())
+        assert reg.has(".txt") is True
+
+    def test_has_returns_false_for_unregistered(self):
+        reg = ParserRegistry()
+        assert reg.has(".xyz") is False
+
+    def test_has_is_case_insensitive(self):
+        reg = ParserRegistry()
+        reg.register(MarkdownParser())
+        assert reg.has(".MD") is True
+        assert reg.has(".md") is True
+
+
+class TestRegistryUnregister:
+    def test_unregister_existing(self):
+        reg = ParserRegistry()
+        reg.register(MarkdownParser())
+        assert reg.unregister(".md") is True
+        assert reg.has(".md") is False
+
+    def test_unregister_nonexistent_returns_false(self):
+        reg = ParserRegistry()
+        assert reg.unregister(".xyz") is False
+
+    def test_unregister_is_case_insensitive(self):
+        reg = ParserRegistry()
+        reg.register(MarkdownParser())
+        assert reg.unregister(".MD") is True
+        assert reg.has(".md") is False
+
+
+class TestRegistryCount:
+    def test_empty_registry_count(self):
+        reg = ParserRegistry()
+        assert reg.count == 0
+
+    def test_count_after_register(self):
+        reg = ParserRegistry()
+        reg.register(TextParser())
+        assert reg.count == len(TextParser.extensions)
+
+    def test_count_after_unregister(self):
+        reg = ParserRegistry()
+        reg.register(MarkdownParser())
+        initial = reg.count
+        reg.unregister(".md")
+        assert reg.count == initial - 1
+
+
+class TestRegistryGetCaseInsensitive:
+    def test_get_uppercase_extension(self):
+        reg = ParserRegistry()
+        reg.register(MarkdownParser())
+        parser = reg.get(".MD")
+        assert isinstance(parser, MarkdownParser)
+
+    def test_get_mixed_case_extension(self):
+        reg = ParserRegistry()
+        reg.register(TextParser())
+        parser = reg.get(".Py")
+        assert isinstance(parser, TextParser)
+
+
+class TestRegistrySupportedExtensionsEmpty:
+    def test_empty_registry_returns_empty_list(self):
+        reg = ParserRegistry()
+        assert reg.supported_extensions() == []
+
+
+class TestRegisterParserNoExtensions:
+    def test_decorator_with_no_extension_args(self):
+        """Decorator called without extension args uses class-level extensions only."""
+        @register_parser(override=True)
+        class CustomParser:
+            extensions = [".custom"]
+
+            def parse(self, path: Path) -> str:
+                return "custom"
+
+        assert ".custom" in parser_registry.supported_extensions()
+
+
+class TestRegisterDuplicateExtensionInSameParser:
+    def test_duplicate_extension_in_same_parser_deduplicated(self):
+        """If a parser lists the same extension twice (case-insensitive),
+        it should not cause a duplicate registration error."""
+        reg = ParserRegistry()
+
+        class DupParser:
+            extensions = [".dup", ".DUP", ".dup"]
+
+            def parse(self, path: Path) -> str:
+                return "dup"
+
+        # Should not raise despite duplicate extensions
+        reg.register(DupParser())
+        assert reg.has(".dup") is True
+        assert reg.count == 1  # only one unique extension

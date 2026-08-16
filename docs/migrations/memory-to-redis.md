@@ -10,7 +10,7 @@
 ## 步骤 1：安装依赖
 
 ```bash
-pip install redis
+pip install agentbase[queue]  # installs redis>=5.0.0
 ```
 
 ## 步骤 2：启动 Redis

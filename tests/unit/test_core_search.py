@@ -153,3 +153,171 @@ class TestKnowledgeBaseWithEmbeddings:
         # A query present in the chunk content is a positive hit.
         assert "python" in results[0].chunk.content.lower()
         kb.close()
+
+
+# ---------------------------------------------------------------------------
+# Supplementary tests for missing coverage
+# ---------------------------------------------------------------------------
+
+
+class TestDuckDuckGoSearchMocked:
+    """Test DuckDuckGoSearch with mocked urllib to avoid network calls."""
+
+    def test_search_success_mocked(self):
+        from unittest.mock import MagicMock, patch
+
+        html = (
+            '<a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com">Example</a>'
+            '<a class="result__snippet">Example snippet</a>'
+        )
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = html.encode("utf-8")
+        fake_resp.__enter__ = MagicMock(return_value=fake_resp)
+        fake_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=fake_resp):
+            provider = DuckDuckGoSearch()
+            results = provider.search("test query", max_results=5)
+            assert len(results) >= 1
+            assert results[0].source == "duckduckgo"
+
+    def test_search_non_redirect_url(self):
+        from unittest.mock import MagicMock, patch
+
+        html = '<a class="result__a" href="https://direct.example.com/page">Direct</a>'
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = html.encode("utf-8")
+        fake_resp.__enter__ = MagicMock(return_value=fake_resp)
+        fake_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=fake_resp):
+            provider = DuckDuckGoSearch()
+            results = provider.search("test", max_results=5)
+            assert len(results) >= 1
+            assert results[0].url == "https://direct.example.com/page"
+
+    def test_search_deduplication(self):
+        from unittest.mock import MagicMock, patch
+
+        html = (
+            '<a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fsame.com">Same</a>'
+            '<a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fsame.com">Duplicate</a>'
+        )
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = html.encode("utf-8")
+        fake_resp.__enter__ = MagicMock(return_value=fake_resp)
+        fake_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=fake_resp):
+            provider = DuckDuckGoSearch()
+            results = provider.search("test", max_results=5)
+            assert len(results) == 1
+
+    def test_search_timeout_error(self):
+        from unittest.mock import MagicMock, patch
+
+        with patch("urllib.request.urlopen", side_effect=TimeoutError("timed out")):
+            with patch("time.sleep"):
+                provider = DuckDuckGoSearch(max_retries=1)
+                results = provider.search("test")
+                # Should return error result after all retries
+                assert len(results) == 1
+                assert "failed" in results[0].title.lower() or "failed" in results[0].snippet.lower()
+
+    def test_search_generic_error(self):
+        from unittest.mock import MagicMock, patch
+
+        with patch("urllib.request.urlopen", side_effect=RuntimeError("generic error")):
+            with patch("time.sleep"):
+                provider = DuckDuckGoSearch(max_retries=1)
+                results = provider.search("test")
+                assert len(results) == 1
+                assert "error" in results[0].snippet.lower()
+
+    def test_search_timeout_exhausted(self):
+        from unittest.mock import MagicMock, patch
+
+        # All retries exhaust with retryable errors → last attempt
+        # hits the return-error branch (attempt > max_retries)
+        with patch("urllib.request.urlopen", side_effect=ConnectionError("refused")):
+            with patch("time.sleep"):
+                provider = DuckDuckGoSearch(max_retries=1)
+                results = provider.search("test")
+                # Last attempt returns error result (not the "html is None" branch)
+                assert len(results) == 1
+                assert "error" in results[0].snippet.lower()
+
+
+class TestSearchRegistryExtras:
+    def test_count(self):
+        reg = SearchRegistry()
+        assert reg.count == 0
+        reg.register("test1", DuckDuckGoSearch())
+        assert reg.count == 1
+        reg.register("test2", DuckDuckGoSearch())
+        assert reg.count == 2
+
+    def test_unregister_existing(self):
+        reg = SearchRegistry()
+        reg.register("test", DuckDuckGoSearch())
+        assert reg.unregister("test") is True
+        assert not reg.has("test")
+
+    def test_unregister_non_existing(self):
+        reg = SearchRegistry()
+        assert reg.unregister("nonexistent") is False
+
+    def test_register_empty_name_raises(self):
+        reg = SearchRegistry()
+        with pytest.raises(Exception, match="empty"):
+            reg.register("  ", DuckDuckGoSearch())
+
+    def test_case_insensitive(self):
+        reg = SearchRegistry()
+        reg.register("MyProvider", DuckDuckGoSearch())
+        assert reg.has("myprovider")
+        assert reg.has("MYPROVIDER")
+
+
+class TestTavilySearch:
+    def test_no_api_key_raises(self):
+        from agentbase.core.search import TavilySearch
+        import os
+
+        # Ensure no env var
+        old = os.environ.pop("TAVILY_API_KEY", None)
+        try:
+            provider = TavilySearch()
+            with pytest.raises(RuntimeError, match="TAVILY_API_KEY"):
+                provider._get_client()
+        finally:
+            if old:
+                os.environ["TAVILY_API_KEY"] = old
+
+    def test_with_api_key_no_package(self):
+        from agentbase.core.search import TavilySearch
+
+        provider = TavilySearch(api_key="tvly-fake")
+        # _get_client tries to import tavily which is not installed
+        with pytest.raises(ImportError, match="tavily-python"):
+            provider._get_client()
+
+    def test_search_with_mocked_client(self):
+        from unittest.mock import MagicMock
+        from agentbase.core.search import TavilySearch
+
+        provider = TavilySearch(api_key="tvly-fake")
+        # Mock _get_client to return a fake client
+        fake_client = MagicMock()
+        fake_client.search.return_value = {
+            "results": [
+                {"title": "Result 1", "url": "https://r1.com", "content": "Content 1"},
+                {"title": "Result 2", "url": "https://r2.com", "content": "Content 2"},
+            ]
+        }
+        provider._client = fake_client
+        results = provider.search("test query", max_results=2)
+        assert len(results) == 2
+        assert results[0].title == "Result 1"
+        assert results[0].source == "tavily"
+

@@ -7,7 +7,8 @@
 ## 1. Prerequisites
 
 - Python >= 3.11
-- PostgreSQL 16+ (via Docker or local install)
+- PostgreSQL 16+ (for production, via Docker or local install)
+- Or just use SQLite (zero-config, no install needed, dev/single-user)
 
 ## 2. Install
 
@@ -37,7 +38,9 @@ cp .env.example .env
 # OPENAI_API_KEY=your-key-here
 ```
 
-## 4. Start PostgreSQL
+## 4. Start PostgreSQL (Optional — skip for SQLite)
+
+> **Zero-config mode**: If you don't start PostgreSQL, AgentBase defaults to SQLite (file-based, no install needed). Skip to Step 5.
 
 ```bash
 # Start PostgreSQL via Docker

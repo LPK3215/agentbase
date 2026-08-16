@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（100 个端点）
+### 已实现（100 个路由 + 2 个自动文档端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -126,7 +126,7 @@
 | OAuth2 第三方登录 | ✅ 已实现 | `oauth2` 配置段：Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户 |
 | 全局异常处理 | ✅ 已实现 | 返回 `{"error": "...", "code": "...", "http_status": N, "request_id": "..."}` |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，自动生成 UUID，传播到日志和 tracer |
-| 分页 | ✅ 已实现 | `/queue`、`/documents`、`/audit/events` 支持 `page`/`page_size` 参数 |
+| 分页 | ✅ 已实现 | `/queue`、`/documents`、`/audit/events`、`/feedback`、`/notifications`、`/conversations`、`/webhooks/deliveries`、`/usage/records` 支持 `page`/`page_size` 参数 |
 | WebSocket 心跳 | ✅ 已实现 | 30 秒心跳间隔，防止连接超时 |
 
 ### 未实现
@@ -212,10 +212,10 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 | Provider | 状态 | 语义质量 | 需要 API | 说明 |
 |----------|------|---------|---------|------|
-| `hash` | ✅ 已实现（默认） | ❌ 无语义 | 否 | 确定性哈希，仅测试用 |
+| `hash` | ✅ 已实现 | ❌ 无语义 | 否 | 确定性哈希，仅测试用 |
 | `openai` | ✅ 已实现 | ✅ 真实语义 | 是 | 调 OpenAI/SiliconFlow API |
 | `sentence-transformers` | ✅ 已实现 | ✅ 真实语义 | 否（本地运行） | HuggingFace 本地模型，离线运行 |
-| `none` | ✅ 已实现 | — | 否 | 禁用向量搜索，退化为文本匹配 |
+| `none` | ✅ 已实现（默认） | — | 否 | 禁用向量搜索，退化为文本匹配 |
 
 ### 向量检索
 
@@ -296,10 +296,10 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
 | 文档解析器 | TextParser, MarkdownParser | ✅ | `@register_parser(".ext")` |
-| Embedding | HashEmbedding | ✅ | `@register_embedding_provider("name")` |
-| Web 搜索 | DuckDuckGoSearch | ✅ | `@register_search_provider("name")` |
-| MCP 客户端 | MemoryMCPClient | ✅ | `@register_mcp_client("name")` |
-| 队列 | MemoryRequestQueue | ✅ | `@register_queue_provider("name")` |
+| Embedding | NoneEmbeddingProvider / HashEmbedding | ✅ | `@register_embedding_provider("name")` |
+| Web 搜索 | NullSearchProvider / DuckDuckGoSearch | ✅ | `@register_search_provider("name")` |
+| MCP 客户端 | NullMCPClient / MemoryMCPClient | ✅ | `@register_mcp_client("name")` |
+| 队列 | NullQueueProvider (sync) / MemoryRequestQueue | ✅ | `@register_queue_provider("name")` |
 | 追踪器 | NullTracer | ✅ | `@register_tracer_provider("name")` |
 | 知识图谱 | NullGraphProvider | ✅ | `@register_graph_provider("name")` |
 | 存储 | SQLiteBackend / PostgresBackend / MySQLBackend / MongoDBBackend | ✅ | 配置切换 `storage.type` |
@@ -318,7 +318,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 敏感信息脱敏 | RuleRedactionProvider / NullRedactionProvider | ✅ | `@register_redaction_provider("name")` |
 | 密钥加密存储 | FernetSecretsProvider / NullSecretsProvider | ✅ | `@register_secrets_provider("name")` |
 | 工具（扩展注册表） | 37 个内置工具 | ✅ | `@register_tool("name")` |
-| 子代理（扩展注册表） | researcher | ✅ | `@register_subagent("name")` |
+| 子代理（扩展注册表） | researcher, general_helper | ✅ | `@register_subagent("name")` |
 | 中间件（扩展注册表） | 9 个内置中间件 | ✅ | `@register_middleware("name")` |
 
 > **不可替换的内置服务**：数据库迁移（`MigrationManager`，内部使用 Alembic）和 OAuth2 登录（`GoogleOAuth2Provider` / `GitHubOAuth2Provider`，内置 Google/GitHub）不通过注册表机制替换。
@@ -360,7 +360,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| 结构化 JSON 日志 | ✅ 已实现 | 6 个必填字段 + `duration_ms` 执行时长追踪 |
+| 结构化 JSON 日志 | ✅ 已实现 | 7 个必填字段（timestamp/level/event/thread_id/agent/duration_ms/request_id），含 `duration_ms` 执行时长追踪 |
 | 密钥脱敏 | ✅ 已实现 | 日志中自动脱敏 API Key 和 DSN 密码 |
 | Prometheus 指标 | ✅ 已实现 | `GET /metrics` — 请求计数/状态分布/延迟直方图/Agent 调用计数/错误码分布/WS 连接数 |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，传播到 runner 日志和 tracer span |
@@ -402,13 +402,22 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 ### 可选依赖安装
 
 ```bash
-pip install agentbase[rag]          # PDF, DOCX, HTML, Excel, PPTX 解析
+pip install agentbase[postgres]      # PostgreSQL 存储 + 检查点
+pip install agentbase[api]          # FastAPI + uvicorn + SSE
+pip install agentbase[openai]       # OpenAI 模型
+pip install agentbase[anthropic]    # Anthropic 模型
+pip install agentbase[google]       # Google 模型
 pip install agentbase[embeddings]   # OpenAI + SentenceTransformers 向量化
+pip install agentbase[search]       # Tavily 搜索
+pip install agentbase[rag]          # PDF, DOCX, HTML, Excel, PPTX 解析
 pip install agentbase[queue]        # Redis 持久化队列
 pip install agentbase[tracing]      # Langfuse 追踪
 pip install agentbase[ocr]          # OCR 识别
 pip install agentbase[graph]        # Neo4j 知识图谱
 pip install agentbase[mysql]        # MySQL 存储后端
+pip install agentbase[mongodb]      # MongoDB 存储后端
+pip install agentbase[celery]      # Celery 分布式队列
+pip install agentbase[secrets]      # Fernet 密钥加密
 pip install agentbase[otel]         # OpenTelemetry 追踪
 pip install agentbase[transcribe]   # 音频/视频转录
 pip install agentbase[all]          # 全部安装
@@ -488,7 +497,7 @@ pip install agentbase[all]          # 全部安装
 | 覆盖率门槛 | 60%（CI 强制） |
 | ruff lint | 0 errors |
 | isort | 0 errors |
-| CLI 命令 | 17 |
+| CLI 命令 | 20 |
 | 错误码领域 | 16 |
 
 ---
@@ -500,11 +509,11 @@ pip install agentbase[all]          # 全部安装
 | README.md | ✅ 完整 |
 | docs/quickstart.md | ✅ 11 步端到端教程 |
 | docs/configuration.md | ✅ 全部配置项 |
-| docs/core-services.md | ✅ 25 个核心服务说明 |
+| docs/core-services.md | ✅ 26 项核心服务/组件概览 + 10 个详细说明 |
 | docs/extensions.md | ✅ 扩展开发指南 |
 | docs/error-codes.md | ✅ 错误码注册表 |
 | docs/backend-boundaries.md | ✅ 本文档 |
-| examples/ | ✅ Cookbook 示例库（11 个可运行脚本，覆盖 9 个基础注册表 + 2 个扩展类型 + 2 个配置切换） |
+| examples/ | ✅ Cookbook 示例库（11 个可运行脚本，覆盖 7 个基础注册表 + 2 个扩展类型 + 2 个配置切换） |
 | deploy/k8s/ | ✅ K8s Helm Chart + Manifests |
 | deploy/nginx/ | ✅ Nginx 反向代理配置 |
 

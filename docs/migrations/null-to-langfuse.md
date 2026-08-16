@@ -10,7 +10,7 @@
 ## 步骤 1：安装依赖
 
 ```bash
-pip install langfuse
+pip install agentbase[tracing]  # installs langfuse>=2.0.0
 ```
 
 ## 步骤 2：配置环境变量

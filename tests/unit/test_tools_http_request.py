@@ -597,3 +597,93 @@ class TestHttpRequestRegistry:
 
         tools = build_tools(["http_request"], context={}, skip_on_error=False)
         assert len(tools) == 1
+
+
+# ---------------------------------------------------------------------------
+# Supplementary tests for missing coverage
+# ---------------------------------------------------------------------------
+
+
+class TestHttpRequestExtras:
+    def test_response_too_large(self):
+        """Response exceeding _MAX_RESPONSE_SIZE returns 'too large' message."""
+        from agentbase.extensions.tools.http_request import _MAX_RESPONSE_SIZE
+
+        big_body = "x" * (_MAX_RESPONSE_SIZE + 100)
+        with _MockServer(status=200, body=big_body, content_type="text/plain") as srv:
+            tool_fn = build_http_request_tool(context={})
+            result = tool_fn.invoke({"url": srv.url, "method": "GET"})
+
+        assert result["status_code"] == 200
+        assert "too large" in result["body"]
+
+    def test_charset_detection(self):
+        """Content-Type with charset is used for decoding."""
+        with _MockServer(
+            status=200,
+            body="hello world",
+            content_type="text/plain; charset=utf-8",
+        ) as srv:
+            tool_fn = build_http_request_tool(context={})
+            result = tool_fn.invoke({"url": srv.url, "method": "GET"})
+
+        assert result["status_code"] == 200
+        assert "hello" in result["body"]
+
+    def test_decode_fallback_on_bad_encoding(self):
+        """When encoding from Content-Type is invalid, falls back to utf-8 replace."""
+        # Use a mock to simulate a response with invalid charset
+        from unittest.mock import MagicMock, patch
+
+        fake_resp = MagicMock()
+        fake_resp.status = 200
+        fake_resp.headers = {"Content-Type": "text/plain; charset=invalid-encoding"}
+        fake_resp.url = "http://example.com"
+        raw = "héllo wörld".encode("utf-8")
+        fake_resp.read.return_value = raw
+        fake_resp.__enter__ = MagicMock(return_value=fake_resp)
+        fake_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.build_opener") as mock_opener:
+            mock_opener.return_value.open.return_value = fake_resp
+            tool_fn = build_http_request_tool(context={})
+            result = tool_fn.invoke({"url": "http://example.com", "method": "GET"})
+
+        assert result["status_code"] == 200
+        assert result["error"] is None
+
+    def test_http_error_read_exception(self):
+        """HTTPError where reading the error body raises is handled gracefully."""
+        from unittest.mock import patch
+        import urllib.error
+
+        def fake_open(*args, **kwargs):
+            raise urllib.error.HTTPError(
+                url="http://example.com/404",
+                code=404,
+                msg="Not Found",
+                hdrs={"Content-Type": "text/plain"},
+                fp=None,
+            )
+
+        with patch("urllib.request.build_opener") as mock_opener:
+            mock_opener.return_value.open.side_effect = fake_open
+            tool_fn = build_http_request_tool(context={})
+            result = tool_fn.invoke({"url": "http://example.com", "method": "GET"})
+
+        assert result["status_code"] == 404
+        assert result["error"] is not None
+        assert "404" in result["error"]
+
+    def test_unexpected_error_during_request(self):
+        """Unexpected non-HTTP exceptions are caught and returned as error dict."""
+        from unittest.mock import patch
+
+        with patch("urllib.request.build_opener") as mock_opener:
+            mock_opener.return_value.open.side_effect = RuntimeError("unexpected failure")
+            tool_fn = build_http_request_tool(context={})
+            result = tool_fn.invoke({"url": "http://example.com", "method": "GET"})
+
+        assert result["status_code"] == -1
+        assert result["error"] is not None
+        assert "Unexpected error" in result["error"]

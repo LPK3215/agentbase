@@ -10,11 +10,11 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 核心服务（17+） | done | memory / knowledge / queue / skill / workspace / agent factory / session / mcp / tracing / graph / config / registry / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / oauth2 / migration / usage / webhook / feedback / notification / conversation |
+| 核心服务（30） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / evaluation / parsers / embeddings / search |
 | 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation + tool / subagent / middleware（25 个注册表） |
 | 扩展体系 | done | tools(37) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 100 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / admin(rate-limit) |
-| CLI 层 | done | 17 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
+| CLI 层 | done | 20 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
 | 测试基座 | done | 2686 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
@@ -185,7 +185,8 @@
 - **测试**：数据模型（3）+ InMemory CRUD（14）+ Null（5）+ Manager（8）+ Registry（5）+ Singleton（2）+ Protocol（2）= 39 测试。
 
 #### G7. 提示词模板管理服务（PromptProvider）
-- **状态**：done ｜ **优先级**：P5- **定位**：提示词模板 CRUD、变量替换渲染——标准 AI 后台系统的核心基础能力。
+- **状态**：done ｜ **优先级**：P5
+- **定位**：提示词模板 CRUD、变量替换渲染——标准 AI 后台系统的核心基础能力。
 - **接口**：`PromptProvider` Protocol（`register` / `get` / `list` / `update` / `delete` / `close`）。
 - **默认实现**：`InMemoryPromptProvider`（零配置，进程内存储，线程安全）；`NullPromptProvider`（禁用时 no-op）。
 - **注册**：`prompt_registry`，`@register_prompt_provider("name")`。

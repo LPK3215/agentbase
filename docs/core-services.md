@@ -12,7 +12,7 @@
 Management Layer (built-in)          Implementation Layer (pluggable)
 ─────────────────────────            ────────────────────────────────
 SkillManager          ───────►       Markdown files (default)
-MemoryManager         ───────►       SQLite / PostgreSQL
+MemoryManager         ───────►       SQLite / PostgreSQL / MySQL / MongoDB
 KnowledgeBase         ───────►       Storage + Parsers + Embeddings
 MCPManager            ───────►       MCP clients (memory / custom)
 WorkspaceManager      ───────►       Filesystem (uploads/outputs/workspace)
@@ -31,26 +31,26 @@ AuditManager          ───────►       In-memory / SQLite / Postgr
 MigrationManager      ───────►       Alembic (database schema migration)
                                       ↓
                             ┌─────────────────────────┐
-                            │ ParserRegistry          │ → txt, md, pdf, docx, html, xlsx
-                            │ EmbeddingRegistry       │ → hash (zero-dep) / openai / sentence-transformers
-                            │ SearchRegistry          │ → duckduckgo / tavily / custom
-                            │ StorageBackend          │ → sqlite / postgres / mysql (DSN switch)
-                            │ MCPRegistry             │ → memory / custom
-                            │ QueueRegistry           │ → memory / custom
-                            │ TracerRegistry          │ → null / memory / custom
-                            │ GraphRegistry           │ → null / memory / custom
+                            │ ParserRegistry          │ → txt, md, pdf, docx, html, xlsx, pptx, LLM, OCR
+                            │ EmbeddingRegistry       │ → none (default) / hash (zero-dep) / openai / sentence-transformers
+                            │ SearchRegistry           │ → none (default) / duckduckgo / tavily / custom
+                            │ StorageBackend          │ → sqlite / postgres / mysql / mongodb (DSN switch)
+                            │ MCPRegistry             │ → none (default) / memory / custom
+                            │ QueueRegistry           │ → memory / redis / celery / custom
+                            │ TracerRegistry          │ → null / memory / langfuse / opentelemetry / custom
+                            │ GraphRegistry           │ → null / memory / neo4j / custom
                             └─────────────────────────┘
 ```
 
 ## 1. Storage Backend
 
-**Default**: PostgreSQL (via Docker Compose)
-**Fallback**: SQLite (zero-config, file-based)
+**Default**: SQLite (zero-config, file-based, code default)
+**Production**: PostgreSQL (via Docker Compose)
 
 ```yaml
 storage:
   type: postgres
-  dsn: postgresql://postgres:postgres@127.0.0.1:5432/agentbase
+  dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
 ```
 
 The `PostgresBackend` auto-converts SQLite-style SQL (`AUTOINCREMENT` → `SERIAL`),
@@ -58,7 +58,7 @@ so upper-layer code uses a unified SQL style for both backends.
 
 ## 2. Document Parser Registry
 
-**Built-in**: `TextParser`, `MarkdownParser`, `PdfParser`, `DocxParser`, `HtmlParser`, `ExcelParser`, `PptxParser`
+**Built-in**: `TextParser`, `MarkdownParser`, `PdfParser`, `DocxParser`, `HtmlParser`, `ExcelParser`, `PptxParser`, `LLMDocumentParser`, `OCRParser`
 
 PDF/DOCX/HTML/Excel parsers are registered at bootstrap time. They require optional
 dependencies (`pymupdf`, `python-docx`, `beautifulsoup4`, `openpyxl`) — install with
@@ -66,21 +66,23 @@ dependencies (`pymupdf`, `python-docx`, `beautifulsoup4`, `openpyxl`) — instal
 
 ## 3. Embedding Provider Registry
 
-**Default**: `HashEmbedding` (deterministic, zero-dependency)
-**Built-in**: `OpenAIEmbeddingProvider` (auto-registered when `openai` package is installed)
+**Default**: `NoneEmbeddingProvider` (embeddings disabled, text search only)
+**Built-in**: `HashEmbedding` (zero-dependency, testing), `OpenAIEmbeddingProvider` (auto-registered when `openai` package is installed), `SentenceTransformersEmbeddingProvider` (local models)
 
 Embeddings are **persisted** to the `kb_chunks.embedding` column on document insert.
 Search loads stored vectors instead of recomputing.
 
 ## 4. Web Search Provider Registry
 
-**Default**: `DuckDuckGoSearch` (no API key, rate-limited)
+**Default**: `None` (disabled)
+**Built-in**: `DuckDuckGoSearch` (no API key, rate-limited), `TavilySearch` (requires API key)
 
 Register custom providers with `@register_search_provider("name")`.
 
 ## 5. MCP (Model Context Protocol) Registry
 
-**Default**: `MemoryMCPClient` (in-memory, for testing)
+**Default**: `None` (disabled)
+**Built-in**: `MemoryMCPClient` (in-memory, for testing)
 
 ```python
 from agentbase.core.mcp import register_mcp_client
@@ -98,7 +100,7 @@ via `mcp_list_tools` and `mcp_call_tool` tools.
 ## 6. Queue Registry
 
 **Default**: `none` (sync mode, no queue)
-**Built-in**: `MemoryRequestQueue` (in-process), `RedisRequestQueue` (persistent)
+**Built-in**: `MemoryRequestQueue` (in-process), `RedisRequestQueue` (persistent), `CeleryRequestQueue` (distributed)
 
 Submit async tasks, check status, and process them with a handler function.
 
@@ -176,18 +178,18 @@ Built-in metrics: `KeywordMatchMetric`, `ExactMatchMetric`, `SubstringMatchMetri
 
 | Service | Default | Pluggable | Config Key |
 |---------|---------|-----------|------------|
-| Storage | PostgreSQL | `SQLiteBackend` / `PostgresBackend` / `MySQLBackend` | `storage` |
-| Parsers | txt, md, pdf, docx, html, xlsx | `@register_parser()` | — (code) |
-| Embeddings | hash | `@register_embedding_provider()` | `embedding` |
-| Web Search | duckduckgo | `@register_search_provider()` | `web_search` |
+| Storage | sqlite | `SQLiteBackend` / `PostgresBackend` / `MySQLBackend` / `MongoDBBackend` | `storage` |
+| Parsers | txt, md, pdf, docx, html, xlsx, pptx, LLM, OCR | `@register_parser()` | — (code) |
+| Embeddings | none | `@register_embedding_provider()` | `embedding` |
+| Web Search | none | `@register_search_provider()` | `web_search` |
 | MCP | none | `@register_mcp_client()` | `mcp` |
-| Queue | none (sync) | `@register_queue_provider()` | `queue` |
+| Queue | none (sync) | `@register_queue_provider()` — memory / redis / celery | `queue` |
 | Tracer | null | `@register_tracer_provider()` | `tracer` |
 | Graph | null | `@register_graph_provider()` | — (code) |
-| Checkpointer | memory | `MemorySaver` / `SqliteSaver` / `PostgresSaver` / `MySQLSaver` | `checkpointer` |
+| Checkpointer | sqlite | `MemorySaver` / `SqliteSaver` / `PostgresSaver` / `MySQLSaver` | `checkpointer` |
 | Skills | files | No (always file-based) | — |
-| Memory | PostgreSQL | Via storage backend | `storage` |
-| Knowledge | PostgreSQL | Via storage + parsers + embeddings | `storage` + `embedding` |
+| Memory | sqlite (via storage) | Via storage backend | `storage` |
+| Knowledge | sqlite (via storage) | Via storage + parsers + embeddings | `storage` + `embedding` |
 | Workspace | filesystem | `WorkspaceManager` | — |
 | Evaluation | built-in | `Metric` protocol | — |
 | Model Manager | null | `@register_model_provider()` | `model_manager` |

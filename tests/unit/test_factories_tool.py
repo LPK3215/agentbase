@@ -80,3 +80,101 @@ class TestBuildTools:
         # Verify each tool is callable (has invoke method)
         for t in tools:
             assert hasattr(t, "invoke")
+
+    # --- Supplementary tests for missing branches ---
+
+    def test_build_unknown_skip_on_error(self, bootstrapped):
+        """Unknown tool with skip_on_error=True should be skipped, not raise."""
+        result = build_tools(["nonexistent_xyz"], context={}, skip_on_error=True)
+        assert result == []
+
+    def test_build_tool_typeerror_fallback_success(self):
+        """If builder(context=...) raises TypeError, fallback to builder() should work."""
+        from agentbase.registry.tools import register_tool
+
+        @register_tool("fallback_tool_tf", override=True)
+        def build_fallback(context=None):
+            if context is not None:
+                raise TypeError("no context arg")
+            return "tool_instance"
+
+        result = build_tools(["fallback_tool_tf"], context={}, skip_on_error=False)
+        assert len(result) == 1
+        assert result[0] == "tool_instance"
+
+    def test_build_tool_typeerror_fallback_also_fails_skip(self):
+        """If both builder(context=...) and builder() fail, skip with skip_on_error=True."""
+        from agentbase.registry.tools import register_tool
+
+        @register_tool("double_fail_tool", override=True)
+        def build_double_fail(context=None):
+            if context is not None:
+                raise TypeError("no context arg")
+            raise RuntimeError("always fails")
+
+        result = build_tools(["double_fail_tool"], context={}, skip_on_error=True)
+        assert result == []
+
+    def test_build_tool_typeerror_fallback_also_fails_raise(self):
+        """If both builder(context=...) and builder() fail, raise with skip_on_error=False."""
+        from agentbase.registry.tools import register_tool
+        from agentbase.runtime.errors import FactoryError
+
+        @register_tool("double_fail_tool2", override=True)
+        def build_double_fail(context=None):
+            if context is not None:
+                raise TypeError("no context arg")
+            raise RuntimeError("always fails")
+
+        with pytest.raises(FactoryError, match="builder.*failed"):
+            build_tools(["double_fail_tool2"], context={}, skip_on_error=False)
+
+    def test_build_tool_exception_skip(self):
+        """If builder raises generic Exception, skip with skip_on_error=True."""
+        from agentbase.registry.tools import register_tool
+
+        @register_tool("exc_tool", override=True)
+        def build_exc(context=None):
+            raise ValueError("builder error")
+
+        result = build_tools(["exc_tool"], context={}, skip_on_error=True)
+        assert result == []
+
+    def test_build_tool_exception_raise(self):
+        """If builder raises generic Exception, raise with skip_on_error=False."""
+        from agentbase.registry.tools import register_tool
+        from agentbase.runtime.errors import FactoryError
+
+        @register_tool("exc_tool2", override=True)
+        def build_exc(context=None):
+            raise ValueError("builder error")
+
+        with pytest.raises(FactoryError, match="builder.*failed"):
+            build_tools(["exc_tool2"], context={}, skip_on_error=False)
+
+    def test_build_tool_returns_none_skip(self):
+        """If builder returns None, skip with skip_on_error=True."""
+        from agentbase.registry.tools import register_tool
+
+        @register_tool("null_tool_skip", override=True)
+        def build_null(context=None):
+            return None
+
+        result = build_tools(["null_tool_skip"], context={}, skip_on_error=True)
+        assert result == []
+
+    def test_build_mixed_skip_and_success(self):
+        """Mix of valid and invalid tools should return only valid ones."""
+        from agentbase.registry.tools import register_tool
+
+        @register_tool("valid_mixed_tool", override=True)
+        def build_valid(context=None):
+            return "valid_tool"
+
+        result = build_tools(
+            ["valid_mixed_tool", "nonexistent_xyz"],
+            context={},
+            skip_on_error=True,
+        )
+        assert len(result) == 1
+        assert result[0] == "valid_tool"

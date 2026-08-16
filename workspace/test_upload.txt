@@ -1,1 +1,0 @@
-Python is a high-level programming language. It is widely used for web development, data science, and AI.

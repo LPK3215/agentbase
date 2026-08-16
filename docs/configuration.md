@@ -19,7 +19,7 @@
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `provider` | string | `openai` | Model provider |
-| `name` | string | `deepseek-chat` | Model name |
+| `name` | string | `gpt-4.1-mini` | Model name (default.yaml overrides to `deepseek-chat`) |
 | `temperature` | float | `0.0` | Sampling temperature |
 | `max_tokens` | int\|null | `null` | Max tokens in response |
 | `timeout_seconds` | int | `120` | Request timeout |
@@ -39,7 +39,7 @@
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | `postgres` | Checkpointer type (`memory`/`sqlite`/`postgres`/`mysql`) |
+| `type` | string | `sqlite` | Checkpointer type (`memory`/`sqlite`/`postgres`/`mysql`) |
 | `dsn` | string\|null | `null` | Data source name |
 | `options` | dict | `{}` | Checkpointer-specific options |
 
@@ -53,15 +53,25 @@ Controls the storage backend for `MemoryManager` and `KnowledgeBase`.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | `sqlite` \| `postgres` \| `mysql` | `postgres` | Storage backend type |
+| `type` | `sqlite` \| `postgres` \| `mysql` \| `mongodb` | `sqlite` | Storage backend type |
 | `db_dir` | string | `data` | Directory for SQLite files (when `type=sqlite`) |
-| `dsn` | string\|null | `null` | PostgreSQL connection string (when `type=postgres`) |
+| `dsn` | string\|null | `null` | PostgreSQL/MySQL/MongoDB connection string (when `type=postgres`/`mysql`/`mongodb`) |
 
 ```yaml
 # PostgreSQL (production)
 storage:
   type: postgres
-  dsn: postgresql://postgres:postgres@127.0.0.1:5432/agentbase
+  dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
+
+# MySQL (production)
+# storage:
+#   type: mysql
+#   dsn: mysql+pymysql://agentbase:agentbase@127.0.0.1:3306/agentbase
+
+# MongoDB (production, NoSQL)
+# storage:
+#   type: mongodb
+#   dsn: mongodb://agentbase:agentbase@127.0.0.1:27017/agentbase
 
 # SQLite (dev/zero-config)
 storage:
@@ -73,12 +83,12 @@ storage:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `provider` | string | `hash` | Provider name (`none`/`hash`/`openai`/custom) |
+| `provider` | string | `none` | Provider name (`none`/`hash`/`openai`/custom) |
 | `options` | dict | `{}` | Provider-specific options |
 
-- `hash`: Zero-dependency deterministic hash embeddings (default, testing).
+- `none`: Disable embeddings, use text search only (default).
+- `hash`: Zero-dependency deterministic hash embeddings (testing).
 - `openai`: OpenAI text-embedding (requires `openai` package + `OPENAI_API_KEY`).
-- `none`: Disable embeddings, use text search only.
 - Register custom providers with `@register_embedding_provider("name")`.
 
 ### `web_search` Section
@@ -140,8 +150,9 @@ Controls tracing and observability.
 | `config_dir` | string | `configs` | Config directory |
 | `workspace_dir` | string | `workspace` | Workspace directory |
 | `stream_modes` | list | `["messages", "updates"]` | LangGraph stream modes |
-| `recursion_limit` | int | `50` | Max recursion depth |
-| `max_concurrency` | int | `4` | Max concurrent operations (min 4) |
+| `recursion_limit` | int | `50` | Max recursion depth (clamped to 1–200) |
+| `max_concurrency` | int | `4` | Max concurrent operations (clamped to 1–32) |
+| `session_ttl_seconds` | float\|null | `null` | Session TTL in seconds (null = never expire) |
 
 ### `extensions` Section
 
@@ -179,6 +190,226 @@ config = AgentConfig(name="my_agent")
 items = config.get_configurable_items()
 # [{"name": "system_prompt", "type": "text", "default": "...", "description": "..."}, ...]
 ```
+
+### `auth` Section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | `api_key` \| `jwt` \| `none` | `api_key` | Auth type |
+| `secret` | string | (empty) | JWT signing secret (required when `type=jwt`) |
+| `token_expiry_hours` | int | `24` | JWT token expiry |
+| `role_permissions` | dict | `{}` | Role-permission mapping |
+| `api_key` | string\|null | `null` | Override env-based API key |
+
+### `rate_limit` Section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `true` | Enable per-IP rate limiting |
+| `max_requests` | int | `60` | Max requests per window |
+| `window_seconds` | int | `60` | Window size in seconds |
+| `burst` | int | `10` | Burst capacity |
+| `quotas` | dict | `{}` | Per-role custom limits |
+
+### `cors` Section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `allow_origins` | list | `["*"]` | Allowed origins |
+| `allow_methods` | list | `["*"]` | Allowed methods |
+| `allow_headers` | list | `["*"]` | Allowed headers |
+| `allow_credentials` | bool | `false` | Send credentials (forced false when origins contain `*`) |
+
+### `metrics` Section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `true` | Enable Prometheus metrics |
+| `path` | string | `/metrics` | Metrics endpoint path |
+| `collect_latency` | bool | `true` | Record request latency |
+| `collect_agent_metrics` | bool | `true` | Record per-agent counts |
+
+### `health_check` Section
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `check_storage` | bool | `true` | Check storage connectivity |
+| `check_queue` | bool | `true` | Check queue connectivity |
+| `check_embedding` | bool | `false` | Check embedding availability |
+| `check_search` | bool | `false` | Check search availability |
+| `check_tracer` | bool | `false` | Check tracer connectivity |
+
+### `audit` Section
+
+Enable structured audit logging. Provides `/audit/events/*` query + export API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable audit logging |
+| `provider` | string | `sqlite` | Provider name |
+| `db_dir` | string | `data` | SQLite directory |
+| `dsn` | string\|null | `null` | PostgreSQL/MySQL DSN override |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `experiment` Section
+
+Enable A/B testing. Provides `/experiments/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable experiments |
+| `provider` | string | `memory` | Provider name |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `redaction` Section
+
+Enable PII/secrets masking in text. Works with `redact_output` middleware.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable redaction |
+| `provider` | string | `regex` | Provider name |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `secrets` Section
+
+Enable secrets encryption at rest.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable secrets encryption |
+| `provider` | string | `fernet` | Provider name |
+| `key_file` | string | `.secret_key` | Encryption key file |
+| `secrets_file` | string | `.secrets.json` | Encrypted secrets store |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `db_query` Section
+
+Configure the read-only DB query tool.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable tool registration |
+| `dsn` | string | `""` | Database connection string |
+| `max_rows` | int | `100` | Max rows returned (hard cap 1000) |
+| `timeout_seconds` | int | `10` | Query timeout (hard cap 30) |
+| `allowed_tables` | list | `[]` | Table whitelist (empty = all) |
+
+### `model_manager` Section
+
+Enable multi-model CRUD and testing. Provides `/models/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable model management |
+| `provider` | string | `memory` | Provider name |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `prompt_manager` Section
+
+Enable prompt template CRUD and rendering. Provides `/prompts/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable prompt management |
+| `provider` | string | `memory` | Provider name |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `user_manager` Section
+
+Enable user CRUD and authentication. Provides `/users/*` and `/auth/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable user management |
+| `provider` | string | `memory` | Provider name |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `apikey_manager` Section
+
+Enable API key CRUD and revocation. Provides `/apikeys/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable API key management |
+| `provider` | string | `memory` | Provider name |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `migration` Section
+
+Enable Alembic database migration. CLI: `agentbase db init/upgrade/downgrade/current/heads/history/stamp`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `true` | Enable migration CLI |
+| `scripts_dir` | string | `migrations` | Alembic scripts directory |
+
+### `oauth2` Section
+
+Enable OAuth2 third-party login (Google/GitHub). Provides `/auth/oauth2/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable OAuth2 |
+| `providers` | dict | `{}` | Provider configs (google/github) |
+
+### `usage` Section
+
+Enable token usage tracking and cost statistics. Provides `/usage/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable usage tracking |
+| `provider` | string | `memory` | Provider name |
+| `max_records` | int | `100000` | Max records before FIFO eviction |
+| `pricing` | dict | `{}` | Custom pricing table |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `webhook` Section
+
+Enable webhook event notification. Provides `/webhooks/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable webhook |
+| `provider` | string | `memory` | Provider name |
+| `timeout_seconds` | float | `10.0` | Delivery timeout |
+| `max_retries` | int | `3` | Max retry attempts |
+| `retry_backoff` | float | `1.0` | Base backoff seconds |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `feedback` Section
+
+Enable user feedback collection. Provides `/feedback/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable feedback |
+| `provider` | string | `memory` | Provider name |
+| `max_records` | int | `50000` | Max records before eviction |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `notification` Section
+
+Enable in-app notification center. Provides `/notifications/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable notifications |
+| `provider` | string | `memory` | Provider name |
+| `max_records` | int | `100000` | Max records before eviction |
+| `options` | dict | `{}` | Extra provider kwargs |
+
+### `conversation` Section
+
+Enable conversation history recording. Provides `/conversations/*` API.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable conversation history |
+| `provider` | string | `memory` | Provider name |
+| `max_conversations` | int | `10000` | Max conversations before eviction |
+| `options` | dict | `{}` | Extra provider kwargs |
 
 ## Environment Variables
 

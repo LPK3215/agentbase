@@ -25,7 +25,7 @@ from typing import Any, Protocol, runtime_checkable
 
 @runtime_checkable
 class StorageBackend(Protocol):
-    """Unified DB connection interface for SQLite and PostgreSQL."""
+    """Unified DB connection interface for SQLite, PostgreSQL, MySQL, and MongoDB."""
 
     def executescript(self, sql: str) -> None: ...
     def execute(self, sql: str, params: tuple[Any, ...] | list[Any] | None = None) -> Any: ...
@@ -385,8 +385,9 @@ class MySQLBackend:
 def create_storage(*, db_path: Path | None = None, dsn: str | None = None) -> StorageBackend:
     """Factory: pick the right backend based on parameters.
 
-    - If ``dsn`` starts with ``postgres`` → PostgresBackend
+    - If ``dsn`` starts with ``mongodb`` → MongoDBBackend
     - If ``dsn`` starts with ``mysql`` → MySQLBackend
+    - If ``dsn`` starts with ``postgres`` → PostgresBackend
     - If ``db_path`` is provided → SQLiteBackend
     - If neither → in-memory SQLite (for tests)
     """

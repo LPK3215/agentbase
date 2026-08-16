@@ -17,7 +17,7 @@
 
 **Configuration-driven AI Agent backend for secondary development** — a production-grade **AI Agent framework / LLM agent scaffold** built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade **AI agents / intelligent agent systems** from YAML configuration, without writing boilerplate. Use it as an **agent application scaffolding** layer, an **AI agent service framework**, or an **intelligent agent development starter kit**.
 
-`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 17-command CLI, and a FastAPI service layer with 100 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
+`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 20-command CLI, and a FastAPI service layer with 100 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
 
 ## Key Features
 
@@ -35,22 +35,24 @@
 ```mermaid
 graph TD
     subgraph "Entry Points (CLI / FastAPI / WebSocket)"
-        A[agentbase CLI<br/>17 commands] --> C[Service Layer<br/>100 REST + WS routes]
+        A[agentbase CLI<br/>20 commands] --> C[Service Layer<br/>100 REST + WS routes]
         B[FastAPI App] --> C
     end
 
     subgraph "Core (config-driven, pluggable)"
         C --> D[YAML Config<br/>validated by agentbase doctor]
-        D --> E[Extension Registries<br/>tools · middleware · subagents · parsers<br/>embeddings · search · MCP · queue · tracer]
+        D --> E[Extension Registries<br/>25 pluggable providers · tools · middleware · subagents · parsers<br/>embeddings · search · MCP · queue · tracer · graph · storage · checkpointer<br/>model_manager · prompt_manager · user_manager · apikey_manager · usage<br/>webhook · feedback · notification · conversation · audit · experiment<br/>redaction · secrets · migration · oauth2]
         E --> F[Component Factories<br/>deepagents + LangChain + LangGraph]
     end
 
     subgraph "Infrastructure Services"
-        F --> G[Agent Runtime]
-        F --> H[Memory Manager]
-        F --> I[RAG Knowledge Base<br/>9 formats · 3 chunkers · pgvector]
-        F --> J[Task Queue]
-        F --> K[Audit & Tracing]
+        F --> G[Agent Runtime & Session]
+        F --> H[Memory & Knowledge Base (RAG)]
+        F --> I[Model/Prompt/User/APIKey Manager]
+        F --> J[Queue & Webhook & Usage Tracking]
+        F --> K[Audit & Tracing & Feedback]
+        F --> L[Notification & Conversation & OAuth2]
+        F --> M[Migration & Evaluation & Secrets]
     end
 
     style D fill:#fff3cd
@@ -63,7 +65,8 @@ graph TD
 ## Requirements
 
 - Python >= 3.11
-- PostgreSQL 16+ with pgvector (via Docker or local install)
+- PostgreSQL 16+ with pgvector (for production, via Docker or local install)
+- Or SQLite (zero-config, no install needed, dev/single-user)
 
 ## Installation
 
@@ -364,10 +367,10 @@ Key files:
 |----------|---------|-------------|
 | `AGENTBASE_API_KEY` | (empty) | API Key for authentication (empty = disabled) |
 | `AGENTBASE_CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
-| `AGENTBASE_STORAGE__TYPE` | `postgres` | Storage backend (`postgres`/`sqlite`/`mysql`) |
-| `AGENTBASE_STORAGE__DSN` | from config | PostgreSQL connection string |
-| `AGENTBASE_CHECKPOINTER__TYPE` | `postgres` | Checkpointer type (`postgres`/`sqlite`/`memory`/`mysql`) |
-| `AGENTBASE_EMBEDDING__PROVIDER` | `hash` | Embedding provider (`hash`/`openai`/`none`) |
+| `AGENTBASE_STORAGE__TYPE` | `sqlite` | Storage backend (`sqlite`/`postgres`/`mysql`/`mongodb`) |
+| `AGENTBASE_STORAGE__DSN` | from config | PostgreSQL/MySQL/MongoDB connection string |
+| `AGENTBASE_CHECKPOINTER__TYPE` | `sqlite` | Checkpointer type (`sqlite`/`postgres`/`memory`/`mysql`) |
+| `AGENTBASE_EMBEDDING__PROVIDER` | `none` | Embedding provider (`none`/`hash`/`openai`) |
 | `AGENTBASE_AUTH__TYPE` | `api_key` | Auth type (`api_key`/`jwt`) |
 | `AGENTBASE_AUTH__SECRET` | (empty) | JWT signing secret (required when `type=jwt`) |
 | `AGENTBASE_OAUTH2__ENABLED` | `false` | Enable OAuth2 login (Google/GitHub) |
@@ -380,6 +383,12 @@ Key files:
 | `AGENTBASE_FEEDBACK__ENABLED` | `false` | Enable user feedback collection |
 | `AGENTBASE_NOTIFICATION__ENABLED` | `false` | Enable in-app notification center |
 | `AGENTBASE_CONVERSATION__ENABLED` | `false` | Enable conversation history recording |
+| `AGENTBASE_AUDIT__ENABLED` | `false` | Enable structured audit logging |
+| `AGENTBASE_EXPERIMENT__ENABLED` | `false` | Enable A/B testing framework |
+| `AGENTBASE_REDACTION__ENABLED` | `false` | Enable PII/secrets masking |
+| `AGENTBASE_SECRETS__ENABLED` | `false` | Enable secrets encryption at rest |
+| `AGENTBASE_DB_QUERY__ENABLED` | `false` | Enable read-only DB query tool |
+| `AGENTBASE_MIGRATION__ENABLED` | `true` | Enable Alembic migration CLI |
 | `AGENTBASE_APP__ENV` | `dev` | Environment label |
 | `AGENTBASE_APP__LOG_LEVEL` | `INFO` | Log level |
 
@@ -387,11 +396,11 @@ Key files:
 
 | Layer | Default | How to Replace |
 |-------|---------|----------------|
-| Storage | PostgreSQL (pgvector) | `storage.type: sqlite` / `mysql` / `mongodb` |
-| Document Parsing | txt, md, pdf, docx, html, xlsx, pptx | `@register_parser()` |
-| Embeddings | Hash (zero-dep) | `@register_embedding_provider("openai")` |
-| Web Search | DuckDuckGo | `@register_search_provider("tavily")` |
-| MCP | None | `mcp.provider: memory` |
+| Storage | SQLite (zero-config) | `storage.type: postgres` / `mysql` / `mongodb` |
+| Document Parsing | txt, md, pdf, docx, html, xlsx, pptx, LLM, OCR | `@register_parser()` |
+| Embeddings | None (disabled) | `@register_embedding_provider("hash")` / `"openai"` |
+| Web Search | None (disabled) | `@register_search_provider("duckduckgo")` / `"tavily"` |
+| MCP | None (disabled) | `mcp.provider: memory` |
 | Queue | None (sync) | `queue.provider: memory` / `redis` / `celery` |
 | Tracer | Null (no-op) | `tracer.provider: memory` / `langfuse` / `opentelemetry` |
 | Knowledge Graph | Null (no-op) | `@register_graph_provider("neo4j")` |
@@ -404,6 +413,11 @@ Key files:
 | Feedback | Null (disabled) | `feedback.provider: memory` |
 | Notification Center | Null (disabled) | `notification.provider: memory` |
 | Conversation History | Null (disabled) | `conversation.provider: memory` |
+| Audit Log | Null (disabled) | `audit.provider: sqlite` |
+| A/B Testing | Null (disabled) | `experiment.provider: memory` |
+| PII Redaction | Null (disabled) | `redaction.provider: regex` |
+| Secrets Encryption | Null (disabled) | `secrets.provider: fernet` |
+| Checkpointer | SQLite | `checkpointer.type: postgres` / `memory` / `mysql` |
 | OAuth2 Login | Disabled | `oauth2.enabled: true` (Google/GitHub) |
 | Workspace | Filesystem | `WorkspaceManager` |
 
@@ -462,9 +476,9 @@ agentbase/
 │   └── agents/            # Agent profiles
 ├── src/agentbase/
 │   ├── api.py             # FastAPI service layer (100 routes, auth, CORS, rate limit, metrics)
-│   ├── cli.py             # CLI entry point (17 commands)
+│   ├── cli.py             # CLI entry point (20 commands)
 │   ├── config/            # Config loading & schema
-│   ├── core/              # 29 core modules (memory, knowledge, queue, skills, workspace, agent, session, mcp, tracing, graph, audit, redaction, secrets, experiment, migration, model_manager, prompt_manager, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation, evaluation, parsers, embeddings, search, storage)
+│   ├── core/              # 30 core modules (memory, knowledge, queue, queue_celery, skills, workspace, storage, storage_mongodb, mcp, tracer, graph, audit, redaction, secrets, experiment, migration, model_manager, prompt, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation, evaluation, parsers, embeddings, search)
 │   ├── factories/         # Component factories
 │   ├── registry/          # Extension registries (25 pluggable providers)
 │   ├── runtime/           # AgentRunner, events, errors, logging
@@ -493,9 +507,9 @@ AGENTBASE_API_KEY="secret" docker compose up -d
 
 | Guide | Content |
 |-------|---------|
-| [Quick Start](docs/quickstart.md) | End-to-end setup & first agent in 10 steps |
+| [Quick Start](docs/quickstart.md) | End-to-end setup & first agent in 11 steps |
 | [Configuration](docs/configuration.md) | Full config reference (YAML + env vars) |
-| [Core Services](docs/core-services.md) | 29 core modules & pluggable provider swaps |
+| [Core Services](docs/core-services.md) | 30 core modules & pluggable provider swaps |
 | [Extensions](docs/extensions.md) | 25 extension registries, tools, middleware |
 | [Error Codes](docs/error-codes.md) | `agentbase_<domain>_<nnn>` structured errors |
 | [Backend Boundaries](docs/backend-boundaries.md) | Architecture & separation of concerns |

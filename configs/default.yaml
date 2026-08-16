@@ -34,6 +34,7 @@ storage:
   dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
 
 embedding:
+  # Code default: none (disabled). This config overrides to hash for out-of-box RAG.
   # hash (zero-dep testing) | openai | none (text search only)
   # Register custom: @register_embedding_provider("name")
   provider: hash

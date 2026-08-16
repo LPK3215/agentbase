@@ -10,15 +10,15 @@ from typing import Any
 class JsonFormatter(logging.Formatter):
     """Emit one JSON object per log line with stable required fields.
 
-    Required fields:
+    All 7 fields are always present in the output (value may be null):
     - ``timestamp``: ISO 8601 format
     - ``level``: log level name
     - ``event``: event type or message
-    - ``thread_id``: agent thread identifier (optional)
-    - ``agent``: agent name (optional)
-    - ``duration_ms``: execution duration (optional)
-    - ``request_id``: request correlation ID (optional)
-    - ``logger``: logger name (always included)
+    - ``thread_id``: agent thread identifier (null if not set)
+    - ``agent``: agent name (null if not set)
+    - ``duration_ms``: execution duration (null if not set)
+    - ``request_id``: request correlation ID (null if not set)
+    - ``logger``: logger name (always included, not in REQUIRED_FIELDS)
     """
 
     REQUIRED_FIELDS = ("timestamp", "level", "event", "thread_id", "agent", "duration_ms", "request_id")

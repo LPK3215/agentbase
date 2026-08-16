@@ -264,3 +264,192 @@ class TestBuildCheckpointer:
         except FactoryError:
             # Postgres connection failed — that's OK, code path was exercised
             pass
+
+    # --- Supplementary tests for missing branches ---
+
+    def test_build_mysql_checkpointer_no_dsn_raises(self):
+        """MySQL without DSN should raise FactoryError."""
+        from agentbase.factories.checkpointer_factory import build_checkpointer
+
+        spec = CheckpointerConfig(type="mysql", dsn=None)
+        with pytest.raises(FactoryError, match="requires.*dsn"):
+            build_checkpointer(spec, root_dir=Path("."))
+
+    def test_build_mysql_checkpointer_invalid_dsn_raises(self, tmp_path):
+        """MySQL with invalid DSN format should raise FactoryError."""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock
+
+        fake_pymysql = ModuleType("pymysql")
+        fake_pymysql.cursors = ModuleType("pymysql.cursors")
+        fake_pymysql.cursors.DictCursor = MagicMock()
+        fake_pymysql.connect = MagicMock()
+
+        with patch.dict(sys.modules, {"pymysql": fake_pymysql, "pymysql.cursors": fake_pymysql.cursors}):
+            from agentbase.factories.checkpointer_factory import build_checkpointer
+
+            spec = CheckpointerConfig(type="mysql", dsn="not-a-valid-dsn")
+            with pytest.raises(FactoryError, match="Invalid MySQL DSN"):
+                build_checkpointer(spec, root_dir=tmp_path)
+
+    def test_build_mysql_checkpointer_connection_failure_raises(self, tmp_path):
+        """MySQL connection failure should be wrapped as FactoryError."""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock
+
+        fake_pymysql = ModuleType("pymysql")
+        fake_pymysql.cursors = ModuleType("pymysql.cursors")
+        fake_pymysql.cursors.DictCursor = MagicMock()
+        fake_pymysql.connect = MagicMock(side_effect=ConnectionError("Connection refused"))
+
+        with patch.dict(sys.modules, {"pymysql": fake_pymysql, "pymysql.cursors": fake_pymysql.cursors}):
+            from agentbase.factories.checkpointer_factory import build_checkpointer
+
+            spec = CheckpointerConfig(
+                type="mysql",
+                dsn="mysql://user:pass@localhost:3306/testdb",
+            )
+            with pytest.raises(FactoryError, match="Failed to build mysql"):
+                build_checkpointer(spec, root_dir=tmp_path)
+
+    def test_build_sqlite_relative_path_resolves_with_root_dir(self, tmp_path):
+        """SQLite with relative path should resolve against root_dir."""
+        from agentbase.factories.checkpointer_factory import build_checkpointer
+
+        spec = CheckpointerConfig(type="sqlite", dsn="sqlite:///data/cp.db")
+        cp = build_checkpointer(spec, root_dir=tmp_path)
+        assert cp is not None
+        assert (tmp_path / "data" / "cp.db").exists()
+
+    def test_build_sqlite_non_sqlite_scheme(self, tmp_path):
+        """SQLite with non-sqlite scheme should fall back to Path(dsn)."""
+        from agentbase.factories.checkpointer_factory import build_checkpointer
+
+        spec = CheckpointerConfig(type="sqlite", dsn=str(tmp_path / "direct.db"))
+        cp = build_checkpointer(spec, root_dir=tmp_path)
+        assert cp is not None
+        assert (tmp_path / "direct.db").exists()
+
+    def test_build_sqlite_import_error_raises(self, tmp_path):
+        """If sqlite saver import fails, should raise FactoryError."""
+        from agentbase.factories.checkpointer_factory import build_sqlite_checkpointer
+
+        spec = CheckpointerConfig(type="sqlite", dsn=f"sqlite:///{tmp_path}/cp.db")
+        # Clear both module path and already-imported reference
+        with patch.dict("sys.modules", {"langgraph.checkpoint.sqlite": None}):
+            # Also patch the function's own import scope
+            with patch("builtins.__import__", wraps=__import__) as mock_import:
+                mock_import.side_effect = lambda name, *a, **kw: (_ for _ in ()).throw(ImportError("simulated")) if name == "langgraph.checkpoint.sqlite" else __import__(name, *a, **kw)
+                with pytest.raises(FactoryError, match="Sqlite checkpointer unavailable"):
+                    build_sqlite_checkpointer(spec, root_dir=tmp_path)
+
+    def test_build_postgres_no_from_conn_string(self, tmp_path):
+        """Postgres without from_conn_string uses direct constructor."""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock
+
+        fake_pg = ModuleType("langgraph.checkpoint.postgres")
+        fake_saver = MagicMock()
+        fake_saver.setup = MagicMock()
+        fake_pg.PostgresSaver = MagicMock(return_value=fake_saver)
+        # Ensure from_conn_string does NOT exist
+        del fake_pg.PostgresSaver.from_conn_string
+
+        with patch.dict(sys.modules, {"langgraph.checkpoint.postgres": fake_pg}):
+            from agentbase.factories.checkpointer_factory import build_checkpointer
+
+            spec = CheckpointerConfig(
+                type="postgres",
+                dsn="postgresql://user:pass@localhost:5432/testdb",
+            )
+            cp = build_checkpointer(spec, root_dir=tmp_path)
+            assert cp is fake_saver
+
+    def test_build_postgres_with_from_conn_string(self, tmp_path):
+        """Postgres with from_conn_string uses context manager pattern."""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock
+
+        fake_pg = ModuleType("langgraph.checkpoint.postgres")
+        fake_saver = MagicMock()
+        fake_saver.setup = MagicMock()
+        fake_cm = MagicMock()
+        fake_cm.__enter__ = MagicMock(return_value=fake_saver)
+        fake_cm.__exit__ = MagicMock(return_value=False)
+        fake_pg.PostgresSaver = MagicMock()
+        fake_pg.PostgresSaver.from_conn_string = MagicMock(return_value=fake_cm)
+
+        with patch.dict(sys.modules, {"langgraph.checkpoint.postgres": fake_pg}):
+            from agentbase.factories.checkpointer_factory import build_checkpointer
+
+            spec = CheckpointerConfig(
+                type="postgres",
+                dsn="postgresql://user:pass@localhost:5432/testdb",
+            )
+            cp = build_checkpointer(spec, root_dir=tmp_path)
+            assert cp is fake_saver
+            assert hasattr(cp, "_agentbase_cm")
+
+    def test_build_postgres_import_error_raises(self, tmp_path):
+        """If postgres saver import fails, should raise FactoryError."""
+        from agentbase.factories.checkpointer_factory import build_postgres_checkpointer
+
+        spec = CheckpointerConfig(
+            type="postgres",
+            dsn="postgresql://user:pass@localhost:5432/testdb",
+        )
+        with patch("builtins.__import__", wraps=__import__) as mock_import:
+            mock_import.side_effect = lambda name, *a, **kw: (_ for _ in ()).throw(ImportError("simulated")) if name == "langgraph.checkpoint.postgres" else __import__(name, *a, **kw)
+            with pytest.raises(FactoryError, match="Postgres checkpointer unavailable"):
+                build_postgres_checkpointer(spec, root_dir=tmp_path)
+
+    def test_build_postgres_connection_error_raises(self, tmp_path):
+        """Postgres connection failure should be wrapped as FactoryError."""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock
+
+        fake_pg = ModuleType("langgraph.checkpoint.postgres")
+        # PostgresSaver.from_conn_string returns a CM that raises on __enter__
+        fake_cm = MagicMock()
+        fake_cm.__enter__ = MagicMock(side_effect=ConnectionError("Connection refused"))
+        fake_cm.__exit__ = MagicMock(return_value=False)
+        fake_pg.PostgresSaver = MagicMock()
+        fake_pg.PostgresSaver.from_conn_string = MagicMock(return_value=fake_cm)
+
+        with patch.dict(sys.modules, {"langgraph.checkpoint.postgres": fake_pg}):
+            from agentbase.factories.checkpointer_factory import build_checkpointer
+
+            spec = CheckpointerConfig(
+                type="postgres",
+                dsn="postgresql://user:pass@localhost:5432/testdb",
+            )
+            with pytest.raises(FactoryError, match="Failed to build postgres"):
+                build_checkpointer(spec, root_dir=tmp_path)
+
+    def test_build_mysql_success(self, tmp_path):
+        """MySQL checkpointer with valid DSN and mock pymysql should succeed."""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock
+
+        fake_pymysql = ModuleType("pymysql")
+        fake_pymysql.cursors = ModuleType("pymysql.cursors")
+        fake_pymysql.cursors.DictCursor = MagicMock()
+        mock_conn = MagicMock()
+        fake_pymysql.connect = MagicMock(return_value=mock_conn)
+
+        with patch.dict(sys.modules, {"pymysql": fake_pymysql, "pymysql.cursors": fake_pymysql.cursors}):
+            from agentbase.factories.checkpointer_factory import build_checkpointer
+
+            spec = CheckpointerConfig(
+                type="mysql",
+                dsn="mysql://user:pass@localhost:3306/testdb",
+            )
+            cp = build_checkpointer(spec, root_dir=tmp_path)
+            assert cp is not None
+            assert cp.conn is mock_conn

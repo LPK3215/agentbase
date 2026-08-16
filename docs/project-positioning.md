@@ -32,7 +32,7 @@ It gives you a livable house, but every part can be swapped:
 
 ### 2. Fixed Interfaces, Swappable Implementations
 
-9 pluggable provider registries, each with a three-layer structure:
+25 pluggable provider registries, each with a three-layer structure:
 
 ```
 Interface (Protocol)    -> defines "what must be implemented" -- this is fixed
@@ -52,7 +52,7 @@ The value to users is not "you have N features", but "you have N correct interfa
 | Enterprise compliance, needs audit | PostgreSQL + JWT/RBAC + Langfuse Tracer |
 
 Use `pip install agentbase[rag]` to install PDF/DOCX parsing dependencies only -- unused features add no burden.
-The 14 optional dependency groups embody this design.
+The 18 optional dependency groups embody this design.
 
 ### 4. Don't Make Architecture Decisions for Users
 
@@ -128,17 +128,18 @@ Ship first, discover issues through usage, gather feedback from the community, r
 
 | Dimension | Value |
 |-----------|-------|
-| Source files | 67 |
-| Source code | 6,500+ lines |
-| Tests | 1555 (all passing) |
-| Coverage | 67% |
-| API endpoints | 33 |
-| CLI commands | 10 |
+| Source files | 70+ |
+| Source code | 10,000+ lines |
+| Tests | 2686 (all passing) |
+| Coverage | 79% |
+| API endpoints | 100 |
+| CLI commands | 20 |
 | Agent tools | 37 |
-| Pluggable providers | 9 registries |
+| Middleware | 9 |
+| Pluggable providers | 25 registries |
 | Document parsers | 9 types |
-| Error code domains | 10 |
-| Optional dependency groups | 14 |
+| Error code domains | 16 |
+| Optional dependency groups | 18 |
 | Deployment methods | 4 (Docker/K8s/Nginx/Bare metal) |
 
 ---
@@ -147,8 +148,8 @@ Ship first, discover issues through usage, gather feedback from the community, r
 
 - **Core**: Python 3.11+ / deepagents / LangChain / LangGraph
 - **API**: FastAPI + uvicorn
-- **Storage**: PostgreSQL (pgvector) / SQLite / MySQL
-- **Queue**: Memory / Redis
+- **Storage**: PostgreSQL (pgvector) / SQLite / MySQL / MongoDB
+- **Queue**: Memory / Redis / Celery
 - **Tracing**: Null / InMemory / Langfuse / OpenTelemetry
 - **Graph**: Null / InMemory / Neo4j
 - **Deployment**: Docker Compose / K8s Helm / Nginx / Bare metal

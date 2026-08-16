@@ -119,9 +119,9 @@ class StorageConfig(BaseModel):
 class EmbeddingConfig(BaseModel):
     """Embedding provider for RAG vector search.
 
-    - ``provider = hash``   (default) → zero-dependency hash embeddings (testing)
-    - ``provider = openai``           → OpenAI text-embedding (requires API key)
-    - ``provider = none``             → disable embeddings, use text search only
+    - ``provider = none``   (default) → disable embeddings, use text search only
+    - ``provider = hash``           → zero-dependency hash embeddings (testing)
+    - ``provider = openai``         → OpenAI text-embedding (requires API key)
 
     Register custom providers with ``@register_embedding_provider("name")``.
     """
@@ -133,8 +133,8 @@ class EmbeddingConfig(BaseModel):
 class WebSearchConfig(BaseModel):
     """Web search provider for internet search.
 
-    - ``provider = duckduckgo`` (default) → no API key needed (rate-limited)
-    - ``provider = none``                 → disable web search
+    - ``provider = none`` (default)       → disable web search
+    - ``provider = duckduckgo``           → no API key needed (rate-limited)
 
     Register custom providers with ``@register_search_provider("name")``.
     """
