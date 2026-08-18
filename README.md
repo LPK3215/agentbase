@@ -105,18 +105,20 @@ See [docs/quickstart.md](docs/quickstart.md) for a complete end-to-end guide.
 # 1. Set your model API key
 export DEEPSEEK_API_KEY="your-key-here"
 
-# 2. Start PostgreSQL (with pgvector)
-docker compose up -d postgres
-
-# 3. Validate your setup
+# 2. Validate your setup (zero-config: SQLite storage + memory queue)
 agentbase doctor
 
-# 4. Run an agent
+# 3. Run an agent
 agentbase run "Hello, what can you do?"
 
-# 5. Start the API server
+# 4. Start the API server
 agentbase serve --reload
 ```
+
+> Optional production stack (PostgreSQL + pgvector, Redis): `docker compose up -d`
+> — see [docker-compose.yml](docker-compose.yml) and set
+> `AGENTBASE_STORAGE__DSN` / `AGENTBASE_CHECKPOINTER__DSN` as documented in
+> [configs/default.yaml](configs/default.yaml).
 
 ## CLI Commands
 
