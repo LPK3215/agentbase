@@ -442,6 +442,7 @@ class AgentRunner:
         if usage_mgr is not None and usage_mgr.enabled:
             try:
                 from agentbase.core.usage import extract_usage_from_result
+
                 # Use the last raw result (which may contain messages with
                 # usage_metadata) instead of the plain text string.
                 usage = extract_usage_from_result(last_raw_result if last_raw_result is not None else final_text)

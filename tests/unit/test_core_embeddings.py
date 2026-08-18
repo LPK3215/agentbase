@@ -191,6 +191,7 @@ class TestOpenAIEmbeddingProvider:
 
     def test_get_client_no_openai_package(self):
         from unittest.mock import patch
+
         from agentbase.core.embeddings import OpenAIEmbeddingProvider
 
         provider = OpenAIEmbeddingProvider(api_key="fake")
@@ -202,6 +203,7 @@ class TestOpenAIEmbeddingProvider:
     def test_embed_cached(self):
         """Test embed with a mocked client returns cached result on second call."""
         from unittest.mock import MagicMock
+
         from agentbase.core.embeddings import OpenAIEmbeddingProvider
 
         provider = OpenAIEmbeddingProvider(api_key="fake", dimension=128)
@@ -223,6 +225,7 @@ class TestOpenAIEmbeddingProvider:
     def test_embed_batch_with_mock(self):
         """Test embed_batch with mocked client."""
         from unittest.mock import MagicMock
+
         from agentbase.core.embeddings import OpenAIEmbeddingProvider
 
         provider = OpenAIEmbeddingProvider(api_key="fake", dimension=64, batch_size=2)
@@ -251,7 +254,6 @@ class TestOpenAIEmbeddingProvider:
 
     def test_embed_batch_all_cached(self):
         """Test embed_batch when all texts are already cached."""
-        from unittest.mock import MagicMock
         from agentbase.core.embeddings import OpenAIEmbeddingProvider
 
         provider = OpenAIEmbeddingProvider(api_key="fake", dimension=64)
@@ -265,7 +267,8 @@ class TestOpenAIEmbeddingProvider:
 
     def test_get_client_with_env(self):
         """Test _get_client reads env vars."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         from agentbase.core.embeddings import OpenAIEmbeddingProvider
 
         provider = OpenAIEmbeddingProvider()
@@ -302,6 +305,7 @@ class TestSentenceTransformersProvider:
     def test_embed_with_mock(self):
         """Test embed with mocked model."""
         from unittest.mock import MagicMock
+
         from agentbase.core.embeddings import SentenceTransformersProvider
 
         provider = SentenceTransformersProvider(dimension=64)
@@ -315,6 +319,7 @@ class TestSentenceTransformersProvider:
     def test_embed_batch_with_mock(self):
         """Test embed_batch with mocked model."""
         from unittest.mock import MagicMock
+
         from agentbase.core.embeddings import SentenceTransformersProvider
 
         provider = SentenceTransformersProvider(dimension=64)
@@ -333,13 +338,13 @@ class TestSentenceTransformersProvider:
     def test_dimension_triggers_model_load(self):
         """When dimension is None, dimension property loads model."""
         from unittest.mock import MagicMock
+
         from agentbase.core.embeddings import SentenceTransformersProvider
 
         provider = SentenceTransformersProvider(dimension=None)
         # Mock _get_model to return a fake model and set _dimension
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 768
-        original_get_model = provider._get_model
         provider._get_model = lambda: (setattr(provider, '_model', fake_model), setattr(provider, '_dimension', 768), fake_model)[-1]
 
         assert provider.dimension == 768
@@ -347,6 +352,7 @@ class TestSentenceTransformersProvider:
     def test_dimension_fallback(self):
         """When dimension is None and model returns None, falls back to 384."""
         from unittest.mock import MagicMock
+
         from agentbase.core.embeddings import SentenceTransformersProvider
 
         provider = SentenceTransformersProvider(dimension=None)
@@ -370,6 +376,7 @@ class TestCrossEncoderReranker:
     def test_rerank_with_mock(self):
         """Test rerank with mocked model."""
         from unittest.mock import MagicMock
+
         from agentbase.core.embeddings import CrossEncoderReranker
 
         reranker = CrossEncoderReranker()
@@ -390,6 +397,7 @@ class TestCrossEncoderReranker:
     def test_rerank_top_k_exceeds_docs(self):
         """When top_k > number of docs, all docs are returned."""
         from unittest.mock import MagicMock
+
         from agentbase.core.embeddings import CrossEncoderReranker
 
         reranker = CrossEncoderReranker()

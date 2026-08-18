@@ -5,8 +5,8 @@ Run: python scripts/test_remaining_sections.py
 from __future__ import annotations
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 env_file = Path(__file__).resolve().parent.parent / ".env"
@@ -51,7 +51,7 @@ def section(title: str):
 
 def test_queue():
     section("4. Async Task Queue")
-    from agentbase.core.queue import queue_registry, MemoryRequestQueue
+    from agentbase.core.queue import MemoryRequestQueue, queue_registry
 
     def test_none():
         assert queue_registry.has("memory")
@@ -92,8 +92,8 @@ def test_queue():
 def test_tools():
     section("5. Agent Tools (32)")
     # Trigger auto-discovery via bootstrap
-    from agentbase.registry.bootstrap import bootstrap_registries
     from agentbase.config.schema import ExtensionsConfig
+    from agentbase.registry.bootstrap import bootstrap_registries
     ext_cfg = ExtensionsConfig(
         autodiscover=["agentbase.extensions.tools", "agentbase.extensions.middleware"],
         extra_modules=[],
@@ -194,8 +194,8 @@ def test_registries():
     section("7. Pluggable Providers (25 registries)")
 
     def test_parser_registry():
-        from agentbase.core.parsers import parser_registry
         import agentbase.extensions.parsers  # noqa: F401
+        from agentbase.core.parsers import parser_registry
         exts = [".txt", ".md", ".pdf", ".docx", ".html", ".xlsx", ".pptx"]
         for e in exts:
             assert parser_registry.has(e), f"Missing parser for {e}"
@@ -224,6 +224,7 @@ def test_registries():
 
     def test_storage_factory():
         from agentbase.core.storage import create_storage
+
         # SQLite
         s = create_storage(db_path=Path("/tmp/test_registry.db"))
         assert s is not None
@@ -264,9 +265,10 @@ def test_registries():
 
 def test_tracing():
     section("8. Tracing & Observability")
-    from agentbase.runtime.logging import configure_logging, SecretRedactionFilter
     import logging as _logging
-    from agentbase.core.tracer import NullTracer, InMemoryTracer, trace
+
+    from agentbase.core.tracer import InMemoryTracer, NullTracer, trace
+    from agentbase.runtime.logging import SecretRedactionFilter, configure_logging
 
     def test_json_logging():
         configure_logging(level="INFO")
@@ -311,40 +313,44 @@ def test_tracing():
 def test_evaluation():
     section("9. Evaluation Framework")
     from agentbase.core.evaluation import (
-        EvaluationRunner, KeywordMatchMetric, ExactMatchMetric,
-        SubstringMatchMetric, LLMJudgeMetric, BLEUMetric, ROUGEMetric,
+        BLEUMetric,
+        EvaluationRunner,
+        ExactMatchMetric,
+        KeywordMatchMetric,
+        ROUGEMetric,
+        SubstringMatchMetric,
     )
 
     def test_keyword_match():
-        from agentbase.core.evaluation import KeywordMatchMetric, EvalCase
+        from agentbase.core.evaluation import EvalCase
         metric = KeywordMatchMetric()
         case = EvalCase(query="What is Python?", expected_keywords=["Python", "language"])
         score = metric.compute(case, "Python is a programming language")
         assert score > 0
 
     def test_exact_match():
-        from agentbase.core.evaluation import ExactMatchMetric, EvalCase
+        from agentbase.core.evaluation import EvalCase
         metric = ExactMatchMetric()
         case = EvalCase(query="Say hello", expected="hello")
         score = metric.compute(case, "hello")
         assert score == 1.0
 
     def test_substring_match():
-        from agentbase.core.evaluation import SubstringMatchMetric, EvalCase
+        from agentbase.core.evaluation import EvalCase
         metric = SubstringMatchMetric()
         case = EvalCase(query="What is Python?", expected="Python")
         score = metric.compute(case, "Python is great")
         assert score == 1.0
 
     def test_bleu():
-        from agentbase.core.evaluation import BLEUMetric, EvalCase
+        from agentbase.core.evaluation import EvalCase
         metric = BLEUMetric()
         case = EvalCase(query="Translate", expected="the cat sat on the mat")
         score = metric.compute(case, "the cat sat on the mat")
         assert score > 0.5
 
     def test_rouge():
-        from agentbase.core.evaluation import ROUGEMetric, EvalCase
+        from agentbase.core.evaluation import EvalCase
         metric = ROUGEMetric()
         case = EvalCase(query="Summarize", expected="the cat sat on the mat")
         score = metric.compute(case, "the cat on the mat")
@@ -450,7 +456,7 @@ def test_remaining():
     root = Path(__file__).resolve().parent.parent
 
     def test_security_code():
-        from agentbase.extensions.auth import JWTAuth, Role, Permission
+        from agentbase.extensions.auth import JWTAuth, Permission, Role
         auth = JWTAuth(secret="test")
         token = auth.create_token(user_id="u1", roles=[Role.ADMIN])
         payload = auth.verify_token(token)
@@ -473,7 +479,7 @@ def test_remaining():
             cwd=str(root),
         )
         # Count collected tests
-        lines = [l for l in result.stdout.splitlines() if "::" in l]
+        lines = [ln for ln in result.stdout.splitlines() if "::" in ln]
         count = len(lines)
         print(f"       Collected {count} unit tests")
         assert count >= 100, f"Expected >= 100 tests, got {count}"

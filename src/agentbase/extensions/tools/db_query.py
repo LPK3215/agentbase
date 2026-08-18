@@ -364,6 +364,7 @@ def build_db_query_tool(context: dict[str, Any] | None = None):
                         conn = conn_factory(dsn, connect_timeout=timeout_seconds)
                     else:  # mysql
                         import pymysql
+
                         # Parse DSN to extract connection params.
                         # DSN format: mysql://user:pass@host:port/dbname
                         conn_params = _parse_mysql_dsn(dsn)

@@ -8,10 +8,8 @@ Tests cover:
 """
 from __future__ import annotations
 
-import concurrent.futures
 import sys
 import time
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest

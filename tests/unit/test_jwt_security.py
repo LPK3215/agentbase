@@ -12,7 +12,6 @@ import pytest
 
 from agentbase.extensions.auth import JWTAuth, Role
 
-
 # ── Normal ──────────────────────────────────────────────────────
 
 

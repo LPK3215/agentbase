@@ -19,7 +19,6 @@ from agentbase.extensions.tools.http_request import (
     build_http_request_tool,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers — lightweight local HTTP server for integration-style tests.
 # ---------------------------------------------------------------------------
@@ -654,8 +653,8 @@ class TestHttpRequestExtras:
 
     def test_http_error_read_exception(self):
         """HTTPError where reading the error body raises is handled gracefully."""
-        from unittest.mock import patch
         import urllib.error
+        from unittest.mock import patch
 
         def fake_open(*args, **kwargs):
             raise urllib.error.HTTPError(

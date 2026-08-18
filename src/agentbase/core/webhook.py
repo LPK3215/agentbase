@@ -553,8 +553,8 @@ def _deliver_urllib(
     headers: dict[str, str],
 ) -> tuple[int, str]:
     """Deliver via urllib (stdlib fallback). Returns (status_code, error)."""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     all_headers = {**headers, "Content-Type": "application/json"}
     if signature:

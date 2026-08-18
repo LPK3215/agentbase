@@ -239,8 +239,9 @@ class EvaluationRunner:
                 query: "Say hello"
                 expected: "hello"
         """
-        import yaml
         from pathlib import Path
+
+        import yaml
 
         data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
         case_list = data.get("cases", []) if isinstance(data, dict) else []

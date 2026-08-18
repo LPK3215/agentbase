@@ -29,5 +29,7 @@ coverage.json
 htmlcov/
 # ===== IDE / Agent 工具数据 =====
 .codebuddy/
-# ===== CI workflow（需 workflow scope 才可推送，暂忽略避免阻塞 push）=====
+# ===== CI workflows（本地保留；推送需 token 含 workflow scope，
+# 授权后删除本行并 git add .github 即可上线 CI）=====
 .github/
+agentbase_gh_backup2/

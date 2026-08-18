@@ -534,6 +534,7 @@ def build_parser() -> argparse.ArgumentParser:
 def cmd_config_show(args: argparse.Namespace) -> int:
     """Display the resolved configuration."""
     import yaml
+
     from agentbase.config.loader import load_app_config
 
     root = resolve_root_dir(args.root)
@@ -554,6 +555,7 @@ def cmd_config_show(args: argparse.Namespace) -> int:
 def cmd_worker(args: argparse.Namespace) -> int:
     """Start a queue worker process."""
     import time
+
     from agentbase.core.queue import queue_registry
 
     root = resolve_root_dir(args.root)

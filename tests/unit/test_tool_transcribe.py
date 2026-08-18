@@ -7,15 +7,10 @@ propagation — all via mocks.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from types import ModuleType
-from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from agentbase.extensions.tools.transcribe import transcribe, _transcribe_api, _transcribe_local
-
+from agentbase.extensions.tools.transcribe import _transcribe_api, _transcribe_local, transcribe
 
 # ---------------------------------------------------------------------------
 # transcribe — file not found

@@ -9,6 +9,7 @@ Requires: API server running on http://127.0.0.1:8000 (without API key)
 from __future__ import annotations
 
 import sys
+
 import requests
 
 BASE = "http://127.0.0.1:8000"
@@ -103,7 +104,7 @@ test(
 # ── 6. JWT Auth + RBAC (library test) ──────────────────────────────────
 
 print("\n=== JWT Auth + RBAC (library) ===")
-from agentbase.extensions.auth import JWTAuth, Role, Permission
+from agentbase.extensions.auth import JWTAuth, Permission, Role
 
 auth = JWTAuth(secret="test-secret-key")
 

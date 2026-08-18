@@ -11,7 +11,6 @@ from agentbase.extensions.middleware.rate_limit import (
 )
 from agentbase.runtime.errors import ErrorCode, RuntimeExecutionError
 
-
 # ---------------------------------------------------------------------------
 # AgentRateLimiter unit tests
 # ---------------------------------------------------------------------------

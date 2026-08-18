@@ -203,8 +203,8 @@ def _http_post_json(
     or ``requests`` for the OAuth2 flow.  In production, you may want to
     use a proper HTTP client for connection pooling.
     """
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     body = urllib.parse.urlencode(data or {}).encode("utf-8")
     req = urllib.request.Request(
@@ -246,8 +246,8 @@ def _http_get_json(
     timeout: int = 10,
 ) -> dict[str, Any]:
     """GET a URL and return JSON response."""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     req = urllib.request.Request(
         url,

@@ -35,7 +35,6 @@ from agentbase.core.rbac import (
 )
 from agentbase.runtime.errors import RegistryError
 
-
 # ---------------------------------------------------------------------------
 # Permission normalization & matching
 # ---------------------------------------------------------------------------
@@ -286,7 +285,9 @@ class TestRegistry:
             def revoke_role(self, u, r): return False
             def get_user_roles(self, u): return []
             def get_assigned_users(self, r): return []
-            def get_stats(self): from agentbase.core.rbac import RbacStats; return RbacStats()
+            def get_stats(self):
+                from agentbase.core.rbac import RbacStats
+                return RbacStats()
             def close(self): pass
 
         from agentbase.core.rbac import rbac_registry

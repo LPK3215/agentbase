@@ -17,8 +17,6 @@ from __future__ import annotations
 import smtplib
 from unittest.mock import MagicMock, patch
 
-
-
 # ---------------------------------------------------------------------------
 # Registration tests
 # ---------------------------------------------------------------------------

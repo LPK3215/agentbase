@@ -16,7 +16,6 @@ import pytest
 
 from agentbase.config.schema import AppConfig, MigrationConfig
 
-
 # ---------------------------------------------------------------------------
 # MigrationConfig (schema)
 # ---------------------------------------------------------------------------

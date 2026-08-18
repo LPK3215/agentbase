@@ -43,9 +43,9 @@ import random
 import threading
 from typing import Any, Callable
 
+from agentbase.config.schema import ModelConfig
 from agentbase.extensions._meta import ExtensionMeta
 from agentbase.factories.model_factory import build_model
-from agentbase.config.schema import ModelConfig
 from agentbase.registry.middleware import register_middleware
 from agentbase.runtime.errors import ErrorCode, RuntimeExecutionError
 from agentbase.runtime.logging import get_logger

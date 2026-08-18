@@ -19,19 +19,23 @@ backend:
   options: {}
 
 checkpointer:
-  type: postgres
-  # For local dev: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
-  # For Docker:     postgresql://agentbase:agentbase@postgres:5432/agentbase
-  dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
+  # Zero-config default: SQLite (langgraph-checkpoint-sqlite ships in base deps).
+  # PostgreSQL for prod/multi-user (requires the `postgres` extra).
+  type: sqlite
+  # For prod (or set AGENTBASE_CHECKPOINTER__TYPE=postgres + __DSN):
+  #   type: postgres
+  #   dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase   # local
+  #   dsn: postgresql://agentbase:agentbase@postgres:5432/agentbase    # docker-compose
   options: {}
 
 storage:
-  # SQLite (dev/single-user) or PostgreSQL (prod/multi-user)
-  type: postgres
+  # SQLite (dev/single-user, zero-config) or PostgreSQL (prod/multi-user)
+  # Selection: if `dsn` is set → that backend; otherwise SQLite at db_dir/.
+  type: sqlite
   db_dir: data
-  # For local dev: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
-  # For Docker:     postgresql://agentbase:agentbase@postgres:5432/agentbase
-  dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase
+  # For prod, point `dsn` at PostgreSQL (or set AGENTBASE_STORAGE__DSN):
+  #   dsn: postgresql://agentbase:agentbase@127.0.0.1:5432/agentbase   # local
+  #   dsn: postgresql://agentbase:agentbase@postgres:5432/agentbase    # docker-compose
 
 embedding:
   # Code default: none (disabled). This config overrides to hash for out-of-box RAG.

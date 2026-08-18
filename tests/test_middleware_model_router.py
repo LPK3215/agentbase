@@ -12,7 +12,6 @@ from agentbase.extensions.middleware.model_router import (
     build_model_router,
 )
 
-
 # ---------------------------------------------------------------------------
 # ModelRouter unit tests
 # ---------------------------------------------------------------------------

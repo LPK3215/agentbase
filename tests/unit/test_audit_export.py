@@ -16,7 +16,6 @@ import io
 import json
 from pathlib import Path
 
-
 from agentbase.core.audit import (
     AuditEvent,
     AuditFilter,
@@ -24,7 +23,6 @@ from agentbase.core.audit import (
     NullAuditProvider,
     SQLiteAuditProvider,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

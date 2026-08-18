@@ -14,7 +14,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # SQL parser tests (no MongoDB connection needed)
 # ---------------------------------------------------------------------------
@@ -314,8 +313,9 @@ class TestRow:
 class TestCreateStorageMongoDB:
     def test_mongodb_dsn_routes_to_mongodb_backend(self):
         """create_storage with mongodb:// DSN should return MongoDBBackend."""
-        from agentbase.core.storage import create_storage
         import sys
+
+        from agentbase.core.storage import create_storage
 
         # Mock pymongo module since it's not installed in test env
         mock_pymongo = MagicMock()
@@ -336,9 +336,10 @@ class TestCreateStorageMongoDB:
 
     def test_mongodb_backend_protocol_compliance(self):
         """MongoDBBackend should satisfy the StorageBackend Protocol."""
+        import sys
+
         from agentbase.core.storage import StorageBackend
         from agentbase.core.storage_mongodb import MongoDBBackend
-        import sys
 
         mock_pymongo = MagicMock()
         mock_pymongo.MongoClient.return_value = MagicMock()
@@ -357,10 +358,10 @@ class TestCreateStorageMongoDB:
 
     def test_mongodb_import_error(self):
         """When pymongo is not installed, should raise ImportError."""
-        from agentbase.core.storage_mongodb import MongoDBBackend
-
         # Simulate pymongo not being available
         import sys
+
+        from agentbase.core.storage_mongodb import MongoDBBackend
         original_pymongo = sys.modules.get("pymongo")
         if original_pymongo is not None:
             # If pymongo IS installed, we can't easily test this path
@@ -381,8 +382,9 @@ class TestMongoDBBackendWithMocks:
 
     def _create_backend(self):
         """Create a MongoDBBackend with a mock client."""
-        from agentbase.core.storage_mongodb import MongoDBBackend
         import sys
+
+        from agentbase.core.storage_mongodb import MongoDBBackend
 
         mock_collection = MagicMock()
         mock_db = MagicMock()

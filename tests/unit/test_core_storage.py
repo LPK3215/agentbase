@@ -277,7 +277,6 @@ class TestPostgresBackendMocked:
     """Test PostgresBackend methods with mocked psycopg connection."""
 
     def _make_mock_pg(self):
-        import sys
         from types import ModuleType
 
         fake_pg = ModuleType("psycopg")
@@ -291,7 +290,6 @@ class TestPostgresBackendMocked:
 
     def test_init_and_connect(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         with patch.dict(sys.modules, {"psycopg": fake_pg, "psycopg.rows": fake_pg.rows}):
@@ -303,7 +301,6 @@ class TestPostgresBackendMocked:
 
     def test_executescript(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         fake_cursor = MagicMock()
@@ -319,7 +316,6 @@ class TestPostgresBackendMocked:
 
     def test_execute(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         fake_cursor = MagicMock()
@@ -334,7 +330,6 @@ class TestPostgresBackendMocked:
 
     def test_fetchone(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         fake_cursor = MagicMock()
@@ -351,7 +346,6 @@ class TestPostgresBackendMocked:
 
     def test_fetchall(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         fake_cursor = MagicMock()
@@ -368,7 +362,6 @@ class TestPostgresBackendMocked:
 
     def test_commit(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         with patch.dict(sys.modules, {"psycopg": fake_pg, "psycopg.rows": fake_pg.rows}):
@@ -380,7 +373,6 @@ class TestPostgresBackendMocked:
 
     def test_last_insert_id(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         fake_cursor = MagicMock()
@@ -395,7 +387,6 @@ class TestPostgresBackendMocked:
 
     def test_health_check_true(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         fake_cursor = MagicMock()
@@ -410,7 +401,6 @@ class TestPostgresBackendMocked:
 
     def test_health_check_false_on_error(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         fake_conn.cursor.side_effect = Exception("connection lost")
@@ -423,7 +413,6 @@ class TestPostgresBackendMocked:
 
     def test_reconnect(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         with patch.dict(sys.modules, {"psycopg": fake_pg, "psycopg.rows": fake_pg.rows}):
@@ -436,7 +425,6 @@ class TestPostgresBackendMocked:
 
     def test_transaction_success(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         with patch.dict(sys.modules, {"psycopg": fake_pg, "psycopg.rows": fake_pg.rows}):
@@ -449,7 +437,6 @@ class TestPostgresBackendMocked:
 
     def test_transaction_rollback(self):
         import sys
-        from types import ModuleType
 
         fake_pg, fake_conn = self._make_mock_pg()
         with patch.dict(sys.modules, {"psycopg": fake_pg, "psycopg.rows": fake_pg.rows}):
@@ -480,7 +467,6 @@ class TestMySQLBackendMocked:
     """Test MySQLBackend methods with mocked pymysql connection."""
 
     def _make_mock_mysql(self):
-        import sys
         from types import ModuleType
 
         fake_pymysql = ModuleType("pymysql")
@@ -497,7 +483,7 @@ class TestMySQLBackendMocked:
         with patch.dict(sys.modules, {"pymysql": fake_pymysql, "pymysql.cursors": fake_pymysql.cursors}):
             from agentbase.core.storage import MySQLBackend
 
-            backend = MySQLBackend(dsn="mysql://user:pass@host:3307/db")
+            MySQLBackend(dsn="mysql://user:pass@host:3307/db")
             call_kwargs = mock_connect.call_args.kwargs
             assert call_kwargs["host"] == "host"
             assert call_kwargs["port"] == 3307
@@ -720,7 +706,7 @@ class TestCreateStorageBranches:
         fake_pymysql.connect = MagicMock()
 
         with patch.dict(sys.modules, {"pymysql": fake_pymysql, "pymysql.cursors": fake_pymysql.cursors}):
-            from agentbase.core.storage import create_storage, MySQLBackend
+            from agentbase.core.storage import MySQLBackend, create_storage
 
             backend = create_storage(dsn="mysql://user:pass@host:3306/db")
             assert isinstance(backend, MySQLBackend)
@@ -735,7 +721,7 @@ class TestCreateStorageBranches:
         fake_pg.connect = MagicMock(return_value=MagicMock())
 
         with patch.dict(sys.modules, {"psycopg": fake_pg, "psycopg.rows": fake_pg.rows}):
-            from agentbase.core.storage import create_storage, PostgresBackend
+            from agentbase.core.storage import PostgresBackend, create_storage
 
             backend = create_storage(dsn="postgresql://user:pass@host/db")
             assert isinstance(backend, PostgresBackend)
@@ -757,8 +743,9 @@ class TestSQLiteBackendHealthCheckError:
         assert backend.health_check() is False
 
     def test_reconnect_close_error(self, tmp_path):
-        from agentbase.core.storage import SQLiteBackend
         from unittest.mock import MagicMock, patch
+
+        from agentbase.core.storage import SQLiteBackend
 
         backend = SQLiteBackend(db_path=tmp_path / "test.db")
         # Replace connection with a mock that raises on close

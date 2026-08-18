@@ -6,6 +6,7 @@ Requires: API server running on http://127.0.0.1:8000
 from __future__ import annotations
 
 import sys
+
 import requests
 
 BASE = "http://127.0.0.1:8000"
@@ -53,6 +54,7 @@ print("\n=== Documents ===")
 # Upload a test file
 test_file = "workspace/test_api_upload.txt"
 import pathlib
+
 pathlib.Path(test_file).parent.mkdir(parents=True, exist_ok=True)
 pathlib.Path(test_file).write_text(
     "Python is a high-level programming language. "

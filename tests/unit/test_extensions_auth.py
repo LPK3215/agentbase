@@ -19,16 +19,11 @@ import json
 import time
 from unittest.mock import patch
 
-import pytest
-
 from agentbase.extensions.auth import (
-    DEFAULT_ROLE_PERMISSIONS,
-    PATH_PERMISSIONS,
     JWTAuth,
     Permission,
     Role,
 )
-
 
 # ---------------------------------------------------------------------------
 # Init
@@ -138,8 +133,8 @@ class TestCreateAndVerifyToken:
         """Token with valid structure but invalid payload base64 should return None."""
         auth = JWTAuth(secret="secret")
         # Create a token with valid header but corrupted payload
-        import hmac as _hmac
         import hashlib as _hashlib
+        import hmac as _hmac
         header_b64 = auth._b64_encode(json.dumps({"alg": "HS256", "typ": "JWT"}))
         # Invalid payload that will fail JSON decode
         payload_b64 = auth._b64_encode(b"!!!not valid json!!!")

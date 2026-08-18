@@ -13,9 +13,9 @@ Run: python scripts/test_rag_pipeline.py
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import tempfile
-import shutil
 from pathlib import Path
 
 # Load .env
@@ -64,10 +64,9 @@ def section(title: str):
 
 def test_parsers():
     section("1. Document Parsers")
-    from agentbase.core.parsers import parser_registry, TextParser, MarkdownParser
-
     # Ensure extension parsers are registered (PDF, DOCX, HTML, Excel, PPTX, etc.)
     import agentbase.extensions.parsers  # noqa: F401
+    from agentbase.core.parsers import TextParser, parser_registry
 
     def test_txt():
         parser = parser_registry.get(".txt")
@@ -91,6 +90,7 @@ def test_parsers():
             skip_test("Parsers", "pdf", "pymupdf not installed")
             return
         import pymupdf
+
         # Create a minimal PDF
         pdf_path = Path(tempfile.gettempdir()) / "rag_test.pdf"
         doc = pymupdf.open()
@@ -178,8 +178,9 @@ def test_parsers():
         if not shutil.which("tesseract"):
             skip_test("Parsers", "ocr", "tesseract binary not installed")
             return
-        from agentbase.extensions.parsers import OCRParser
         from PIL import Image, ImageDraw
+
+        from agentbase.extensions.parsers import OCRParser
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             img = Image.new("RGB", (200, 50), color="white")
             draw = ImageDraw.Draw(img)
@@ -242,7 +243,7 @@ def test_chunking():
 
 def test_embeddings():
     section("3. Embedding Providers")
-    from agentbase.core.embeddings import embedding_registry, HashEmbedding
+    from agentbase.core.embeddings import embedding_registry
 
     def test_hash():
         provider = embedding_registry.get("hash")
@@ -280,8 +281,8 @@ def test_embeddings():
 
 def test_search_methods():
     section("4. Search Methods")
-    from agentbase.core.knowledge import KnowledgeBase
     from agentbase.core.embeddings import HashEmbedding
+    from agentbase.core.knowledge import KnowledgeBase
 
     # Use SQLite for isolated testing
     db_path = Path(tempfile.gettempdir()) / "agentbase_rag_test.db"
@@ -369,8 +370,9 @@ def test_reranker_and_hybrid():
         assert "Python" in docs[top_doc_idx]
 
     def test_rrf_fusion():
-        from agentbase.core.graph import fuse_results_rrf, GraphSearchResult, Entity
-        from agentbase.core.knowledge import SearchResult, Document
+        from agentbase.core.graph import Entity, GraphSearchResult, fuse_results_rrf
+        from agentbase.core.knowledge import Document, SearchResult
+
         # Vector search results (have .document attribute)
         list1 = [
             SearchResult(document=Document(id=1, source="test", title="Python", content="", chunk_count=1), chunk=None, score=0.9),
@@ -396,10 +398,9 @@ def test_e2e_pipeline():
     section("6. End-to-End RAG Pipeline")
 
     def test_full_pipeline():
-        from agentbase.core.knowledge import KnowledgeBase
-        from agentbase.core.parsers import parser_registry
         from agentbase.core.embeddings import HashEmbedding
-        from agentbase.core.knowledge import _chunk_text
+        from agentbase.core.knowledge import KnowledgeBase, _chunk_text
+        from agentbase.core.parsers import parser_registry
 
         # Step 1: Parse a file
         test_file = Path(tempfile.gettempdir()) / "rag_e2e_test.md"
@@ -433,7 +434,7 @@ def test_e2e_pipeline():
         # Step 4: Search
         results = kb.search("Python programming language", top_k=3)
         assert len(results) >= 1, f"Expected >= 1 result, got {len(results)}"
-        assert hasattr(results[0], "score"), f"Missing score attribute"
+        assert hasattr(results[0], "score"), "Missing score attribute"
         # Score can be negative (cosine distance) — just check it exists
 
         # Step 5: Verify result is relevant

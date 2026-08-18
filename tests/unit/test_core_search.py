@@ -214,7 +214,7 @@ class TestDuckDuckGoSearchMocked:
             assert len(results) == 1
 
     def test_search_timeout_error(self):
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         with patch("urllib.request.urlopen", side_effect=TimeoutError("timed out")):
             with patch("time.sleep"):
@@ -225,7 +225,7 @@ class TestDuckDuckGoSearchMocked:
                 assert "failed" in results[0].title.lower() or "failed" in results[0].snippet.lower()
 
     def test_search_generic_error(self):
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         with patch("urllib.request.urlopen", side_effect=RuntimeError("generic error")):
             with patch("time.sleep"):
@@ -235,7 +235,7 @@ class TestDuckDuckGoSearchMocked:
                 assert "error" in results[0].snippet.lower()
 
     def test_search_timeout_exhausted(self):
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         # All retries exhaust with retryable errors → last attempt
         # hits the return-error branch (attempt > max_retries)
@@ -281,8 +281,9 @@ class TestSearchRegistryExtras:
 
 class TestTavilySearch:
     def test_no_api_key_raises(self):
-        from agentbase.core.search import TavilySearch
         import os
+
+        from agentbase.core.search import TavilySearch
 
         # Ensure no env var
         old = os.environ.pop("TAVILY_API_KEY", None)
@@ -304,6 +305,7 @@ class TestTavilySearch:
 
     def test_search_with_mocked_client(self):
         from unittest.mock import MagicMock
+
         from agentbase.core.search import TavilySearch
 
         provider = TavilySearch(api_key="tvly-fake")

@@ -11,9 +11,6 @@ Tests cover:
 from __future__ import annotations
 
 import sys
-import time
-from types import ModuleType
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -116,7 +113,6 @@ class TestBuildRetry:
 
     def test_returns_empty_list_when_langchain_unavailable(self):
         """build_retry should return [] when wrap_model_call import fails."""
-        import sys
         # Remove the module from sys.modules so the import re-occurs
         # and mock it to raise ImportError
         with patch.dict(sys.modules, {"langchain.agents.middleware": None}):

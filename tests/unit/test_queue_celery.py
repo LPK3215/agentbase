@@ -15,7 +15,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helper to create a CeleryRequestQueue with mock celery
 # ---------------------------------------------------------------------------
@@ -167,8 +166,8 @@ class TestCeleryStateMapping:
 
 class TestTaskFromDict:
     def test_basic_roundtrip(self):
-        from agentbase.core.queue_celery import _task_from_dict
         from agentbase.core.queue import TaskStatus
+        from agentbase.core.queue_celery import _task_from_dict
 
         d = {
             "id": "test-123",
@@ -183,8 +182,8 @@ class TestTaskFromDict:
         assert task.status == TaskStatus.PENDING
 
     def test_with_status_string(self):
-        from agentbase.core.queue_celery import _task_from_dict
         from agentbase.core.queue import TaskStatus
+        from agentbase.core.queue_celery import _task_from_dict
 
         d = {
             "id": "test-456",
@@ -194,8 +193,8 @@ class TestTaskFromDict:
         assert task.status == TaskStatus.COMPLETED
 
     def test_missing_status_defaults_to_pending(self):
-        from agentbase.core.queue_celery import _task_from_dict
         from agentbase.core.queue import TaskStatus
+        from agentbase.core.queue_celery import _task_from_dict
 
         d = {"id": "test-789"}
         task = _task_from_dict(d)

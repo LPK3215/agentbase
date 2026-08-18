@@ -529,7 +529,7 @@ class RbacManager:
         if not username:
             raise RegistryError("Username is required")
         if len(username) > 128:
-            raise RegistryError(f"Username too long (max 128)")
+            raise RegistryError("Username too long (max 128)")
         return username
 
     # -- role CRUD --------------------------------------------------------------

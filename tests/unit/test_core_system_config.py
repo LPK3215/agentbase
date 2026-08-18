@@ -33,7 +33,6 @@ from agentbase.core.system_config import (
 )
 from agentbase.runtime.errors import RegistryError
 
-
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
@@ -232,7 +231,9 @@ class TestRegistry:
             def get_item(self, key): return None
             def list_items(self, filter=None): return []
             def delete_item(self, key): return False
-            def get_stats(self): from agentbase.core.system_config import SystemConfigStats; return SystemConfigStats()
+            def get_stats(self):
+                from agentbase.core.system_config import SystemConfigStats
+                return SystemConfigStats()
             def close(self): pass
 
         assert system_config_registry.has("test_syscfg")

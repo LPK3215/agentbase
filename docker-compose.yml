@@ -84,7 +84,9 @@ services:
       - AGENTBASE_RATE_LIMIT__ENABLED=${AGENTBASE_RATE_LIMIT__ENABLED:-true}
       - AGENTBASE_RATE_LIMIT__MAX_REQUESTS=${AGENTBASE_RATE_LIMIT__MAX_REQUESTS:-60}
       # PostgreSQL connection (use container hostname 'postgres')
+      - AGENTBASE_CHECKPOINTER__TYPE=postgres
       - AGENTBASE_CHECKPOINTER__DSN=postgresql://agentbase:agentbase@postgres:5432/agentbase
+      - AGENTBASE_STORAGE__TYPE=postgres
       - AGENTBASE_STORAGE__DSN=postgresql://agentbase:agentbase@postgres:5432/agentbase
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432

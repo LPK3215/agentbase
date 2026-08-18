@@ -7,8 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agentbase.api import create_app, reset_runtime
-from agentbase.config.schema import AgentConfig, AppConfig, ExperimentConfig
 from agentbase.bootstrap import RuntimeContext
+from agentbase.config.schema import AgentConfig, AppConfig, ExperimentConfig
 
 
 @pytest.fixture

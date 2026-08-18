@@ -13,16 +13,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from agentbase.api import create_app, reset_runtime, _reset_user_manager, _reset_rate_limiter
+from agentbase.api import _reset_rate_limiter, _reset_user_manager, create_app, reset_runtime
 from agentbase.config.schema import (
     AgentConfig,
     AppConfig,
     OAuth2Config,
     OAuth2ProviderConfigItem,
+    UserManagerConfig,
 )
-from agentbase.config.schema import UserManagerConfig
 from agentbase.core.oauth2 import reset_oauth2_manager
-from agentbase.core.user_manager import UserManager, set_user_manager as _set_core_user_manager
+from agentbase.core.user_manager import UserManager
+from agentbase.core.user_manager import set_user_manager as _set_core_user_manager
 
 
 @pytest.fixture

@@ -14,11 +14,7 @@ Tests cover:
 from __future__ import annotations
 
 import sys
-from types import ModuleType
-from typing import Any
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from agentbase.extensions.middleware.summary import (
     DEFAULT_SUMMARY_PROMPT,
@@ -221,7 +217,6 @@ class TestL2Compact:
 
 class TestBuildSummary:
     def test_returns_empty_list_when_langchain_unavailable(self):
-        import sys
         with patch.dict(sys.modules, {"langchain.agents.middleware": None}):
             result = build_summary(None)
             assert result == []

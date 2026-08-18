@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import pytest
 
+from agentbase.config.schema import ExtensionsConfig
 from agentbase.registry.bootstrap import (
     _import_module,
     _resolve_load_order,
     bootstrap_registries,
     ensure_modules,
 )
-from agentbase.config.schema import ExtensionsConfig
-
 
 # ---------------------------------------------------------------------------
 # _resolve_load_order
@@ -96,6 +95,7 @@ class TestBootstrapErrorPaths:
     def test_module_failure_continue_on_error(self):
         """When continue_on_error=True, failing modules are skipped."""
         from unittest.mock import patch
+
         import agentbase.registry.bootstrap as mod
 
         # Reset bootstrap state

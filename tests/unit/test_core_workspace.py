@@ -6,12 +6,9 @@ get_stats, FileEntry.to_dict.
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from agentbase.core.workspace import FileEntry, WorkspaceManager
-
 
 # ---------------------------------------------------------------------------
 # __init__ / _ensure_dirs

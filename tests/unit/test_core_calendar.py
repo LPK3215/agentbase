@@ -8,7 +8,6 @@ compliance.
 from __future__ import annotations
 
 import threading
-import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -307,7 +306,9 @@ class TestRegistry:
             def list_events(self, filter=None): return []
             def update_event(self, event_id, changes): return None
             def delete_event(self, event_id): return False
-            def get_stats(self): from agentbase.core.calendar import CalendarStats; return CalendarStats()
+            def get_stats(self):
+                from agentbase.core.calendar import CalendarStats
+                return CalendarStats()
             def close(self): pass
 
         assert calendar_registry.has("test-cal-custom")

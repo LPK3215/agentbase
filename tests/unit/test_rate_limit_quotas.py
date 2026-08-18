@@ -10,7 +10,6 @@ Tests verify:
 """
 from __future__ import annotations
 
-
 from agentbase.api import RateLimiter
 
 

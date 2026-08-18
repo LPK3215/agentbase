@@ -16,15 +16,14 @@ from agentbase.core.conversation import (
     _apply_filter,
     _auto_title,
     _extract_content,
-    extract_messages_from_result,
     conversation_registry,
+    extract_messages_from_result,
     get_conversation_manager,
     init_conversation_manager,
     register_conversation_provider,
     reset_conversation_manager,
     set_conversation_manager,
 )
-
 
 # ---------------------------------------------------------------------------
 # Message

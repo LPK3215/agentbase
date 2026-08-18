@@ -17,7 +17,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # _message_content
 # ---------------------------------------------------------------------------
@@ -627,6 +626,7 @@ class TestAgentRunnerStreamSemaphore:
         """When max_concurrency=1, a second stream must block until the
         first completes iteration — not just until iterator creation."""
         import threading
+
         from agentbase.runtime.events import EventType
 
         runner = self._make_runner(max_conc=1)

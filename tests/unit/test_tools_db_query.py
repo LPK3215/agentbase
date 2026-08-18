@@ -23,7 +23,6 @@ from agentbase.extensions.tools.db_query import (
     build_db_query_tool,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers — create a temporary SQLite database for testing.
 # ---------------------------------------------------------------------------
@@ -836,6 +835,7 @@ class TestDbQueryExtras:
     def test_query_unexpected_error(self, tmp_path):
         """Test that unexpected exceptions are caught and returned as error dict."""
         from unittest.mock import patch
+
         from agentbase.extensions.tools.db_query import build_db_query_tool
 
         ctx = {"app_config": type("Cfg", (), {

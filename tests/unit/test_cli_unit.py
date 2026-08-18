@@ -6,8 +6,7 @@ CheckStatus/DoctorCheck dataclasses, _add_root_arg.
 from __future__ import annotations
 
 import argparse
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -20,7 +19,6 @@ from agentbase.cli import (
     cmd_version,
     main,
 )
-
 
 # ---------------------------------------------------------------------------
 # build_parser

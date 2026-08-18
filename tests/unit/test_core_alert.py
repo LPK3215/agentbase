@@ -193,7 +193,7 @@ class TestInMemoryProvider:
     def test_event_recording_and_filter(self):
         p = InMemoryAlertProvider()
         rule = p.create_rule(_rule())
-        e1 = p.record_event(AlertEvent(rule_id=rule.rule_id, rule_name=rule.name, state="firing"))
+        p.record_event(AlertEvent(rule_id=rule.rule_id, rule_name=rule.name, state="firing"))
         time.sleep(0.01)
         e2 = p.record_event(AlertEvent(rule_id=rule.rule_id, rule_name=rule.name, state="resolved"))
         # newest first
@@ -280,7 +280,9 @@ class TestRegistry:
             def delete_rule(self, rid): return False
             def record_event(self, event): return event
             def list_events(self, filter=None): return []
-            def get_stats(self): from agentbase.core.alert import AlertStats; return AlertStats()
+            def get_stats(self):
+                from agentbase.core.alert import AlertStats
+                return AlertStats()
             def close(self): pass
 
         assert alert_registry.has("test_alert_prov")

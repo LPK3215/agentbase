@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import os
 import sys
-import traceback
 from pathlib import Path
 
 # Load .env file
@@ -61,7 +60,7 @@ def section(title: str):
 
 def test_inmemory_tracer():
     section("InMemoryTracer")
-    from agentbase.core.tracer import InMemoryTracer, trace, TracerRegistry
+    from agentbase.core.tracer import InMemoryTracer, TracerRegistry, trace
 
     def test_basic():
         tracer = InMemoryTracer()
@@ -123,6 +122,7 @@ def test_redis_queue():
     def test_list_and_cancel():
         q = RedisRequestQueue(host="127.0.0.1", port=6379, db=0)
         t1 = q.submit(agent_name="default", message="task_a")
+        assert t1
         t2 = q.submit(agent_name="default", message="task_b")
         tasks = q.list_tasks()
         assert len(tasks) >= 2
@@ -265,7 +265,7 @@ def test_opentelemetry_tracer():
         skip_test("OpenTelemetryTracer", "all", "opentelemetry not installed")
         return
 
-    from agentbase.core.tracer import OpenTelemetryTracer, tracer_registry, trace
+    from agentbase.core.tracer import OpenTelemetryTracer, trace, tracer_registry
 
     def test_registry():
         assert tracer_registry.has("opentelemetry")
@@ -324,8 +324,9 @@ def test_llm_document_parser():
         skip_test("LLMDocumentParser", "all", "openai package not installed")
         return
 
-    from agentbase.extensions.parsers import LLMDocumentParser
     import tempfile
+
+    from agentbase.extensions.parsers import LLMDocumentParser
 
     def test_parse():
         test_content = "# Test Document\n\nThis is a test document about Python programming."
@@ -353,9 +354,11 @@ def test_ocr_parser():
         skip_test("OCRParser", "all", "tesseract binary not installed on system")
         return
 
-    from agentbase.extensions.parsers import OCRParser
-    from PIL import Image, ImageDraw
     import tempfile
+
+    from PIL import Image, ImageDraw
+
+    from agentbase.extensions.parsers import OCRParser
 
     def test_parse():
         img = Image.new("RGB", (200, 50), color="white")

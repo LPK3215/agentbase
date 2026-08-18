@@ -245,7 +245,7 @@ def _get_jwt_auth(app_config: Any) -> Any | None:
     auth_cfg = getattr(app_config, "auth", None)
     if auth_cfg is None or auth_cfg.type != "jwt":
         return None
-    from agentbase.extensions.auth import JWTAuth, DEFAULT_ROLE_PERMISSIONS
+    from agentbase.extensions.auth import DEFAULT_ROLE_PERMISSIONS, JWTAuth
     from agentbase.runtime.errors import ConfigError
 
     if not auth_cfg.secret:
@@ -347,7 +347,7 @@ def _check_rbac(request: Request, payload: dict[str, Any] | None, app_config: An
         # If API key manager is enabled, still do RBAC with defaults
         _apikey_mgr = _get_apikey_manager()
         if _apikey_mgr is not None and _apikey_mgr.enabled and payload is not None:
-            from agentbase.extensions.auth import JWTAuth, DEFAULT_ROLE_PERMISSIONS
+            from agentbase.extensions.auth import DEFAULT_ROLE_PERMISSIONS, JWTAuth
 
             jwt_auth = JWTAuth(
                 secret="rbac-only-defaults",
@@ -2851,10 +2851,10 @@ def create_app(*, runtime=None) -> FastAPI:
             with _oauth2_lock:
                 if _oauth2_mgr is None:
                     from agentbase.core.oauth2 import (
-        OAuth2Manager,
-        OAuth2ProviderConfig,
-        set_oauth2_manager,
-    )
+                        OAuth2Manager,
+                        OAuth2ProviderConfig,
+                        set_oauth2_manager,
+                    )
 
                     rt = get_runtime()
                     cfg = rt.app_config.oauth2

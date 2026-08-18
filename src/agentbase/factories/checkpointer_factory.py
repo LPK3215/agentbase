@@ -108,6 +108,7 @@ def build_mysql_checkpointer(spec: CheckpointerConfig, *, root_dir: Path) -> Any
 
     try:
         import re
+
         import pymysql
 
         match = re.match(r"mysql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)", dsn)

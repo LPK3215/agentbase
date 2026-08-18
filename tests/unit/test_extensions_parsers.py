@@ -8,9 +8,7 @@ pytesseract, Pillow, pdf2image).
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from types import ModuleType
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -24,7 +22,6 @@ from agentbase.extensions.parsers import (
     PdfParser,
     PptxParser,
 )
-
 
 # ---------------------------------------------------------------------------
 # PdfParser
@@ -228,7 +225,7 @@ class TestExcelParser:
             assert "Data" in result
             # Empty row should not produce a line
             lines = result.split("\n")
-            assert not any(l.strip() == "" and l.count("|") > 0 for l in lines)
+            assert not any(ln.strip() == "" and ln.count("|") > 0 for ln in lines)
 
 
 # ---------------------------------------------------------------------------

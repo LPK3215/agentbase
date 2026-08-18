@@ -184,7 +184,6 @@ class MigrationManager:
         if not self._enabled:
             return None
         from alembic.runtime.migration import MigrationContext
-
         from sqlalchemy import create_engine
 
         engine = create_engine(self._db_url)

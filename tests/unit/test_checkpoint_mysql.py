@@ -13,7 +13,6 @@ import pytest
 
 from agentbase.runtime.checkpoint_mysql import MySQLSaver
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -161,14 +160,14 @@ class TestCursor:
         saver, conn = _make_saver()
         # Pre-setup so cursor() doesn't call setup()
         saver.is_setup = True
-        with saver.cursor(transaction=True) as cur:
+        with saver.cursor(transaction=True):
             pass
         assert conn.committed == 1
 
     def test_no_transaction_no_commit(self):
         saver, conn = _make_saver()
         saver.is_setup = True
-        with saver.cursor(transaction=False) as cur:
+        with saver.cursor(transaction=False):
             pass
         assert conn.committed == 0
 
@@ -213,7 +212,6 @@ class TestGetTuple:
             "checkpoint": b"{}",
             "metadata": json.dumps({"step": 1}).encode(),
         }
-        writes_rows: list[dict[str, Any]] = []
 
         # First fetchone returns checkpoint row, then writes query returns []
         conn.mock_cursor.set_rows([checkpoint_row])
@@ -229,7 +227,6 @@ class TestGetTuple:
 
         call_count = [0]
 
-        original_execute = conn.mock_cursor.execute
         original_fetchone = conn.mock_cursor.fetchone
         original_fetchall = conn.mock_cursor.fetchall
 
@@ -561,7 +558,7 @@ class TestList:
         conn.mock_cursor.execute = mock_execute
 
         config = _make_config(thread_id="t1")
-        results = list(saver.list(config, limit=5))
+        list(saver.list(config, limit=5))
 
         # Verify LIMIT was in the first SQL
         assert "LIMIT" in executed_sqls[0]
@@ -577,7 +574,7 @@ class TestList:
 
         config = _make_config(thread_id="t1")
         before_config = _make_config(thread_id="t1", checkpoint_id="ckpt-5")
-        results = list(saver.list(config, before=before_config))
+        list(saver.list(config, before=before_config))
 
         first_sql = conn.mock_cursor._executed[0][0]
         assert "checkpoint_id <" in first_sql

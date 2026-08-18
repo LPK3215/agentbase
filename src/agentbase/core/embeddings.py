@@ -98,6 +98,7 @@ class HashEmbedding:
             return cached
 
         import math
+
         # Generate enough hash bytes to fill the vector
         needed = self._dimension * 4  # 4 bytes per float
         data = b""

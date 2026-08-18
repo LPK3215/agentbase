@@ -222,7 +222,6 @@ class TestKbOpsExtras:
     def test_ingest_workspace_fallback_default(self, kb):
         """Test kb_ingest uses default 'workspace' when no workspace_dir or root_dir."""
         from agentbase.extensions.tools.knowledge_ops import build_kb_ingest_tool
-        from pathlib import Path
 
         ctx = {"knowledge_base": kb}
         tool_fn = build_kb_ingest_tool(context=ctx)
@@ -327,8 +326,9 @@ class TestKbBatchIngestTool:
         assert "escapes" in result.lower() or "workspace" in result.lower()
 
     def test_batch_ingest_with_errors(self, ctx, workspace, kb):
-        from agentbase.extensions.tools.knowledge_ops import build_kb_batch_ingest_tool
         from unittest.mock import patch
+
+        from agentbase.extensions.tools.knowledge_ops import build_kb_batch_ingest_tool
 
         (workspace / "good.txt").write_text("good content", encoding="utf-8")
         (workspace / "bad.txt").write_text("bad content", encoding="utf-8")

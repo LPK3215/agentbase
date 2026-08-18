@@ -277,8 +277,9 @@ class TestMemoryOpsExtras:
         assert "No valid entries" in result
 
     def test_batch_save_with_metadata(self, ctx, mem_mgr):
-        from agentbase.extensions.tools.memory_ops import build_memory_batch_save_tool
         import json
+
+        from agentbase.extensions.tools.memory_ops import build_memory_batch_save_tool
 
         inner_meta = json.dumps({"p": 1})
         items = json.dumps([{"key": "b1", "content": "c1", "metadata": inner_meta}])
@@ -289,8 +290,9 @@ class TestMemoryOpsExtras:
         assert mem.metadata["p"] == 1
 
     def test_batch_save_with_invalid_metadata(self, ctx, mem_mgr):
-        from agentbase.extensions.tools.memory_ops import build_memory_batch_save_tool
         import json
+
+        from agentbase.extensions.tools.memory_ops import build_memory_batch_save_tool
 
         items = json.dumps([{"key": "b1", "content": "c1", "metadata": "bad json"}])
         tool_fn = build_memory_batch_save_tool(context=ctx)

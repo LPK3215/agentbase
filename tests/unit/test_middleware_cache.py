@@ -6,13 +6,9 @@ clear, reset_stats, wrap_invoke (hit/miss/no_cache), build_cache factory.
 from __future__ import annotations
 
 import time
-from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-
 from agentbase.extensions.middleware.cache import CacheMiddleware, build_cache
-
 
 # ---------------------------------------------------------------------------
 # _make_key

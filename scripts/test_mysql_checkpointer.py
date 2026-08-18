@@ -1,5 +1,6 @@
 """Test MySQLSaver checkpointer with real checkpoint operations."""
 import pymysql
+
 from agentbase.runtime.checkpoint_mysql import MySQLSaver
 
 DSN_HOST = "127.0.0.1"
@@ -61,10 +62,11 @@ result3 = saver.get_tuple({"configurable": {"thread_id": "test-1"}})
 assert result3 is None
 print("[PASS] Delete thread OK")
 
+from pathlib import Path
+
 # Test factory
 from agentbase.config.schema import CheckpointerConfig
 from agentbase.factories.checkpointer_factory import build_checkpointer
-from pathlib import Path
 
 spec = CheckpointerConfig(type="mysql", dsn=f"mysql://{DSN_USER}:{DSN_PASS}@{DSN_HOST}:{DSN_PORT}/{DSN_DB}")
 factory_saver = build_checkpointer(spec, root_dir=Path("."))

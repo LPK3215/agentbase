@@ -15,7 +15,6 @@ from agentbase.api import (
 from agentbase.config.schema import AppConfig, HealthCheckConfig
 from agentbase.core.queue import MemoryRequestQueue
 
-
 # --------------------------------------------------------------------------- #
 # Fixtures                                                                    #
 # --------------------------------------------------------------------------- #

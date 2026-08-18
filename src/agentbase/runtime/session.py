@@ -250,7 +250,7 @@ class SessionRegistry:
         Returns:
             Number of stale sessions cleaned up.
         """
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=timeout_seconds)
         cleaned = 0

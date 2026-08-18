@@ -39,7 +39,6 @@ from agentbase.core.webhook import (
 )
 from agentbase.runtime.errors import RegistryError
 
-
 # ---------------------------------------------------------------------------
 # WebhookEndpoint
 # ---------------------------------------------------------------------------

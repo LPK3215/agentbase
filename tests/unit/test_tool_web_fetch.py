@@ -7,14 +7,9 @@ Tests cover:
 """
 from __future__ import annotations
 
-import io
-from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from agentbase.extensions.tools.web_fetch import _html_to_text, build_web_fetch_tool
-
 
 # ---------------------------------------------------------------------------
 # _html_to_text
@@ -230,7 +225,6 @@ class TestWebFetchErrors:
         return build_web_fetch_tool(None)
 
     def test_unsupported_content_type(self):
-        import urllib.error
 
         tool = self._get_tool()
         fake_resp = _FakeResponse(

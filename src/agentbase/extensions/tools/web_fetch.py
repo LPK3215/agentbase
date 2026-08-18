@@ -78,8 +78,8 @@ def build_web_fetch_tool(context: dict[str, Any] | None = None):
         Returns:
             Extracted text content from the web page.
         """
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         # Validate URL scheme
         if not url.startswith(("http://", "https://")):
