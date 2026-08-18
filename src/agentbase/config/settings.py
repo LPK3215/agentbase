@@ -65,6 +65,44 @@ class EnvSettings(BaseSettings):
     secrets__enabled: bool | None = None
     secrets__provider: str | None = None
 
+    experiment__enabled: bool | None = None
+    experiment__provider: str | None = None
+
+    model_manager__enabled: bool | None = None
+    model_manager__provider: str | None = None
+
+    prompt_manager__enabled: bool | None = None
+    prompt_manager__provider: str | None = None
+
+    user_manager__enabled: bool | None = None
+    user_manager__provider: str | None = None
+
+    apikey_manager__enabled: bool | None = None
+    apikey_manager__provider: str | None = None
+
+    oauth2__enabled: bool | None = None
+
+    usage__enabled: bool | None = None
+    usage__provider: str | None = None
+
+    webhook__enabled: bool | None = None
+    webhook__provider: str | None = None
+
+    feedback__enabled: bool | None = None
+    feedback__provider: str | None = None
+
+    notification__enabled: bool | None = None
+    notification__provider: str | None = None
+
+    conversation__enabled: bool | None = None
+    conversation__provider: str | None = None
+
+    scheduler__enabled: bool | None = None
+    scheduler__provider: str | None = None
+    scheduler__tick_seconds: float | None = None
+
+    migration__enabled: bool | None = None
+
     @property
     def app_env(self) -> str | None:
         return self.app__env
@@ -204,6 +242,106 @@ class EnvSettings(BaseSettings):
     @property
     def secrets_provider(self) -> str | None:
         return self.secrets__provider
+
+    @property
+    def experiment_enabled(self) -> bool | None:
+        return self.experiment__enabled
+
+    @property
+    def experiment_provider(self) -> str | None:
+        return self.experiment__provider
+
+    @property
+    def model_manager_enabled(self) -> bool | None:
+        return self.model_manager__enabled
+
+    @property
+    def model_manager_provider(self) -> str | None:
+        return self.model_manager__provider
+
+    @property
+    def prompt_manager_enabled(self) -> bool | None:
+        return self.prompt_manager__enabled
+
+    @property
+    def prompt_manager_provider(self) -> str | None:
+        return self.prompt_manager__provider
+
+    @property
+    def user_manager_enabled(self) -> bool | None:
+        return self.user_manager__enabled
+
+    @property
+    def user_manager_provider(self) -> str | None:
+        return self.user_manager__provider
+
+    @property
+    def apikey_manager_enabled(self) -> bool | None:
+        return self.apikey_manager__enabled
+
+    @property
+    def apikey_manager_provider(self) -> str | None:
+        return self.apikey_manager__provider
+
+    @property
+    def oauth2_enabled(self) -> bool | None:
+        return self.oauth2__enabled
+
+    @property
+    def usage_enabled(self) -> bool | None:
+        return self.usage__enabled
+
+    @property
+    def usage_provider(self) -> str | None:
+        return self.usage__provider
+
+    @property
+    def webhook_enabled(self) -> bool | None:
+        return self.webhook__enabled
+
+    @property
+    def webhook_provider(self) -> str | None:
+        return self.webhook__provider
+
+    @property
+    def feedback_enabled(self) -> bool | None:
+        return self.feedback__enabled
+
+    @property
+    def feedback_provider(self) -> str | None:
+        return self.feedback__provider
+
+    @property
+    def notification_enabled(self) -> bool | None:
+        return self.notification__enabled
+
+    @property
+    def notification_provider(self) -> str | None:
+        return self.notification__provider
+
+    @property
+    def conversation_enabled(self) -> bool | None:
+        return self.conversation__enabled
+
+    @property
+    def conversation_provider(self) -> str | None:
+        return self.conversation__provider
+
+    @property
+    def scheduler_enabled(self) -> bool | None:
+        return self.scheduler__enabled
+
+    @property
+    def scheduler_provider(self) -> str | None:
+        return self.scheduler__provider
+
+    @property
+    def scheduler_tick_seconds(self) -> float | None:
+        return self.scheduler__tick_seconds
+
+    @property
+    def migration_enabled(self) -> bool | None:
+        return self.migration__enabled
 
 
 def load_dotenv_files(root_dir: Path) -> None:

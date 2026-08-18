@@ -35,7 +35,7 @@
 ```mermaid
 graph TD
     subgraph "Entry Points (CLI / FastAPI / WebSocket)"
-        A[agentbase CLI<br/>20 commands] --> C[Service Layer<br/>100 REST + WS routes]
+        A[agentbase CLI<br/>20 commands] --> C[Service Layer<br/>110 REST + WS routes]
         B[FastAPI App] --> C
     end
 
@@ -475,7 +475,7 @@ agentbase/
 │   ├── default.yaml       # App config (model, storage, embedding, search, mcp, queue, tracer)
 │   └── agents/            # Agent profiles
 ├── src/agentbase/
-│   ├── api.py             # FastAPI service layer (100 routes, auth, CORS, rate limit, metrics)
+│   ├── api.py             # FastAPI service layer (110 routes, auth, CORS, rate limit, metrics)
 │   ├── cli.py             # CLI entry point (20 commands)
 │   ├── config/            # Config loading & schema
 │   ├── core/              # 30 core modules (memory, knowledge, queue, queue_celery, skills, workspace, storage, storage_mongodb, mcp, tracer, graph, audit, redaction, secrets, experiment, migration, model_manager, prompt, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation, evaluation, parsers, embeddings, search)

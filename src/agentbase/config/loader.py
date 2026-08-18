@@ -64,20 +64,7 @@ def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]
 
 
 def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
-    overlay: dict[str, Any] = {
-        "app": {},
-        "model": {},
-        "backend": {},
-        "checkpointer": {},
-        "storage": {},
-        "auth": {},
-        "rate_limit": {},
-        "metrics": {},
-        "runtime": {},
-        "audit": {},
-        "redaction": {},
-        "secrets": {},
-    }
+    overlay: dict[str, Any] = {}
 
     mapping = {
         ("app", "env"): settings.app_env,
@@ -115,10 +102,35 @@ def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
         ("redaction", "provider"): settings.redaction_provider,
         ("secrets", "enabled"): settings.secrets_enabled,
         ("secrets", "provider"): settings.secrets_provider,
+        ("experiment", "enabled"): settings.experiment_enabled,
+        ("experiment", "provider"): settings.experiment_provider,
+        ("model_manager", "enabled"): settings.model_manager_enabled,
+        ("model_manager", "provider"): settings.model_manager_provider,
+        ("prompt_manager", "enabled"): settings.prompt_manager_enabled,
+        ("prompt_manager", "provider"): settings.prompt_manager_provider,
+        ("user_manager", "enabled"): settings.user_manager_enabled,
+        ("user_manager", "provider"): settings.user_manager_provider,
+        ("apikey_manager", "enabled"): settings.apikey_manager_enabled,
+        ("apikey_manager", "provider"): settings.apikey_manager_provider,
+        ("oauth2", "enabled"): settings.oauth2_enabled,
+        ("usage", "enabled"): settings.usage_enabled,
+        ("usage", "provider"): settings.usage_provider,
+        ("webhook", "enabled"): settings.webhook_enabled,
+        ("webhook", "provider"): settings.webhook_provider,
+        ("feedback", "enabled"): settings.feedback_enabled,
+        ("feedback", "provider"): settings.feedback_provider,
+        ("notification", "enabled"): settings.notification_enabled,
+        ("notification", "provider"): settings.notification_provider,
+        ("conversation", "enabled"): settings.conversation_enabled,
+        ("conversation", "provider"): settings.conversation_provider,
+        ("scheduler", "enabled"): settings.scheduler_enabled,
+        ("scheduler", "provider"): settings.scheduler_provider,
+        ("scheduler", "tick_seconds"): settings.scheduler_tick_seconds,
+        ("migration", "enabled"): settings.migration_enabled,
     }
     for (section, key), value in mapping.items():
         if value is not None:
-            overlay[section][key] = value
+            overlay.setdefault(section, {})[key] = value
 
     # Drop empty sections
     return {k: v for k, v in overlay.items() if v}

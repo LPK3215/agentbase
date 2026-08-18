@@ -268,6 +268,19 @@
 - **错误码**：`AGENTBASE_CONVERSATION_001`/`002`/`003`。
 - **测试**：90+ 核心 + 25+ API = 115+ 测试。
 
+#### G14. 定时任务调度服务（ScheduleProvider）
+- **状态**：done ｜ **优先级**：P2
+- **定位**：按 interval 秒级或 cron 5 字段表达式定时调用 Agent（定时早报/巡检/同步）——对标标准后台系统的定时任务模块。
+- **接口**：`ScheduleProvider` Protocol（`create_task` / `get_task` / `list_tasks` / `update_task` / `delete_task` / `pause_task` / `resume_task` / `trigger_task` / `list_runs` / `get_stats` / `set_executor` / `start` / `stop`）。
+- **默认实现**：`InMemoryScheduleProvider`（零配置，后台 tick 线程 + ThreadPoolExecutor worker 池，任务/运行记录 FIFO 淘汰）；`NullScheduleProvider`（禁用时 no-op）。
+- **注册**：`schedule_registry`，`@register_schedule_provider("name")`。
+- **开关**：config `scheduler.enabled=false`（默认关）。
+- **特性**：纯 Python cron 解析（`*` / `*/n` / `a-b` / `a-b/n` / 列表，Vixie dom/dow OR 语义，7=周日）；暂停/恢复（恢复重算 next_run_at 防止补发风暴）；手动触发（暂停任务可触发）；运行历史（状态/耗时/错误/输出摘要，schedule/manual 触发来源）；调度规则变更后自动重算 next_run_at；tick 中发现的坏规则自动暂停任务。
+- **集成**：API 层 `_get_schedule_manager()` 自动接线 executor → `rt.runner.invoke()` 真实调用 Agent。
+- **API**：`/schedules` CRUD + `/schedules/stats` + `/{task_id}/pause` / `resume` / `trigger` / `runs`（10 条路由）。
+- **错误码**：`AGENTBASE_SCHEDULE_001`/`002`/`003`/`004`。
+- **测试**：95 核心（cron 解析/模型/Null/InMemory/注册表/Manager/单例/并发）+ 36 API = 131 测试。
+
 ---
 
 ## 推进规则

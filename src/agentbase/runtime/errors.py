@@ -18,6 +18,7 @@ Error codes follow the pattern ``AGENTBASE_<DOMAIN>_<NNN>`` where:
 - ``FEEDBACK``     — user feedback operations (001–020)
 - ``NOTIFICATION`` — notification center operations (001–020)
 - ``CONVERSATION`` — conversation history operations (001–020)
+- ``SCHEDULE``     — scheduled task operations (001–020)
 
 Every error carries:
 - ``code``: stable machine-readable string
@@ -262,6 +263,12 @@ class ErrorCode:
     CONVERSATION_NOT_FOUND = "AGENTBASE_CONVERSATION_002"
     CONVERSATION_NOT_INITIALIZED = "AGENTBASE_CONVERSATION_003"
 
+    # Scheduled task errors (001–020)
+    SCHEDULE_TASK_FAILED = "AGENTBASE_SCHEDULE_001"
+    SCHEDULE_TASK_NOT_FOUND = "AGENTBASE_SCHEDULE_002"
+    SCHEDULE_NOT_INITIALIZED = "AGENTBASE_SCHEDULE_003"
+    SCHEDULE_INVALID_SPEC = "AGENTBASE_SCHEDULE_004"
+
 
 # HTTP status code mapping for known error codes
 _CODE_TO_HTTP: dict[str, int] = {
@@ -315,6 +322,10 @@ _CODE_TO_HTTP: dict[str, int] = {
     ErrorCode.CONVERSATION_RECORD_FAILED: 500,
     ErrorCode.CONVERSATION_NOT_FOUND: 404,
     ErrorCode.CONVERSATION_NOT_INITIALIZED: 503,
+    ErrorCode.SCHEDULE_TASK_FAILED: 500,
+    ErrorCode.SCHEDULE_TASK_NOT_FOUND: 404,
+    ErrorCode.SCHEDULE_NOT_INITIALIZED: 503,
+    ErrorCode.SCHEDULE_INVALID_SPEC: 400,
 }
 
 

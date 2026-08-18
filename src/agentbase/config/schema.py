@@ -517,6 +517,28 @@ class ConversationConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class SchedulerConfig(BaseModel):
+    """Scheduled task (cron / interval agent invocation) configuration.
+
+    - ``enabled = false`` (default) → scheduling disabled (NullScheduleProvider)
+    - ``enabled = true``             → recurring agent tasks fire on schedule
+    - ``provider = memory`` (default) → in-memory storage + background tick loop
+    - ``tick_seconds``: how often due tasks are checked (default 1.0s)
+    - ``max_workers``: concurrent task executions (default 4)
+    - ``max_tasks``: max stored tasks before FIFO eviction (default 1,000)
+    - ``max_runs``: max stored run records before FIFO eviction (default 10,000)
+    - Register custom providers with ``@register_schedule_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    tick_seconds: float = 1.0
+    max_workers: int = 4
+    max_tasks: int = 1_000
+    max_runs: int = 10_000
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MigrationConfig(BaseModel):
     """Database migration (Alembic) configuration.
 
@@ -651,6 +673,7 @@ class AppConfig(BaseModel):
     feedback: FeedbackConfig = Field(default_factory=FeedbackConfig)
     notification: NotificationConfig = Field(default_factory=NotificationConfig)
     conversation: ConversationConfig = Field(default_factory=ConversationConfig)
+    scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
 
 
 class PermissionRule(BaseModel):

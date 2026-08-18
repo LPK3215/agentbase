@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（100 个路由 + 2 个自动文档端点）
+### 已实现（110 个路由 + 1 个 WebSocket + 3 个自动文档端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -66,6 +66,16 @@
 | `/conversations/{thread_id}` | GET | 需要 | 获取对话历史（含消息列表） |
 | `/conversations/{thread_id}` | PATCH | 需要 | 更新对话元数据（标题/标签/归档） |
 | `/conversations/{thread_id}` | DELETE | 需要 | 删除对话及其所有消息 |
+| `/schedules` | GET | 需要 | 列出定时任务（分页、按 Agent/启用/名称过滤） |
+| `/schedules` | POST | 需要 | 创建定时任务（interval 秒级 / cron 5 字段表达式） |
+| `/schedules/stats` | GET | 需要 | 聚合调度统计（任务数/成功失败运行数/按 Agent 分组） |
+| `/schedules/{task_id}` | GET | 需要 | 获取定时任务详情 |
+| `/schedules/{task_id}` | PATCH | 需要 | 更新任务字段（改调度规则自动重算 next_run_at） |
+| `/schedules/{task_id}` | DELETE | 需要 | 删除任务及其运行历史 |
+| `/schedules/{task_id}/pause` | POST | 需要 | 暂停任务（保留配置） |
+| `/schedules/{task_id}/resume` | POST | 需要 | 恢复任务（重算 next_run_at） |
+| `/schedules/{task_id}/trigger` | POST | 需要 | 手动立即触发（暂停任务也可触发） |
+| `/schedules/{task_id}/runs` | GET | 需要 | 查询运行历史（按状态/触发方式/时间过滤，分页） |
 | `/experiments` | GET | 需要 | 列出所有 A/B 测试实验 |
 | `/experiments` | POST | 需要 | 创建 A/B 测试实验 |
 | `/experiments/{name}` | GET | 需要 | 获取实验详情 |
@@ -124,9 +134,10 @@
 | CORS 中间件 | ✅ 已实现 | `cors.allow_origins` 配置，默认 `*`；支持 `AGENTBASE_CORS_ORIGINS` 环境变量 |
 | 速率限制 | ✅ 已实现 | `rate_limit` 配置段：`max_requests`/`window_seconds`/`burst`，可配置 |
 | OAuth2 第三方登录 | ✅ 已实现 | `oauth2` 配置段：Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户 |
+| 定时任务调度 | ✅ 已实现 | `scheduler` 配置段：interval 秒级 / cron 5 字段表达式定时调用 Agent，暂停/恢复/手动触发/运行历史，后台 tick 线程 + worker 池 |
 | 全局异常处理 | ✅ 已实现 | 返回 `{"error": "...", "code": "...", "http_status": N, "request_id": "..."}` |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，自动生成 UUID，传播到日志和 tracer |
-| 分页 | ✅ 已实现 | `/queue`、`/documents`、`/audit/events`、`/feedback`、`/notifications`、`/conversations`、`/webhooks/deliveries`、`/usage/records` 支持 `page`/`page_size` 参数 |
+| 分页 | ✅ 已实现 | `/queue`、`/documents`、`/audit/events`、`/feedback`、`/notifications`、`/conversations`、`/schedules`、`/schedules/{task_id}/runs`、`/webhooks/deliveries`、`/usage/records` 支持 `page`/`page_size` 参数 |
 | WebSocket 心跳 | ✅ 已实现 | 30 秒心跳间隔，防止连接超时 |
 
 ### 未实现
@@ -291,7 +302,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（25 个注册表）
+## 7. 可插拔 Provider（26 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -313,6 +324,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 用户反馈 | InMemoryFeedbackProvider / NullFeedbackProvider | ✅ | `@register_feedback_provider("name")` |
 | 通知中心 | InMemoryNotificationProvider / NullNotificationProvider | ✅ | `@register_notification_provider("name")` |
 | 对话历史 | InMemoryConversationProvider / NullConversationProvider | ✅ | `@register_conversation_provider("name")` |
+| 定时任务调度 | InMemoryScheduleProvider / NullScheduleProvider | ✅ | `@register_schedule_provider("name")` |
 | 审计日志 | SQLiteAuditProvider / NullAuditProvider | ✅ | `@register_audit_provider("name")` |
 | A/B 实验 | InMemoryExperimentProvider / NullExperimentProvider | ✅ | `@register_experiment_provider("name")` |
 | 敏感信息脱敏 | RuleRedactionProvider / NullRedactionProvider | ✅ | `@register_redaction_provider("name")` |
@@ -349,6 +361,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 用户反馈收集 | ✅ 已验证 | `feedback.enabled: true` + `feedback.provider: memory` |
 | 通知中心 | ✅ 已验证 | `notification.enabled: true` + `notification.provider: memory` |
 | 对话历史 | ✅ 已验证 | `conversation.enabled: true` + `conversation.provider: memory` |
+| 定时任务调度 | ✅ 已验证 | `scheduler.enabled: true` + `scheduler.provider: memory` |
 
 ### 未实现
 
@@ -366,7 +379,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，传播到 runner 日志和 tracer span |
 | 追踪 (Tracing) | ✅ 已实现 | NullTracer + InMemoryTracer + LangfuseTracer + OpenTelemetryTracer，已集成到 invoke/stream/resume |
 | 健康检查 | ✅ 已实现 | `GET /health` — 组件级探活（storage/queue/embedding/search/tracer），受 `health_check` 配置开关控制，返回 `status`/`components`/`storage_connected`/`queue_connected`/`embedding_connected`/`search_connected`/`tracer_connected` |
-| 错误码体系 | ✅ 已实现 | `ErrorCode` 常量类，16 个领域（CONFIG/REG/FACTORY/RT/AUTH/RATE/QUEUE/KB/UPLOAD/WS/MIGRATION/USAGE/WEBHOOK/FEEDBACK/NOTIFICATION/CONVERSATION），HTTP 状态映射。另有 OAuth2 复用 AUTH 域 |
+| 错误码体系 | ✅ 已实现 | `ErrorCode` 常量类，17 个领域（CONFIG/REG/FACTORY/RT/AUTH/RATE/QUEUE/KB/UPLOAD/WS/MIGRATION/USAGE/WEBHOOK/FEEDBACK/NOTIFICATION/CONVERSATION/SCHEDULE），HTTP 状态映射。另有 OAuth2 复用 AUTH 域 |
 
 ---
 

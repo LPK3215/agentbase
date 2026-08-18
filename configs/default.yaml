@@ -127,6 +127,19 @@ extensions:
 #   provider: memory
 #   max_conversations: 10000
 
+# Scheduled task service — cron / interval agent invocation
+# Enable to run recurring agent tasks (daily reports, periodic checks).
+# schedule_type: "interval" (every N seconds) or "cron" (5-field
+# expression "min hour dom mon dow", e.g. "0 8 * * *" = daily 08:00).
+# Provides /schedules/* API endpoints (create/pause/resume/trigger/runs).
+# scheduler:
+#   enabled: true
+#   provider: memory  # memory (default) | custom via @register_schedule_provider
+#   tick_seconds: 1.0  # how often due tasks are checked
+#   max_workers: 4     # concurrent task executions
+#   max_tasks: 1000    # max stored tasks before FIFO eviction
+#   max_runs: 10000    # max stored run records before FIFO eviction
+
 # Audit log service
 # Enable to record structured audit events (who/when/what/result).
 # Provides /audit/events/* query + export API. Supports JSON/CSV/YAML export.

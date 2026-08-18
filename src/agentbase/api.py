@@ -1226,6 +1226,63 @@ def _reset_conversation_manager() -> None:
     _conversation_manager = None
 
 
+# Schedule manager singleton (lazily built from app config)
+_schedule_manager: Any = None
+_schedule_manager_lock = threading.Lock()
+
+
+def _schedule_executor(task: Any) -> Any:
+    """Invoke the target agent for a fired scheduled task.
+
+    Runs in a scheduler worker thread; exceptions are caught by the
+    provider and recorded as failed runs.
+    """
+    rt = get_runtime()
+    agent = rt.get_agent(task.agent_name)
+    result = rt.runner.invoke(
+        agent=agent,
+        agent_name=task.agent_name,
+        message=task.message,
+        thread_id=task.thread_id or None,
+    )
+    return result
+
+
+def _get_schedule_manager() -> Any:
+    """Get or create the ScheduleManager singleton from app config.
+
+    When enabled, the manager's background tick loop starts automatically
+    and fires due tasks through ``_schedule_executor`` (real agent calls).
+    """
+    global _schedule_manager
+    if _schedule_manager is None:
+        with _schedule_manager_lock:
+            if _schedule_manager is None:
+                from agentbase.core.scheduler import ScheduleManager, set_schedule_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.scheduler
+                mgr = ScheduleManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    max_tasks=cfg.max_tasks,
+                    max_runs=cfg.max_runs,
+                    tick_seconds=cfg.tick_seconds,
+                    max_workers=cfg.max_workers,
+                    **cfg.options,
+                )
+                mgr.set_executor(_schedule_executor)
+                set_schedule_manager(mgr)
+                _schedule_manager = mgr
+    return _schedule_manager
+
+
+def _reset_schedule_manager() -> None:
+    """Reset schedule manager singleton (for testing)."""
+    global _schedule_manager
+    _schedule_manager = None
+
+
 def _make_error_response(
     error: str,
     code: str,
@@ -3875,6 +3932,221 @@ def create_app(*, runtime=None) -> FastAPI:
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Conversation not found: {thread_id}")
         return {"deleted": True, "thread_id": thread_id}
+
+    # ------------------------------------------------------------------ #
+    # Scheduled tasks — cron / interval agent invocation                  #
+    # ------------------------------------------------------------------ #
+    @app.get("/schedules", tags=["schedules"])
+    def list_schedules(
+        agent_name: str | None = Query(None),
+        enabled: bool | None = Query(None),
+        name: str | None = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List scheduled tasks with filtering and pagination.
+
+        Requires authentication. Returns empty list when scheduling
+        is disabled.
+        """
+        mgr = _get_schedule_manager()
+        offset = (page - 1) * page_size
+        records = mgr.list_tasks(
+            agent_name=agent_name,
+            enabled=enabled,
+            name=name,
+            limit=page_size,
+            offset=offset,
+        )
+        return {
+            "items": [t.to_dict() for t in records],
+            "total": len(records),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    @app.post("/schedules", tags=["schedules"])
+    def create_schedule(
+        name: str = Body(..., embed=True),
+        agent_name: str = Body(..., embed=True),
+        message: str = Body("", embed=True),
+        schedule_type: str = Body("interval", embed=True),
+        interval_seconds: float = Body(3600.0, embed=True),
+        cron_expr: str = Body("", embed=True),
+        enabled: bool = Body(True, embed=True),
+        thread_id: str = Body("", embed=True),
+        metadata: dict[str, Any] = Body(default_factory=dict, embed=True),  # noqa: B008
+    ):
+        """Create a scheduled task that invokes an agent on a schedule.
+
+        Requires authentication. ``schedule_type`` is ``"interval"``
+        (fires every ``interval_seconds``) or ``"cron"`` (5-field cron
+        expression ``min hour dom mon dow``). Returns 400 for invalid
+        schedule specs or duplicate names.
+        """
+        mgr = _get_schedule_manager()
+        try:
+            record = mgr.create_task(
+                name=name,
+                agent_name=agent_name,
+                message=message,
+                schedule_type=schedule_type,
+                interval_seconds=interval_seconds,
+                cron_expr=cron_expr,
+                enabled=enabled,
+                thread_id=thread_id,
+                metadata=metadata,
+            )
+            return record.to_dict()
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+
+    @app.get("/schedules/stats", tags=["schedules"])
+    def get_schedule_stats():
+        """Get aggregate scheduler statistics.
+
+        Requires authentication. Includes task counts (total/enabled/paused),
+        per-agent breakdown, and run outcome counters.
+        """
+        mgr = _get_schedule_manager()
+        return mgr.get_stats().to_dict()
+
+    @app.get("/schedules/{task_id}", tags=["schedules"])
+    def get_schedule(task_id: str):
+        """Get a scheduled task by ID.
+
+        Returns 404 if the task is not found.
+        """
+        mgr = _get_schedule_manager()
+        task = mgr.get_task(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail=f"Scheduled task not found: {task_id}")
+        return task.to_dict()
+
+    @app.patch("/schedules/{task_id}", tags=["schedules"])
+    def update_schedule(task_id: str, body: dict[str, Any]):
+        """Update a scheduled task (name, message, schedule spec, metadata).
+
+        All fields are optional — only provided fields are updated.
+        Changing schedule fields recomputes ``next_run_at``. Returns 404
+        if not found, 400 for invalid schedule specs.
+        """
+        mgr = _get_schedule_manager()
+        try:
+            task = mgr.update_task(
+                task_id,
+                name=body.get("name"),
+                agent_name=body.get("agent_name"),
+                message=body.get("message"),
+                schedule_type=body.get("schedule_type"),
+                interval_seconds=body.get("interval_seconds"),
+                cron_expr=body.get("cron_expr"),
+                thread_id=body.get("thread_id"),
+                metadata=body.get("metadata"),
+            )
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        if task is None:
+            raise HTTPException(status_code=404, detail=f"Scheduled task not found: {task_id}")
+        return task.to_dict()
+
+    @app.delete("/schedules/{task_id}", tags=["schedules"])
+    def delete_schedule(task_id: str):
+        """Delete a scheduled task and its run history.
+
+        Returns 404 if the task is not found.
+        """
+        mgr = _get_schedule_manager()
+        deleted = mgr.delete_task(task_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Scheduled task not found: {task_id}")
+        return {"deleted": True, "task_id": task_id}
+
+    @app.post("/schedules/{task_id}/pause", tags=["schedules"])
+    def pause_schedule(task_id: str):
+        """Pause a scheduled task (keeps its configuration).
+
+        Returns 404 if the task is not found.
+        """
+        mgr = _get_schedule_manager()
+        task = mgr.pause_task(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail=f"Scheduled task not found: {task_id}")
+        return task.to_dict()
+
+    @app.post("/schedules/{task_id}/resume", tags=["schedules"])
+    def resume_schedule(task_id: str):
+        """Resume a paused scheduled task (recomputes ``next_run_at``).
+
+        Returns 404 if the task is not found.
+        """
+        mgr = _get_schedule_manager()
+        task = mgr.resume_task(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail=f"Scheduled task not found: {task_id}")
+        return task.to_dict()
+
+    @app.post("/schedules/{task_id}/trigger", tags=["schedules"])
+    def trigger_schedule(task_id: str):
+        """Manually trigger a scheduled task immediately.
+
+        Works on paused tasks. The run executes asynchronously in a worker
+        thread; the returned run record has ``status="running"``. Returns
+        404 if the task is not found.
+        """
+        mgr = _get_schedule_manager()
+        run = mgr.trigger_task(task_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail=f"Scheduled task not found: {task_id}")
+        return run.to_dict()
+
+    @app.get("/schedules/{task_id}/runs", tags=["schedules"])
+    def list_schedule_runs(
+        task_id: str,
+        status: str | None = Query(None),
+        trigger: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List execution history for a scheduled task.
+
+        Requires authentication. Filterable by status, trigger type
+        (schedule/manual), and time range. Returns 404 if the task is
+        not found.
+        """
+        mgr = _get_schedule_manager()
+        task = mgr.get_task(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail=f"Scheduled task not found: {task_id}")
+        offset = (page - 1) * page_size
+        runs = mgr.list_runs(
+            task_id=task_id,
+            status=status,
+            trigger=trigger,
+            since=since,
+            until=until,
+            limit=page_size,
+            offset=offset,
+        )
+        return {
+            "items": [r.to_dict() for r in runs],
+            "total": len(runs),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    # Note: /schedules/stats is declared before /schedules/{task_id}
+    # to avoid path parameter capture.
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

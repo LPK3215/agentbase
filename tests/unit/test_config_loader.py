@@ -76,8 +76,9 @@ def test_load_profile_overlay_nonexistent(tmp_path):
 
 
 def test_load_app_config_with_profile(tmp_path):
-    from agentbase.config.loader import load_app_config
     from unittest.mock import patch
+
+    from agentbase.config.loader import load_app_config
 
     configs = tmp_path / "configs"
     configs.mkdir()
@@ -95,9 +96,9 @@ def test_load_app_config_with_profile(tmp_path):
 
 
 def test_settings_overlay_values(tmp_path):
-    from agentbase.config.loader import _settings_overlay, load_app_config
-    from agentbase.config.settings import EnvSettings
     from unittest.mock import patch
+
+    from agentbase.config.loader import load_app_config
 
     configs = tmp_path / "configs"
     configs.mkdir()
@@ -116,9 +117,59 @@ def test_settings_overlay_values(tmp_path):
         assert cfg.storage.type == "sqlite"
 
 
-def test_load_app_config_env_fallback_api_key(tmp_path):
-    from agentbase.config.loader import load_app_config
+def test_settings_overlay_optional_services(tmp_path):
+    """Env overlays for optional services (scheduler + the manager family)
+    must reach AppConfig — they were previously declared in docker-compose
+    but silently ignored by EnvSettings."""
     from unittest.mock import patch
+
+    from agentbase.config.loader import load_app_config
+
+    configs = tmp_path / "configs"
+    configs.mkdir()
+    (configs / "default.yaml").write_text(
+        "app:\n  name: test\nmodel:\n  provider: openai\n  name: gpt-4o-mini\n",
+        encoding="utf-8",
+    )
+    with patch.dict("os.environ", {
+        "AGENTBASE_SCHEDULER__ENABLED": "true",
+        "AGENTBASE_SCHEDULER__PROVIDER": "memory",
+        "AGENTBASE_SCHEDULER__TICK_SECONDS": "2.5",
+        "AGENTBASE_NOTIFICATION__ENABLED": "true",
+        "AGENTBASE_USAGE__ENABLED": "true",
+        "AGENTBASE_WEBHOOK__ENABLED": "true",
+        "AGENTBASE_FEEDBACK__ENABLED": "true",
+        "AGENTBASE_CONVERSATION__ENABLED": "true",
+        "AGENTBASE_MODEL_MANAGER__ENABLED": "true",
+        "AGENTBASE_PROMPT_MANAGER__ENABLED": "true",
+        "AGENTBASE_USER_MANAGER__ENABLED": "true",
+        "AGENTBASE_APIKEY_MANAGER__ENABLED": "true",
+        "AGENTBASE_OAUTH2__ENABLED": "true",
+        "AGENTBASE_EXPERIMENT__ENABLED": "true",
+        "AGENTBASE_MIGRATION__ENABLED": "false",
+    }):
+        cfg = load_app_config(tmp_path)
+        assert cfg.scheduler.enabled is True
+        assert cfg.scheduler.provider == "memory"
+        assert cfg.scheduler.tick_seconds == 2.5
+        assert cfg.notification.enabled is True
+        assert cfg.usage.enabled is True
+        assert cfg.webhook.enabled is True
+        assert cfg.feedback.enabled is True
+        assert cfg.conversation.enabled is True
+        assert cfg.model_manager.enabled is True
+        assert cfg.prompt_manager.enabled is True
+        assert cfg.user_manager.enabled is True
+        assert cfg.apikey_manager.enabled is True
+        assert cfg.oauth2.enabled is True
+        assert cfg.experiment.enabled is True
+        assert cfg.migration.enabled is False
+
+
+def test_load_app_config_env_fallback_api_key(tmp_path):
+    from unittest.mock import patch
+
+    from agentbase.config.loader import load_app_config
 
     configs = tmp_path / "configs"
     configs.mkdir()
@@ -132,8 +183,9 @@ def test_load_app_config_env_fallback_api_key(tmp_path):
 
 
 def test_load_app_config_env_fallback_base_url(tmp_path):
-    from agentbase.config.loader import load_app_config
     from unittest.mock import patch
+
+    from agentbase.config.loader import load_app_config
 
     configs = tmp_path / "configs"
     configs.mkdir()
@@ -147,8 +199,9 @@ def test_load_app_config_env_fallback_base_url(tmp_path):
 
 
 def test_load_app_config_checkpointer_dsn_fallback(tmp_path):
-    from agentbase.config.loader import load_app_config
     from unittest.mock import patch
+
+    from agentbase.config.loader import load_app_config
 
     configs = tmp_path / "configs"
     configs.mkdir()

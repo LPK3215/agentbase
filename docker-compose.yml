@@ -131,6 +131,8 @@ services:
       - AGENTBASE_NOTIFICATION__ENABLED=${AGENTBASE_NOTIFICATION__ENABLED:-false}
       # Conversation history
       - AGENTBASE_CONVERSATION__ENABLED=${AGENTBASE_CONVERSATION__ENABLED:-false}
+      # Scheduled tasks (cron / interval agent invocation)
+      - AGENTBASE_SCHEDULER__ENABLED=${AGENTBASE_SCHEDULER__ENABLED:-false}
       # Database migration
       - AGENTBASE_MIGRATION__ENABLED=${AGENTBASE_MIGRATION__ENABLED:-true}
     ports:
