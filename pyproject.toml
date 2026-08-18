@@ -24,6 +24,8 @@ dependencies = [
   "fastapi>=0.110.0",
   "uvicorn>=0.27.0",
   "sse-starlette>=2.0.0",
+  # required by FastAPI at import time for /documents/upload (UploadFile)
+  "python-multipart>=0.0.9",
   # tzdata is required on Windows (and bundled-free Linux builds) for
   # `zoneinfo` to resolve IANA timezone keys such as "America/New_York".
   "tzdata>=2024.1",

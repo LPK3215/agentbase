@@ -1,0 +1,8 @@
+# Local deploy-verification override: don't expose infra ports to host
+# (host 5432/6379 already in use; api containers reach services via
+# container names on the compose network).
+services:
+  postgres:
+    ports: !override []
+  redis:
+    ports: !override []
