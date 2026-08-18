@@ -587,6 +587,26 @@ class RbacConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class AlertConfig(BaseModel):
+    """Alert rule service configuration (metrics threshold monitoring).
+
+    - ``enabled = false`` (default) → alerting disabled (NullAlertProvider)
+    - ``enabled = true``            → threshold rules + periodic evaluation
+      + notification fanout
+    - ``provider = memory`` (default) → in-memory rule/event store
+    - ``tick_seconds``: evaluation interval (1..3600, default 60)
+    - ``max_rules`` / ``max_events``: FIFO eviction caps
+    - Register custom providers with ``@register_alert_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    tick_seconds: int = 60
+    max_rules: int = 500
+    max_events: int = 1_000
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MigrationConfig(BaseModel):
     """Database migration (Alembic) configuration.
 
@@ -725,6 +745,7 @@ class AppConfig(BaseModel):
     calendar: CalendarConfig = Field(default_factory=CalendarConfig)
     system_config: SystemConfigConfig = Field(default_factory=SystemConfigConfig)
     rbac: RbacConfig = Field(default_factory=RbacConfig)
+    alert: AlertConfig = Field(default_factory=AlertConfig)
 
 
 class PermissionRule(BaseModel):

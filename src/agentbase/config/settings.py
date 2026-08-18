@@ -110,6 +110,10 @@ class EnvSettings(BaseSettings):
     rbac__enabled: bool | None = None
     rbac__provider: str | None = None
 
+    alert__enabled: bool | None = None
+    alert__provider: str | None = None
+    alert__tick_seconds: int | None = None
+
     migration__enabled: bool | None = None
 
     @property
@@ -371,6 +375,18 @@ class EnvSettings(BaseSettings):
     @property
     def rbac_provider(self) -> str | None:
         return self.rbac__provider
+
+    @property
+    def alert_enabled(self) -> bool | None:
+        return self.alert__enabled
+
+    @property
+    def alert_provider(self) -> str | None:
+        return self.alert__provider
+
+    @property
+    def alert_tick_seconds(self) -> int | None:
+        return self.alert__tick_seconds
 
     @property
     def migration_enabled(self) -> bool | None:

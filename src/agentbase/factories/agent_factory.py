@@ -38,6 +38,7 @@ class AgentFactory:
         self._calendar_manager = None
         self._system_config_manager = None
         self._rbac_manager = None
+        self._alert_manager = None
 
     @property
     def backend(self) -> Any:
@@ -312,6 +313,28 @@ class AgentFactory:
             )
         return self._rbac_manager
 
+    @property
+    def alert_manager(self) -> Any:
+        """AlertManager for alert tools (lazy, config-driven).
+
+        Note: the API layer wires metrics reader + notifier into its own
+        singleton; the factory-built manager only serves read-only tool
+        queries and does not start the evaluation loop.
+        """
+        if self._alert_manager is None:
+            from agentbase.core.alert import AlertManager
+
+            cfg = self.app_config.alert
+            self._alert_manager = AlertManager(
+                provider=cfg.provider,
+                enabled=cfg.enabled,
+                tick_seconds=cfg.tick_seconds,
+                max_rules=cfg.max_rules,
+                max_events=cfg.max_events,
+                **cfg.options,
+            )
+        return self._alert_manager
+
     def build(self, agent_config: AgentConfig) -> Any:
         try:
             from deepagents import create_deep_agent
@@ -337,6 +360,7 @@ class AgentFactory:
             "calendar_manager": self.calendar_manager,
             "system_config_manager": self.system_config_manager,
             "rbac_manager": self.rbac_manager,
+            "alert_manager": self.alert_manager,
         }
 
         tools = build_tools(agent_config.tools, context=context)

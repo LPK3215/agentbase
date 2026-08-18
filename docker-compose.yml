@@ -139,6 +139,8 @@ services:
       - AGENTBASE_SYSTEM_CONFIG__ENABLED=${AGENTBASE_SYSTEM_CONFIG__ENABLED:-false}
       # RBAC (runtime role/permission management)
       - AGENTBASE_RBAC__ENABLED=${AGENTBASE_RBAC__ENABLED:-false}
+      # Alerts (metric threshold monitoring)
+      - AGENTBASE_ALERT__ENABLED=${AGENTBASE_ALERT__ENABLED:-false}
       # Database migration
       - AGENTBASE_MIGRATION__ENABLED=${AGENTBASE_MIGRATION__ENABLED:-true}
     ports:

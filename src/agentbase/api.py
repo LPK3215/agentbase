@@ -554,6 +554,31 @@ class MetricsCollector:
         with self._lock:
             self._active_sessions = max(0, self._active_sessions - 1)
 
+    def get_snapshot(self) -> dict[str, float]:
+        """Return a flat snapshot of current metric values.
+
+        Used by the alert service's metrics reader. Returns the same
+        metric names the alert rules reference (requests_total,
+        errors_total, latency_avg_ms, ...).
+        """
+        with self._lock:
+            latency_avg = (
+                self._latency_sum / self._latency_count
+                if self._latency_count > 0
+                else 0.0
+            )
+            return {
+                "requests_total": float(self._requests_total),
+                "errors_total": float(self._errors_total),
+                "documents_uploaded_total": float(self._documents_uploaded_total),
+                "queue_submitted_total": float(self._queue_submitted),
+                "queue_completed_total": float(self._queue_completed),
+                "queue_failed_total": float(self._queue_failed),
+                "ws_active_connections": float(self._ws_active_connections),
+                "active_sessions": float(self._active_sessions),
+                "latency_avg_ms": float(latency_avg),
+            }
+
     def reset(self) -> None:
         """Reset all metrics. Useful for testing."""
         with self._lock:
@@ -1380,6 +1405,63 @@ def _reset_rbac_manager() -> None:
     """Reset RBAC manager singleton (for testing)."""
     global _rbac_manager
     _rbac_manager = None
+
+
+# Alert manager singleton (lazily built from app config)
+_alert_manager: Any = None
+_alert_manager_lock = threading.Lock()
+
+
+def _get_alert_manager() -> Any:
+    """Get or create the AlertManager singleton from app config.
+
+    Wires the metrics reader (MetricsCollector snapshot) and the
+    notifier (NotificationManager.create) into the alert engine, then
+    starts the background evaluation loop.
+    """
+    global _alert_manager
+    if _alert_manager is None:
+        with _alert_manager_lock:
+            if _alert_manager is None:
+                from agentbase.core.alert import AlertManager, set_alert_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.alert
+                mgr = AlertManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    tick_seconds=cfg.tick_seconds,
+                    max_rules=cfg.max_rules,
+                    max_events=cfg.max_events,
+                    **cfg.options,
+                )
+                # metrics source: live snapshot of this process's collector
+                mgr.set_metrics_reader(
+                    lambda metric: _metrics.get_snapshot().get(metric, 0.0)
+                )
+                # notification sink: NotificationManager.create (best-effort)
+                def _alert_notifier(**kwargs: Any) -> None:
+                    try:
+                        _get_notification_manager().create(**kwargs)
+                    except Exception:  # noqa: BLE001 — never block evaluation
+                        pass
+
+                mgr.set_notifier(_alert_notifier)
+                set_alert_manager(mgr)
+                mgr.start()
+                _alert_manager = mgr
+    return _alert_manager
+
+
+def _reset_alert_manager() -> None:
+    """Reset alert manager singleton (for testing)."""
+    global _alert_manager
+    if _alert_manager is not None:
+        try:
+            _alert_manager.stop()
+        except Exception:  # noqa: BLE001
+            pass
+    _alert_manager = None
 
 
 def _make_error_response(
@@ -4711,6 +4793,201 @@ def create_app(*, runtime=None) -> FastAPI:
             )
         allowed = mgr.check_permission(username, resource, action)
         return {"username": username, "resource": resource, "action": action, "allowed": allowed}
+
+    # ------------------------------------------------------------------ #
+    # Alerts — metric threshold rules + evaluation + history             #
+    # ------------------------------------------------------------------ #
+    @app.get("/alerts/rules", tags=["alerts"])
+    def list_alert_rules(
+        enabled: bool | None = Query(None),
+        metric: str | None = Query(None),
+        severity: str | None = Query(None),
+        state: str | None = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List alert rules (sorted by name) with optional filters.
+
+        Requires authentication. Filterable by enabled/metric/severity/
+        state(ok|firing).
+        """
+        mgr = _get_alert_manager()
+        offset = (page - 1) * page_size
+        rules = mgr.list_rules(
+            enabled=enabled, metric=metric, severity=severity, state=state,
+            limit=page_size, offset=offset,
+        )
+        return {
+            "items": [r.to_dict() for r in rules],
+            "total": len(rules),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    @app.post("/alerts/rules", tags=["alerts"])
+    def create_alert_rule(body: dict[str, Any]):
+        """Create an alert rule (metric + operator + threshold).
+
+        Requires authentication. Body: ``name``/``metric``/``threshold``
+        (required), optional ``operator`` (gt|gte|lt|lte|eq|ne, default gt),
+        ``severity`` (info|warning|error|critical), ``duration_ticks``
+        (consecutive breaches before firing), ``cooldown_seconds``,
+        ``notify_user_id`` ("*" broadcasts), ``enabled``, ``description``.
+        """
+        mgr = _get_alert_manager()
+        name = body.get("name")
+        metric = body.get("metric")
+        if not isinstance(name, str) or not name.strip():
+            raise HTTPException(status_code=400, detail="Body must contain a non-empty 'name'")
+        if not isinstance(metric, str) or not metric.strip():
+            raise HTTPException(status_code=400, detail="Body must contain a non-empty 'metric'")
+        try:
+            rule = mgr.create_rule(
+                name,
+                metric=metric,
+                operator=body.get("operator", "gt"),
+                threshold=body.get("threshold", 0.0),
+                severity=body.get("severity", "warning"),
+                duration_ticks=body.get("duration_ticks", 1),
+                cooldown_seconds=body.get("cooldown_seconds", 300),
+                notify_user_id=body.get("notify_user_id", "*"),
+                enabled=body.get("enabled", True),
+                description=body.get("description", ""),
+            )
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        return rule.to_dict()
+
+    @app.get("/alerts/rules/stats", tags=["alerts"])
+    def get_alert_stats():
+        """Get aggregate alert statistics (rule/event counts, by severity).
+
+        Requires authentication.
+        """
+        mgr = _get_alert_manager()
+        return mgr.get_stats().to_dict()
+
+    @app.get("/alerts/metrics", tags=["alerts"])
+    def list_alert_metrics():
+        """List metric names available for alert rules, with current values.
+
+        Requires authentication. Returns the live snapshot from the
+        process metrics collector.
+        """
+        from agentbase.core.alert import SUPPORTED_METRICS
+
+        snapshot = _metrics.get_snapshot()
+        return {
+            "items": [
+                {"metric": m, "current_value": snapshot.get(m, 0.0)}
+                for m in sorted(SUPPORTED_METRICS)
+            ],
+            "total": len(SUPPORTED_METRICS),
+        }
+
+    @app.get("/alerts/rules/{rule_id}", tags=["alerts"])
+    def get_alert_rule(rule_id: str):
+        """Get an alert rule by id.
+
+        Requires authentication. Returns 404 when missing.
+        """
+        mgr = _get_alert_manager()
+        rule = mgr.get_rule(rule_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail=f"Alert rule not found: {rule_id}")
+        return rule.to_dict()
+
+    @app.patch("/alerts/rules/{rule_id}", tags=["alerts"])
+    def update_alert_rule(rule_id: str, body: dict[str, Any]):
+        """Update an alert rule (threshold/operator/enabled/severity/...).
+
+        Requires authentication. Threshold/operator changes reset breach
+        counters. Returns 404 when missing.
+        """
+        mgr = _get_alert_manager()
+        try:
+            rule = mgr.update_rule(rule_id, body)
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        if rule is None:
+            raise HTTPException(status_code=404, detail=f"Alert rule not found: {rule_id}")
+        return rule.to_dict()
+
+    @app.delete("/alerts/rules/{rule_id}", tags=["alerts"])
+    def delete_alert_rule(rule_id: str):
+        """Delete an alert rule.
+
+        Requires authentication. Returns 404 when missing.
+        """
+        mgr = _get_alert_manager()
+        deleted = mgr.delete_rule(rule_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Alert rule not found: {rule_id}")
+        return {"deleted": True, "rule_id": rule_id}
+
+    @app.post("/alerts/rules/{rule_id}/evaluate", tags=["alerts"])
+    def evaluate_alert_rule(rule_id: str):
+        """Manually evaluate one rule immediately (ignore tick schedule).
+
+        Requires authentication. Returns the produced event (or None when
+        nothing happened this evaluation).
+        """
+        mgr = _get_alert_manager()
+        rule = mgr.get_rule(rule_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail=f"Alert rule not found: {rule_id}")
+        event = mgr.evaluate_rule(rule)
+        return {
+            "rule_id": rule_id,
+            "event": event.to_dict() if event is not None else None,
+        }
+
+    @app.get("/alerts/events", tags=["alerts"])
+    def list_alert_events(
+        rule_id: str | None = Query(None),
+        state: str | None = Query(None),
+        severity: str | None = Query(None),
+        metric: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List alert events (newest first) with optional filters.
+
+        Requires authentication. Filterable by rule_id/state(firing|
+        resolved)/severity/metric/since/until (ISO-8601).
+        """
+        mgr = _get_alert_manager()
+        offset = (page - 1) * page_size
+        events = mgr.list_events(
+            rule_id=rule_id, state=state, severity=severity, metric=metric,
+            since=since, until=until, limit=page_size, offset=offset,
+        )
+        return {
+            "items": [e.to_dict() for e in events],
+            "total": len(events),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    @app.post("/alerts/tick", tags=["alerts"])
+    def trigger_alert_tick():
+        """Manually run one evaluation pass over all enabled rules.
+
+        Requires authentication. Returns the events produced this pass.
+        """
+        mgr = _get_alert_manager()
+        events = mgr.tick()
+        return {"events": [e.to_dict() for e in events], "count": len(events)}
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

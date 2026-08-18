@@ -167,6 +167,17 @@ extensions:
 #   provider: memory          # memory (default) | custom via @register_rbac_provider
 #   seed_system_roles: true   # create admin/user/readonly system roles on init
 
+# Alert rule service (metrics threshold monitoring + notifications)
+# Enable to monitor platform metrics (errors_total, latency_avg_ms, ...)
+# against threshold rules and deliver notifications on fire/resolve.
+# Provides /alerts/* API endpoints and alert_* agent tools (read-only).
+# alert:
+#   enabled: true
+#   provider: memory      # memory (default) | custom via @register_alert_provider
+#   tick_seconds: 60      # evaluation interval (1..3600)
+#   max_rules: 500        # FIFO eviction cap for rules
+#   max_events: 1000      # FIFO eviction cap for alert events
+
 # Audit log service
 # Enable to record structured audit events (who/when/what/result).
 # Provides /audit/events/* query + export API. Supports JSON/CSV/YAML export.

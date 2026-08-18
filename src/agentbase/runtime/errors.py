@@ -22,6 +22,7 @@ Error codes follow the pattern ``AGENTBASE_<DOMAIN>_<NNN>`` where:
 - ``CALENDAR``     — calendar event operations (001–020)
 - ``SYSCONFIG``    — system config operations (001–020)
 - ``RBAC``         — role/permission operations (001–020)
+- ``ALERT``        — alert rule/event operations (001–020)
 
 Every error carries:
 - ``code``: stable machine-readable string
@@ -290,6 +291,12 @@ class ErrorCode:
     RBAC_NOT_INITIALIZED = "AGENTBASE_RBAC_003"
     RBAC_INVALID_SPEC = "AGENTBASE_RBAC_004"
 
+    # Alert errors (001–020)
+    ALERT_RULE_FAILED = "AGENTBASE_ALERT_001"
+    ALERT_RULE_NOT_FOUND = "AGENTBASE_ALERT_002"
+    ALERT_NOT_INITIALIZED = "AGENTBASE_ALERT_003"
+    ALERT_INVALID_SPEC = "AGENTBASE_ALERT_004"
+
 
 # HTTP status code mapping for known error codes
 _CODE_TO_HTTP: dict[str, int] = {
@@ -359,6 +366,10 @@ _CODE_TO_HTTP: dict[str, int] = {
     ErrorCode.RBAC_ROLE_NOT_FOUND: 404,
     ErrorCode.RBAC_NOT_INITIALIZED: 503,
     ErrorCode.RBAC_INVALID_SPEC: 400,
+    ErrorCode.ALERT_RULE_FAILED: 500,
+    ErrorCode.ALERT_RULE_NOT_FOUND: 404,
+    ErrorCode.ALERT_NOT_INITIALIZED: 503,
+    ErrorCode.ALERT_INVALID_SPEC: 400,
 }
 
 

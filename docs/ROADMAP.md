@@ -10,12 +10,12 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 核心服务（34） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / scheduler / calendar / system_config / rbac / evaluation / parsers / embeddings / search |
-| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation / schedule / calendar / system_config / rbac + tool / subagent / middleware（29 个注册表） |
-| 扩展体系 | done | tools(46) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 135 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / schedules / calendar / system-config / rbac / admin(rate-limit) |
+| 核心服务（35） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / scheduler / calendar / system_config / rbac / alert / evaluation / parsers / embeddings / search |
+| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation / schedule / calendar / system_config / rbac / alert + tool / subagent / middleware（30 个注册表） |
+| 扩展体系 | done | tools(48) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| API 层 | done | 144 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / schedules / calendar / system-config / rbac / alerts / admin(rate-limit) |
 | CLI 层 | done | 20 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
-| 测试基座 | done | 3735 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 3830 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -323,9 +323,19 @@
 - **错误码**：`AGENTBASE_RBAC_001`/`002`/`003`/`004`。
 - **测试**：64 核心（归一化/通配符/模型/Null/InMemory/系统角色保护/注册表/Manager 校验/权限检查/单例/并发/Protocol）+ 26 API + 8 工具 = 98 测试。
 
----
-
-## 推进规则
+#### G18. 告警规则服务（AlertProvider）
+- **状态**：done ｜ **优先级**：P2
+- **定位**：平台指标阈值监控 + 通知联动——补齐 metrics 与 notification 之间的告警引擎缺口，对标标准后台系统的"告警规则/监控预警"模块。
+- **接口**：`AlertProvider` Protocol（`create_rule` / `get_rule` / `list_rules` / `update_rule` / `delete_rule` / `record_event` / `list_events` / `get_stats` / `close`）。
+- **默认实现**：`InMemoryAlertProvider`（零配置，线程安全，规则/事件 FIFO 淘汰）；`NullAlertProvider`（禁用时 no-op）。
+- **注册**：`alert_registry`，`@register_alert_provider("name")`。
+- **开关**：config `alert.enabled=false`（默认关）。
+- **特性**：支持 9 个平台指标（requests_total / errors_total / documents_uploaded_total / queue_*_total / ws_active_connections / active_sessions / latency_avg_ms 派生）；6 种比较算子（gt/gte/lt/lte/eq/ne）；`duration_ticks` 连续越限 N 次才触发（防抖）；`cooldown_seconds` 告警冷却期（防风暴）；恢复时自动发 resolved 事件；4 级严重度（info/warning/error/critical）；`notify_user_id="*"` 广播。依赖注入式架构：core 层通过 `metrics_reader`/`notifier` 回调解耦（不导入 API 层，无循环依赖）；reader/notifier 异常完全隔离（评估循环永不崩溃）。
+- **集成**：`MetricsCollector.get_snapshot()` 新增指标快照方法；API 层 `_get_alert_manager()` 注入 metrics reader + NotificationManager 通知管道并启动后台评估线程（tick_seconds 间隔）；AgentFactory 注入 `alert_manager` 上下文（只读查询，不启动循环）。
+- **API**：`/alerts/rules` GET/POST + `/alerts/rules/stats` + `/alerts/metrics`（指标名+当前值）+ `/{rule_id}` GET/PATCH/DELETE + `/{rule_id}/evaluate`（手动单规则评估）+ `/alerts/events`（历史，newest first）+ `/alerts/tick`（手动全量评估）（10 条路由）。
+- **工具**：`alert_list_rules` / `alert_list_events`（2 个只读工具，规则增删改是管理员 API 操作，`default_enabled=false`）。
+- **错误码**：`AGENTBASE_ALERT_001`/`002`/`003`/`004`。
+- **测试**：62 核心（算子/时间解析/模型/Null/InMemory/淘汰/过滤/统计/注册表/Manager 校验/评估引擎：触发-持续-冷却-恢复-抖动重置/reader-notifier 异常隔离/后台循环/单例/并发/Protocol）+ 22 API + 10 工具 = 94 测试。
 
 1. 每次只推进一个模块，完成后按 `docs/提示词.md` 第 11 节自查清单逐项确认。
 2. 模块完成 → 状态改 `done`，并在 `.codebuddy/memory/` 记录。

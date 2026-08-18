@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（135 个路由 + 1 个 WebSocket + 3 个自动文档端点）
+### 已实现（144 个路由 + 1 个 WebSocket + 4 个自动文档端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -101,6 +101,16 @@
 | `/rbac/users/{username}/roles/{role_name}` | POST | 需要 | 向用户分配角色（幂等） |
 | `/rbac/users/{username}/roles/{role_name}` | DELETE | 需要 | 回收用户角色 |
 | `/rbac/check` | POST | 需要 | 权限检查（username/resource/action → allowed） |
+| `/alerts/rules` | GET | 需要 | 列出告警规则（按启用/指标/严重度/状态过滤，分页） |
+| `/alerts/rules` | POST | 需要 | 创建告警规则（指标+运算符+阈值，duration/cooldown 控制） |
+| `/alerts/rules/stats` | GET | 需要 | 告警聚合统计（规则数/事件数/按状态/按严重度） |
+| `/alerts/metrics` | GET | 需要 | 可监控指标列表 + 当前值（来自 MetricsCollector 快照） |
+| `/alerts/rules/{rule_id}` | GET | 需要 | 获取规则详情（含最近评估状态） |
+| `/alerts/rules/{rule_id}` | PATCH | 需要 | 更新规则字段（阈值/启用/通知渠道，合并后校验） |
+| `/alerts/rules/{rule_id}` | DELETE | 需要 | 删除告警规则 |
+| `/alerts/rules/{rule_id}/evaluate` | POST | 需要 | 手动评估单条规则（返回触发的事件） |
+| `/alerts/events` | GET | 需要 | 告警事件历史（newest first，按规则/状态/严重度过滤） |
+| `/alerts/tick` | POST | 需要 | 手动全量评估所有启用规则（返回本轮触发事件） |
 | `/experiments` | GET | 需要 | 列出所有 A/B 测试实验 |
 | `/experiments` | POST | 需要 | 创建 A/B 测试实验 |
 | `/experiments/{name}` | GET | 需要 | 获取实验详情 |
@@ -282,7 +292,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 5. Agent 工具（46 个）
+## 5. Agent 工具（48 个）
 
 ### 已实现
 
@@ -303,6 +313,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 日程管理 | 5 | `calendar_create_event`, `calendar_list_events`, `calendar_upcoming`, `calendar_update_event`, `calendar_delete_event` — 日程事件 CRUD + 过滤查询 + 未来事件（需 `calendar.enabled=true`） |
 | 系统配置 | 2 | `system_config_get`, `system_config_list` — 运行时配置只读查询（Agent 可读不可写，需 `system_config.enabled=true`） |
 | RBAC | 2 | `rbac_check_permission`, `rbac_list_roles` — 权限检查与角色列表只读查询（角色授予/回收是管理员 API 操作，需 `rbac.enabled=true`） |
+| 告警 | 2 | `alert_list_rules`, `alert_list_events` — 告警规则与事件只读查询（规则增删改是管理员 API 操作，需 `alert.enabled=true`） |
 
 ### 未实现
 
@@ -330,7 +341,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（29 个注册表）
+## 7. 可插拔 Provider（30 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -356,11 +367,12 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 日程管理 | InMemoryCalendarProvider / NullCalendarProvider | ✅ | `@register_calendar_provider("name")` |
 | 系统配置 | InMemorySystemConfigProvider / NullSystemConfigProvider | ✅ | `@register_system_config_provider("name")` |
 | RBAC | InMemoryRbacProvider / NullRbacProvider | ✅ | `@register_rbac_provider("name")` |
+| 告警规则 | InMemoryAlertProvider / NullAlertProvider | ✅ | `@register_alert_provider("name")` |
 | 审计日志 | SQLiteAuditProvider / NullAuditProvider | ✅ | `@register_audit_provider("name")` |
 | A/B 实验 | InMemoryExperimentProvider / NullExperimentProvider | ✅ | `@register_experiment_provider("name")` |
 | 敏感信息脱敏 | RuleRedactionProvider / NullRedactionProvider | ✅ | `@register_redaction_provider("name")` |
 | 密钥加密存储 | FernetSecretsProvider / NullSecretsProvider | ✅ | `@register_secrets_provider("name")` |
-| 工具（扩展注册表） | 46 个内置工具 | ✅ | `@register_tool("name")` |
+| 工具（扩展注册表） | 48 个内置工具 | ✅ | `@register_tool("name")` |
 | 子代理（扩展注册表） | researcher, general_helper | ✅ | `@register_subagent("name")` |
 | 中间件（扩展注册表） | 9 个内置中间件 | ✅ | `@register_middleware("name")` |
 
@@ -518,6 +530,7 @@ pip install agentbase[all]          # 全部安装
 | 日程管理 | ✅ 已实现 | `calendar.enabled=true`，日程事件 CRUD + 过滤查询 + 统计 + Agent 工具（calendar_* 5 个） |
 | 系统配置 | ✅ 已实现 | `system_config.enabled=true`，运行时热更新键值配置（功能开关/限额），on_change 变更回调 + 只读 Agent 工具（system_config_* 2 个） |
 | RBAC 角色权限 | ✅ 已实现 | `rbac.enabled=true`，运行时自定义角色 + 用户角色分配 + 通配符权限检查（`*`/`res:*`/`*:act`），系统角色保护 + 只读 Agent 工具（rbac_* 2 个） |
+| 告警规则 | ✅ 已实现 | `alert.enabled=true`，指标阈值监控（gt/gte/lt/lte/eq/ne 运算符 + duration 持续触发 + cooldown 冷却），后台周期评估线程 + NotificationManager 通知联动 + 只读 Agent 工具（alert_* 2 个） |
 
 ### 未实现
 

@@ -132,6 +132,9 @@ def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
         ("system_config", "provider"): settings.system_config_provider,
         ("rbac", "enabled"): settings.rbac_enabled,
         ("rbac", "provider"): settings.rbac_provider,
+        ("alert", "enabled"): settings.alert_enabled,
+        ("alert", "provider"): settings.alert_provider,
+        ("alert", "tick_seconds"): settings.alert_tick_seconds,
         ("migration", "enabled"): settings.migration_enabled,
     }
     for (section, key), value in mapping.items():
