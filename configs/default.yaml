@@ -157,6 +157,16 @@ extensions:
 #   provider: memory  # memory (default) | custom via @register_system_config_provider
 #   max_items: 1000   # max stored entries before FIFO eviction
 
+# RBAC service (runtime role/permission management)
+# Enable to manage custom roles and user-role assignments at runtime.
+# Provides /rbac/* API endpoints and rbac_* agent tools (read-only).
+# Seeds three protected system roles aligned with DEFAULT_ROLE_PERMISSIONS:
+#   admin = ["*"], user = ["*:read","*:write","*:invoke"], readonly = ["*:read"]
+# rbac:
+#   enabled: true
+#   provider: memory          # memory (default) | custom via @register_rbac_provider
+#   seed_system_roles: true   # create admin/user/readonly system roles on init
+
 # Audit log service
 # Enable to record structured audit events (who/when/what/result).
 # Provides /audit/events/* query + export API. Supports JSON/CSV/YAML export.

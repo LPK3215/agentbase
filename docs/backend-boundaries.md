@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（124 个路由 + 1 个 WebSocket + 3 个自动文档端点）
+### 已实现（135 个路由 + 1 个 WebSocket + 3 个自动文档端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -90,6 +90,17 @@
 | `/system-config/batch-get` | POST | 需要 | 批量获取配置值（最多 100 个 key） |
 | `/system-config/{key}` | GET | 需要 | 获取配置项详情（含元数据） |
 | `/system-config/{key}` | DELETE | 需要 | 删除配置项 |
+| `/rbac/roles` | GET | 需要 | 列出所有角色（系统 + 自定义，按名称排序） |
+| `/rbac/roles` | POST | 需要 | 创建自定义角色（权限列表 `resource:action`，支持通配符） |
+| `/rbac/roles/stats` | GET | 需要 | RBAC 聚合统计（角色数/分配数） |
+| `/rbac/roles/{name}` | GET | 需要 | 获取角色详情（权限/描述/系统标记） |
+| `/rbac/roles/{name}` | PATCH | 需要 | 更新角色权限和/或描述 |
+| `/rbac/roles/{name}` | DELETE | 需要 | 删除自定义角色（系统角色受保护返回 400） |
+| `/rbac/roles/{name}/users` | GET | 需要 | 列出分配了该角色的用户 |
+| `/rbac/users/{username}/roles` | GET | 需要 | 用户角色列表 + 生效权限并集 |
+| `/rbac/users/{username}/roles/{role_name}` | POST | 需要 | 向用户分配角色（幂等） |
+| `/rbac/users/{username}/roles/{role_name}` | DELETE | 需要 | 回收用户角色 |
+| `/rbac/check` | POST | 需要 | 权限检查（username/resource/action → allowed） |
 | `/experiments` | GET | 需要 | 列出所有 A/B 测试实验 |
 | `/experiments` | POST | 需要 | 创建 A/B 测试实验 |
 | `/experiments/{name}` | GET | 需要 | 获取实验详情 |
@@ -271,7 +282,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 5. Agent 工具（44 个）
+## 5. Agent 工具（46 个）
 
 ### 已实现
 
@@ -291,6 +302,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 邮件发送 | 1 | `email_sender` — SMTP 邮件发送（纯文本/HTML/多收件人/CC/BCC/SSL/TLS 认证/超时控制/结构化返回） |
 | 日程管理 | 5 | `calendar_create_event`, `calendar_list_events`, `calendar_upcoming`, `calendar_update_event`, `calendar_delete_event` — 日程事件 CRUD + 过滤查询 + 未来事件（需 `calendar.enabled=true`） |
 | 系统配置 | 2 | `system_config_get`, `system_config_list` — 运行时配置只读查询（Agent 可读不可写，需 `system_config.enabled=true`） |
+| RBAC | 2 | `rbac_check_permission`, `rbac_list_roles` — 权限检查与角色列表只读查询（角色授予/回收是管理员 API 操作，需 `rbac.enabled=true`） |
 
 ### 未实现
 
@@ -318,7 +330,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（28 个注册表）
+## 7. 可插拔 Provider（29 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -343,11 +355,12 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 定时任务调度 | InMemoryScheduleProvider / NullScheduleProvider | ✅ | `@register_schedule_provider("name")` |
 | 日程管理 | InMemoryCalendarProvider / NullCalendarProvider | ✅ | `@register_calendar_provider("name")` |
 | 系统配置 | InMemorySystemConfigProvider / NullSystemConfigProvider | ✅ | `@register_system_config_provider("name")` |
+| RBAC | InMemoryRbacProvider / NullRbacProvider | ✅ | `@register_rbac_provider("name")` |
 | 审计日志 | SQLiteAuditProvider / NullAuditProvider | ✅ | `@register_audit_provider("name")` |
 | A/B 实验 | InMemoryExperimentProvider / NullExperimentProvider | ✅ | `@register_experiment_provider("name")` |
 | 敏感信息脱敏 | RuleRedactionProvider / NullRedactionProvider | ✅ | `@register_redaction_provider("name")` |
 | 密钥加密存储 | FernetSecretsProvider / NullSecretsProvider | ✅ | `@register_secrets_provider("name")` |
-| 工具（扩展注册表） | 44 个内置工具 | ✅ | `@register_tool("name")` |
+| 工具（扩展注册表） | 46 个内置工具 | ✅ | `@register_tool("name")` |
 | 子代理（扩展注册表） | researcher, general_helper | ✅ | `@register_subagent("name")` |
 | 中间件（扩展注册表） | 9 个内置中间件 | ✅ | `@register_middleware("name")` |
 
@@ -382,6 +395,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 定时任务调度 | ✅ 已验证 | `scheduler.enabled: true` + `scheduler.provider: memory` |
 | 日程管理 | ✅ 已验证 | `calendar.enabled: true` + `calendar.provider: memory` |
 | 系统配置 | ✅ 已验证 | `system_config.enabled: true` + `system_config.provider: memory` |
+| RBAC | ✅ 已验证 | `rbac.enabled: true` + `rbac.provider: memory` |
 
 ### 未实现
 
@@ -503,6 +517,7 @@ pip install agentbase[all]          # 全部安装
 | 定时任务调度 | ✅ 已实现 | `scheduler.enabled=true`，interval/cron 定时调用 Agent，暂停/恢复/手动触发/运行历史 |
 | 日程管理 | ✅ 已实现 | `calendar.enabled=true`，日程事件 CRUD + 过滤查询 + 统计 + Agent 工具（calendar_* 5 个） |
 | 系统配置 | ✅ 已实现 | `system_config.enabled=true`，运行时热更新键值配置（功能开关/限额），on_change 变更回调 + 只读 Agent 工具（system_config_* 2 个） |
+| RBAC 角色权限 | ✅ 已实现 | `rbac.enabled=true`，运行时自定义角色 + 用户角色分配 + 通配符权限检查（`*`/`res:*`/`*:act`），系统角色保护 + 只读 Agent 工具（rbac_* 2 个） |
 
 ### 未实现
 

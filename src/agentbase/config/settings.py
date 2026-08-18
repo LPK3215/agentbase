@@ -107,6 +107,9 @@ class EnvSettings(BaseSettings):
     system_config__enabled: bool | None = None
     system_config__provider: str | None = None
 
+    rbac__enabled: bool | None = None
+    rbac__provider: str | None = None
+
     migration__enabled: bool | None = None
 
     @property
@@ -360,6 +363,14 @@ class EnvSettings(BaseSettings):
     @property
     def system_config_provider(self) -> str | None:
         return self.system_config__provider
+
+    @property
+    def rbac_enabled(self) -> bool | None:
+        return self.rbac__enabled
+
+    @property
+    def rbac_provider(self) -> str | None:
+        return self.rbac__provider
 
     @property
     def migration_enabled(self) -> bool | None:

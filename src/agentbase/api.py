@@ -1350,6 +1350,38 @@ def _reset_system_config_manager() -> None:
     _system_config_manager = None
 
 
+# RBAC manager singleton (lazily built from app config)
+_rbac_manager: Any = None
+_rbac_manager_lock = threading.Lock()
+
+
+def _get_rbac_manager() -> Any:
+    """Get or create the RbacManager singleton from app config."""
+    global _rbac_manager
+    if _rbac_manager is None:
+        with _rbac_manager_lock:
+            if _rbac_manager is None:
+                from agentbase.core.rbac import RbacManager, set_rbac_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.rbac
+                mgr = RbacManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    seed_system_roles=cfg.seed_system_roles,
+                    **cfg.options,
+                )
+                set_rbac_manager(mgr)
+                _rbac_manager = mgr
+    return _rbac_manager
+
+
+def _reset_rbac_manager() -> None:
+    """Reset RBAC manager singleton (for testing)."""
+    global _rbac_manager
+    _rbac_manager = None
+
+
 def _make_error_response(
     error: str,
     code: str,
@@ -4494,6 +4526,191 @@ def create_app(*, runtime=None) -> FastAPI:
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Config key not found: {key}")
         return {"deleted": True, "key": key}
+
+    # ------------------------------------------------------------------ #
+    # RBAC — runtime role/permission management                          #
+    # ------------------------------------------------------------------ #
+    @app.get("/rbac/roles", tags=["rbac"])
+    def list_rbac_roles():
+        """List all roles (system + custom), sorted by name.
+
+        Requires authentication.
+        """
+        mgr = _get_rbac_manager()
+        return {"items": [r.to_dict() for r in mgr.list_roles()], "total": len(mgr.list_roles())}
+
+    @app.post("/rbac/roles", tags=["rbac"])
+    def create_rbac_role(body: dict[str, Any]):
+        """Create a custom role with fine-grained permissions.
+
+        Requires authentication. Body: ``name`` (required),
+        ``permissions`` (list of ``resource:action`` strings, required),
+        optional ``description``. Returns 400 on invalid input.
+        """
+        mgr = _get_rbac_manager()
+        name = body.get("name")
+        permissions = body.get("permissions")
+        if not isinstance(name, str) or not name.strip():
+            raise HTTPException(status_code=400, detail="Body must contain a non-empty 'name'")
+        if not isinstance(permissions, list) or not permissions:
+            raise HTTPException(status_code=400, detail="Body must contain a non-empty 'permissions' list")
+        try:
+            role = mgr.create_role(
+                name,
+                permissions=permissions,
+                description=str(body.get("description", "")),
+            )
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        return role.to_dict()
+
+    @app.get("/rbac/roles/stats", tags=["rbac"])
+    def get_rbac_stats():
+        """Get aggregate RBAC statistics (role counts, assignments).
+
+        Requires authentication.
+        """
+        mgr = _get_rbac_manager()
+        return mgr.get_stats().to_dict()
+
+    @app.get("/rbac/roles/{name}", tags=["rbac"])
+    def get_rbac_role(name: str):
+        """Get a role definition by name.
+
+        Requires authentication. Returns 404 when the role is missing.
+        """
+        mgr = _get_rbac_manager()
+        role = mgr.get_role(name)
+        if role is None:
+            raise HTTPException(status_code=404, detail=f"Role not found: {name}")
+        return role.to_dict()
+
+    @app.patch("/rbac/roles/{name}", tags=["rbac"])
+    def update_rbac_role(name: str, body: dict[str, Any]):
+        """Update a role's permissions and/or description.
+
+        Requires authentication. Body may contain ``permissions`` (list)
+        and/or ``description``. Returns 404 when the role is missing.
+        """
+        mgr = _get_rbac_manager()
+        permissions = body.get("permissions")
+        if permissions is not None and (not isinstance(permissions, list) or not permissions):
+            raise HTTPException(status_code=400, detail="'permissions' must be a non-empty list")
+        try:
+            role = mgr.update_role(
+                name,
+                permissions=permissions,
+                description=body.get("description") if "description" in body else None,
+            )
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        if role is None:
+            raise HTTPException(status_code=404, detail=f"Role not found: {name}")
+        return role.to_dict()
+
+    @app.delete("/rbac/roles/{name}", tags=["rbac"])
+    def delete_rbac_role(name: str):
+        """Delete a custom role (system roles are protected).
+
+        Requires authentication. Returns 404 when missing; 400 for
+        system roles.
+        """
+        mgr = _get_rbac_manager()
+        try:
+            deleted = mgr.delete_role(name)
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Role not found: {name}")
+        return {"deleted": True, "name": name}
+
+    @app.get("/rbac/roles/{name}/users", tags=["rbac"])
+    def list_rbac_role_users(name: str):
+        """List usernames assigned to a role.
+
+        Requires authentication. Returns 404 when the role is missing.
+        """
+        mgr = _get_rbac_manager()
+        if mgr.get_role(name) is None:
+            raise HTTPException(status_code=404, detail=f"Role not found: {name}")
+        users = mgr.get_assigned_users(name)
+        return {"items": users, "total": len(users)}
+
+    @app.post("/rbac/users/{username}/roles/{role_name}", tags=["rbac"])
+    def assign_rbac_role(username: str, role_name: str):
+        """Assign a role to a user (idempotent).
+
+        Requires authentication. Returns 400 for an unknown role.
+        """
+        mgr = _get_rbac_manager()
+        try:
+            mgr.assign_role(username, role_name)
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        roles = mgr.get_user_roles(username)
+        return {"username": username, "roles": roles}
+
+    @app.delete("/rbac/users/{username}/roles/{role_name}", tags=["rbac"])
+    def revoke_rbac_role(username: str, role_name: str):
+        """Revoke a role from a user.
+
+        Requires authentication. Returns 404 when the assignment
+        does not exist.
+        """
+        mgr = _get_rbac_manager()
+        revoked = mgr.revoke_role(username, role_name)
+        if not revoked:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Role {role_name!r} not assigned to {username!r}",
+            )
+        return {"revoked": True, "username": username, "role": role_name}
+
+    @app.get("/rbac/users/{username}/roles", tags=["rbac"])
+    def list_user_rbac_roles(username: str):
+        """List roles assigned to a user plus the effective permissions.
+
+        Requires authentication.
+        """
+        mgr = _get_rbac_manager()
+        roles = mgr.get_user_roles(username)
+        permissions = mgr.get_user_permissions(username)
+        return {"username": username, "roles": roles, "permissions": permissions}
+
+    @app.post("/rbac/check", tags=["rbac"])
+    def check_rbac_permission(body: dict[str, Any]):
+        """Check whether a user has a resource:action permission.
+
+        Requires authentication. Body: ``username`` / ``resource`` /
+        ``action`` (all required). Returns ``{"allowed": bool}``.
+        """
+        mgr = _get_rbac_manager()
+        username = body.get("username")
+        resource = body.get("resource")
+        action = body.get("action")
+        if not all(isinstance(v, str) and v.strip() for v in (username, resource, action)):
+            raise HTTPException(
+                status_code=400,
+                detail="Body must contain non-empty 'username', 'resource', 'action'",
+            )
+        allowed = mgr.check_permission(username, resource, action)
+        return {"username": username, "resource": resource, "action": action, "allowed": allowed}
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

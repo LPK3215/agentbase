@@ -571,6 +571,22 @@ class SystemConfigConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class RbacConfig(BaseModel):
+    """RBAC (runtime role/permission management) service configuration.
+
+    - ``enabled = false`` (default) → RBAC disabled (NullRbacProvider, deny all)
+    - ``enabled = true``            → runtime-manageable roles & user assignments
+    - ``provider = memory`` (default) → in-memory storage seeded with the three
+      system roles (admin / user / readonly)
+    - Register custom providers with ``@register_rbac_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    seed_system_roles: bool = True
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MigrationConfig(BaseModel):
     """Database migration (Alembic) configuration.
 
@@ -708,6 +724,7 @@ class AppConfig(BaseModel):
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     calendar: CalendarConfig = Field(default_factory=CalendarConfig)
     system_config: SystemConfigConfig = Field(default_factory=SystemConfigConfig)
+    rbac: RbacConfig = Field(default_factory=RbacConfig)
 
 
 class PermissionRule(BaseModel):

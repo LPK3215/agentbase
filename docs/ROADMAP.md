@@ -10,12 +10,12 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 核心服务（33） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / scheduler / calendar / system_config / evaluation / parsers / embeddings / search |
-| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation / schedule / calendar / system_config + tool / subagent / middleware（28 个注册表） |
-| 扩展体系 | done | tools(44) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 124 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / schedules / calendar / system-config / admin(rate-limit) |
+| 核心服务（34） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / scheduler / calendar / system_config / rbac / evaluation / parsers / embeddings / search |
+| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation / schedule / calendar / system_config / rbac + tool / subagent / middleware（29 个注册表） |
+| 扩展体系 | done | tools(46) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| API 层 | done | 135 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / schedules / calendar / system-config / rbac / admin(rate-limit) |
 | CLI 层 | done | 20 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
-| 测试基座 | done | 3640 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 3735 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -308,6 +308,20 @@
 - **工具**：`system_config_get` / `system_config_list`（2 个只读工具，Agent 可读不可写，`default_enabled=false`）。
 - **错误码**：`AGENTBASE_SYSCONFIG_001`/`002`/`003`/`004`。
 - **测试**：44 核心（模型/Null/InMemory/淘汰/过滤/统计/注册表/Manager 校验/回调/单例/并发/Protocol）+ 22 API + 11 工具 = 77 测试。
+
+#### G17. RBAC 角色权限管理服务（RbacProvider）
+- **状态**：done ｜ **优先级**：P1
+- **定位**：运行时动态角色/权限管理（自定义角色、用户角色分配、通配符权限检查）——补齐静态 auth 配置（硬编码 admin/user/readonly）之外的运行时 RBAC 缺口，对标标准后台系统的"角色权限管理"模块。
+- **接口**：`RbacProvider` Protocol（`create_role` / `get_role` / `list_roles` / `update_role` / `delete_role` / `assign_role` / `revoke_role` / `get_user_roles` / `get_assigned_users` / `get_stats` / `close`）。
+- **默认实现**：`InMemoryRbacProvider`（零配置，线程安全，初始化种子 3 个系统角色）；`NullRbacProvider`（禁用时 no-op，权限检查一律拒绝）。
+- **注册**：`rbac_registry`，`@register_rbac_provider("name")`。
+- **开关**：config `rbac.enabled=false`（默认关）。
+- **特性**：权限格式 `resource:action` 支持通配符（`*` 全权 / `agents:*` 资源全操作 / `*:read` 全资源读）；兼容遗留粗粒度权限（`read`/`write`/`invoke`/`delete`/`admin` 自动归一化为 `*:<action>`）；内置系统角色与 `DEFAULT_ROLE_PERMISSIONS` 对齐且禁止删除（admin=`*`，user=`*:read/*:write/*:invoke`，readonly=`*:read`）；角色名规范（小写字母数字连字符下划线，≤64）；用户权限 = 角色权限并集；默认拒绝（无角色/未知用户/禁用一律 False）；限额（500 角色/角色 100 权限/用户 20 角色）。
+- **集成**：AgentFactory 注入 `rbac_manager` 上下文；API 层 `_get_rbac_manager()` 单例接线。
+- **API**：`/rbac/roles` GET/POST + `/rbac/roles/stats` + `/{name}` GET/PATCH/DELETE + `/{name}/users` + `/rbac/users/{username}/roles/{role_name}` POST/DELETE + `/rbac/users/{username}/roles` GET + `/rbac/check` POST（11 条路由）。
+- **工具**：`rbac_check_permission` / `rbac_list_roles`（2 个只读工具，角色授予/回收是管理员 API 操作，Agent 只读，`default_enabled=false`）。
+- **错误码**：`AGENTBASE_RBAC_001`/`002`/`003`/`004`。
+- **测试**：64 核心（归一化/通配符/模型/Null/InMemory/系统角色保护/注册表/Manager 校验/权限检查/单例/并发/Protocol）+ 26 API + 8 工具 = 98 测试。
 
 ---
 

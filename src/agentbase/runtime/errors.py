@@ -21,6 +21,7 @@ Error codes follow the pattern ``AGENTBASE_<DOMAIN>_<NNN>`` where:
 - ``SCHEDULE``     — scheduled task operations (001–020)
 - ``CALENDAR``     — calendar event operations (001–020)
 - ``SYSCONFIG``    — system config operations (001–020)
+- ``RBAC``         — role/permission operations (001–020)
 
 Every error carries:
 - ``code``: stable machine-readable string
@@ -283,6 +284,12 @@ class ErrorCode:
     SYSCONFIG_NOT_INITIALIZED = "AGENTBASE_SYSCONFIG_003"
     SYSCONFIG_INVALID_SPEC = "AGENTBASE_SYSCONFIG_004"
 
+    # RBAC errors (001–020)
+    RBAC_ROLE_FAILED = "AGENTBASE_RBAC_001"
+    RBAC_ROLE_NOT_FOUND = "AGENTBASE_RBAC_002"
+    RBAC_NOT_INITIALIZED = "AGENTBASE_RBAC_003"
+    RBAC_INVALID_SPEC = "AGENTBASE_RBAC_004"
+
 
 # HTTP status code mapping for known error codes
 _CODE_TO_HTTP: dict[str, int] = {
@@ -348,6 +355,10 @@ _CODE_TO_HTTP: dict[str, int] = {
     ErrorCode.SYSCONFIG_NOT_FOUND: 404,
     ErrorCode.SYSCONFIG_NOT_INITIALIZED: 503,
     ErrorCode.SYSCONFIG_INVALID_SPEC: 400,
+    ErrorCode.RBAC_ROLE_FAILED: 500,
+    ErrorCode.RBAC_ROLE_NOT_FOUND: 404,
+    ErrorCode.RBAC_NOT_INITIALIZED: 503,
+    ErrorCode.RBAC_INVALID_SPEC: 400,
 }
 
 

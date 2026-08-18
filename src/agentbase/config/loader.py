@@ -130,6 +130,8 @@ def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
         ("calendar", "provider"): settings.calendar_provider,
         ("system_config", "enabled"): settings.system_config_enabled,
         ("system_config", "provider"): settings.system_config_provider,
+        ("rbac", "enabled"): settings.rbac_enabled,
+        ("rbac", "provider"): settings.rbac_provider,
         ("migration", "enabled"): settings.migration_enabled,
     }
     for (section, key), value in mapping.items():

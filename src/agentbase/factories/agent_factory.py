@@ -37,6 +37,7 @@ class AgentFactory:
         self._experiment_manager = None
         self._calendar_manager = None
         self._system_config_manager = None
+        self._rbac_manager = None
 
     @property
     def backend(self) -> Any:
@@ -296,6 +297,21 @@ class AgentFactory:
             )
         return self._system_config_manager
 
+    @property
+    def rbac_manager(self) -> Any:
+        """RbacManager for RBAC tools (lazy, config-driven)."""
+        if self._rbac_manager is None:
+            from agentbase.core.rbac import RbacManager
+
+            cfg = self.app_config.rbac
+            self._rbac_manager = RbacManager(
+                provider=cfg.provider,
+                enabled=cfg.enabled,
+                seed_system_roles=cfg.seed_system_roles,
+                **cfg.options,
+            )
+        return self._rbac_manager
+
     def build(self, agent_config: AgentConfig) -> Any:
         try:
             from deepagents import create_deep_agent
@@ -320,6 +336,7 @@ class AgentFactory:
             "queue": self.queue,
             "calendar_manager": self.calendar_manager,
             "system_config_manager": self.system_config_manager,
+            "rbac_manager": self.rbac_manager,
         }
 
         tools = build_tools(agent_config.tools, context=context)

@@ -137,6 +137,8 @@ services:
       - AGENTBASE_CALENDAR__ENABLED=${AGENTBASE_CALENDAR__ENABLED:-false}
       # System config (runtime hot-reloadable settings)
       - AGENTBASE_SYSTEM_CONFIG__ENABLED=${AGENTBASE_SYSTEM_CONFIG__ENABLED:-false}
+      # RBAC (runtime role/permission management)
+      - AGENTBASE_RBAC__ENABLED=${AGENTBASE_RBAC__ENABLED:-false}
       # Database migration
       - AGENTBASE_MIGRATION__ENABLED=${AGENTBASE_MIGRATION__ENABLED:-true}
     ports:
