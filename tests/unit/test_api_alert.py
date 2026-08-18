@@ -20,7 +20,12 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from agentbase.api import _reset_alert_manager, create_app, reset_runtime
+from agentbase.api import (
+    _reset_alert_manager,
+    _reset_notification_manager,
+    create_app,
+    reset_runtime,
+)
 from agentbase.bootstrap import RuntimeContext
 from agentbase.config.schema import AgentConfig, AppConfig
 
@@ -49,6 +54,7 @@ def mock_runtime(tmp_path):
 def _make_client(runtime):
     reset_runtime()
     _reset_alert_manager()
+    _reset_notification_manager()
     old_key = os.environ.get("AGENTBASE_API_KEY", "")
     os.environ.pop("AGENTBASE_API_KEY", None)
     try:
@@ -60,6 +66,7 @@ def _make_client(runtime):
             os.environ["AGENTBASE_API_KEY"] = old_key
         reset_runtime()
         _reset_alert_manager()
+        _reset_notification_manager()
 
 
 @pytest.fixture
@@ -319,3 +326,84 @@ def test_static_routes_not_captured(client):
     # these must hit their own handlers, not /alerts/rules/{rule_id}
     assert client.get("/alerts/rules/stats").status_code == 200
     assert client.get("/alerts/metrics").status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Notification integration + queue metrics wiring (regression)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def client_notify(tmp_path):
+    """Runtime with alert + notification + memory queue enabled."""
+    app_config = AppConfig()
+    app_config.runtime.workspace_dir = str(tmp_path / "workspace")
+    app_config.runtime.config_dir = "configs"
+    app_config.runtime.default_agent = "default"
+    app_config.rate_limit.enabled = False
+    app_config.alert.enabled = True
+    app_config.alert.provider = "memory"
+    app_config.notification.enabled = True
+    app_config.notification.provider = "memory"
+    app_config.queue.provider = "memory"
+
+    runtime = RuntimeContext(root_dir=tmp_path, app_config=app_config)
+    fake_agent = MagicMock()
+    runtime.get_agent = lambda name=None: fake_agent
+    runtime.list_agents = lambda: ["default"]
+    runtime.get_agent_config = lambda name=None: AgentConfig(
+        name=name or "default", description="Test agent",
+    )
+    yield from _make_client(runtime)
+
+
+def test_queue_submit_increments_metric(client_notify):
+    """Regression: /queue/submit must record into the metrics collector."""
+    from agentbase.api import _metrics
+
+    _metrics.reset()
+    resp = client_notify.post(
+        "/queue/submit", json={"agent_name": "default", "message": "hi"}
+    )
+    assert resp.status_code == 200, resp.text
+    snapshot = _metrics.get_snapshot()
+    assert snapshot["queue_submitted_total"] == 1.0
+
+
+def test_alert_fires_and_delivers_notification(client_notify):
+    """Regression: firing alert must deliver a notification via the real sink.
+
+    Guards against calling a non-existent manager method (the original bug
+    called ``NotificationManager.create`` instead of ``create_notification``
+    and the TypeError was silently swallowed by the best-effort wrapper).
+    """
+    from agentbase.api import _metrics
+
+    _metrics.reset()
+    client_notify.post(
+        "/queue/submit", json={"agent_name": "default", "message": "hi"}
+    )
+    client_notify.post(
+        "/alerts/rules",
+        json={
+            "name": "queue-activity",
+            "metric": "queue_submitted_total",
+            "operator": "gt",
+            "threshold": 0,
+            "severity": "warning",
+            "notify_user_id": "*",
+        },
+    )
+    body = client_notify.post("/alerts/tick").json()
+    assert body["count"] == 1
+    assert body["events"][0]["state"] == "firing"
+
+    notifications = client_notify.get(
+        "/notifications", params={"user_id": "*", "category": "alert"}
+    ).json()
+    assert notifications["total"] >= 1
+    item = notifications["items"][0]
+    assert item["category"] == "alert"
+    assert item["severity"] == "warning"
+    assert "queue-activity" in item["title"]
+    assert item["metadata"]["state"] == "firing"

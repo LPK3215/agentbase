@@ -15,7 +15,7 @@
 | 扩展体系 | done | tools(48) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
 | API 层 | done | 144 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / schedules / calendar / system-config / rbac / alerts / admin(rate-limit) |
 | CLI 层 | done | 20 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
-| 测试基座 | done | 3830 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 3831 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---

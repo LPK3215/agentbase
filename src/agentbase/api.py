@@ -1439,10 +1439,10 @@ def _get_alert_manager() -> Any:
                 mgr.set_metrics_reader(
                     lambda metric: _metrics.get_snapshot().get(metric, 0.0)
                 )
-                # notification sink: NotificationManager.create (best-effort)
+                # notification sink: NotificationManager.create_notification (best-effort)
                 def _alert_notifier(**kwargs: Any) -> None:
                     try:
-                        _get_notification_manager().create(**kwargs)
+                        _get_notification_manager().create_notification(**kwargs)
                     except Exception:  # noqa: BLE001 — never block evaluation
                         pass
 
@@ -1996,6 +1996,7 @@ def create_app(*, runtime=None) -> FastAPI:
             thread_id=req.thread_id,
             metadata=req.metadata,
         )
+        _metrics.record_queue_submit()
         return task.to_dict()
 
     @app.get("/queue/{task_id}", tags=["queue"])
@@ -2043,6 +2044,8 @@ def create_app(*, runtime=None) -> FastAPI:
     @app.post("/queue/process", tags=["queue"])
     def process_queue():
         """Process all pending tasks in the queue."""
+        from agentbase.core.queue import TaskStatus
+
         queue = _get_queue()
         rt = get_runtime()
 
@@ -2057,6 +2060,11 @@ def create_app(*, runtime=None) -> FastAPI:
             return result
 
         results = queue.process_all(handler)
+        for r in results:
+            if r.status == TaskStatus.COMPLETED:
+                _metrics.record_queue_complete()
+            elif r.status == TaskStatus.FAILED:
+                _metrics.record_queue_fail()
         return {"processed": len(results), "results": [r.to_dict() for r in results]}
 
     # ------------------------------------------------------------------ #

@@ -4,8 +4,8 @@
 [![Python](https://img.shields.io/pypi/pyversions/agentbase.svg)](https://pypi.org/project/agentbase/)
 [![CI](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml/badge.svg)](https://github.com/LPK3215/agentbase/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-2686-brightgreen.svg)](#)
-[![Coverage](https://img.shields.io/badge/coverage-79%25-green.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-3831-brightgreen.svg)](#)
+[![Coverage](https://img.shields.io/badge/coverage-90%25-green.svg)](#)
 
 <p align="center">
   <em>
@@ -17,31 +17,31 @@
 
 **Configuration-driven AI Agent backend for secondary development** — a production-grade **AI Agent framework / LLM agent scaffold** built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade **AI agents / intelligent agent systems** from YAML configuration, without writing boilerplate. Use it as an **agent application scaffolding** layer, an **AI agent service framework**, or an **intelligent agent development starter kit**.
 
-`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 20-command CLI, and a FastAPI service layer with 100 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
+`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 20-command CLI, and a FastAPI service layer with 145 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
 
 ## Key Features
 
 - **Config-driven agent assembly** — agents, models, storage, embeddings defined in YAML, validated by `agentbase doctor`
-- **Pluggable registry system** — 25 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer, graph, storage, checkpointer, model manager, prompt manager, user manager, API key manager, usage tracking, webhook, feedback, notification, conversation, audit, experiment, redaction, secrets); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
-- **Full API server** — FastAPI with 100 routes: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, audit query + export, A/B experiments, model CRUD + connectivity testing, prompt template CRUD + rendering, user CRUD + authentication, API key CRUD + revocation + verification, OAuth2 third-party login (Google/GitHub), session management + cleanup, token usage tracking + cost statistics, webhook event notification + endpoint CRUD + delivery records, user feedback collection + ratings + statistics, notification center (create/broadcast/query/mark-read), conversation history management, rate-limit admin, Prometheus metrics, OpenAPI docs
+- **Pluggable registry system** — 30 extension registries (tools, middleware, subagents, parsers, embeddings, search, MCP, queue, tracer, graph, storage, checkpointer, model manager, prompt manager, user manager, API key manager, usage tracking, webhook, feedback, notification, conversation, audit, experiment, redaction, secrets, scheduler, calendar, system config, RBAC, alert); swap PostgreSQL ↔ SQLite, OpenAI ↔ local embeddings by changing one line
+- **Full API server** — FastAPI with 145 routes: agent invoke/stream/resume, WebSocket real-time chat, async task queue, document upload + KB search, audit query + export, A/B experiments, model CRUD + connectivity testing, prompt template CRUD + rendering, user CRUD + authentication, API key CRUD + revocation + verification, OAuth2 third-party login (Google/GitHub), session management + cleanup, token usage tracking + cost statistics, webhook event notification + endpoint CRUD + delivery records, user feedback collection + ratings + statistics, notification center (create/broadcast/query/mark-read), conversation history management, scheduled task dispatch (interval/cron), calendar event management, runtime system config, RBAC role/permission management, alert rules + events, rate-limit admin, Prometheus metrics, OpenAPI docs
 - **RAG knowledge base** — 9 document formats (PDF/DOCX/HTML/XLSX/PPTX…), 3 chunking strategies, pgvector native `<=>` cosine retrieval, in-memory fallback
-- **37 built-in tools** — file ops, skill/memory/knowledge-base CRUD, web search & fetch, HTTP request, read-only DB query, MCP client, sandboxed code execution, email sending, audio transcription
+- **48 built-in tools** — file ops, skill/memory/knowledge-base CRUD, web search & fetch, HTTP request, read-only DB query, MCP client, sandboxed code execution, email sending, audio transcription, calendar events, system-config/RBAC/alert read-only queries
 - **9 middleware** — request_logger, retry, timeout, summary, cache, redact_output, rate_limit, model_router, audit_log
 - **Enterprise hardening** — API key auth, JWT/RBAC, OAuth2 (Google/GitHub), CORS, rate limiting, request tracing, structured `agentbase_<domain>_<nnn>` error codes, Docker deployment
-- **2,686 tests, 79% coverage** — full CI pipeline via GitHub Actions
+- **3,831 tests, 90% coverage** — full CI pipeline via GitHub Actions
 
 ## Architecture
 
 ```mermaid
 graph TD
     subgraph "Entry Points (CLI / FastAPI / WebSocket)"
-        A[agentbase CLI<br/>20 commands] --> C[Service Layer<br/>110 REST + WS routes]
+        A[agentbase CLI<br/>20 commands] --> C[Service Layer<br/>145 REST + WS routes]
         B[FastAPI App] --> C
     end
 
     subgraph "Core (config-driven, pluggable)"
         C --> D[YAML Config<br/>validated by agentbase doctor]
-        D --> E[Extension Registries<br/>25 pluggable providers · tools · middleware · subagents · parsers<br/>embeddings · search · MCP · queue · tracer · graph · storage · checkpointer<br/>model_manager · prompt_manager · user_manager · apikey_manager · usage<br/>webhook · feedback · notification · conversation · audit · experiment<br/>redaction · secrets · migration · oauth2]
+        D --> E[Extension Registries<br/>30 pluggable providers · tools · middleware · subagents · parsers<br/>embeddings · search · MCP · queue · tracer · graph · storage · checkpointer<br/>model_manager · prompt_manager · user_manager · apikey_manager · usage<br/>webhook · feedback · notification · conversation · audit · experiment<br/>redaction · secrets · scheduler · calendar · system_config<br/>rbac · alert]
         E --> F[Component Factories<br/>deepagents + LangChain + LangGraph]
     end
 
@@ -52,7 +52,8 @@ graph TD
         F --> J[Queue & Webhook & Usage Tracking]
         F --> K[Audit & Tracing & Feedback]
         F --> L[Notification & Conversation & OAuth2]
-        F --> M[Migration & Evaluation & Secrets]
+        F --> M[Scheduler & Calendar & SystemConfig]
+        F --> N[RBAC & Alert & Migration & Evaluation]
     end
 
     style D fill:#fff3cd
@@ -177,7 +178,7 @@ export AGENTBASE_API_KEY=""
 
 Endpoints marked **public** don't require authentication.
 
-### Endpoints (100 total)
+### Endpoints (145 total)
 
 <details>
 <summary>Click to expand full endpoint list</summary>
@@ -284,6 +285,51 @@ Endpoints marked **public** don't require authentication.
 | GET | `/conversations/{thread_id}` | Get conversation history (with messages) | Required |
 | PATCH | `/conversations/{thread_id}` | Update conversation metadata | Required |
 | DELETE | `/conversations/{thread_id}` | Delete conversation | Required |
+| GET | `/schedules` | List scheduled tasks (paginated, filterable) | Required |
+| POST | `/schedules` | Create scheduled task (interval/cron) | Required |
+| GET | `/schedules/stats` | Aggregate scheduler statistics | Required |
+| GET | `/schedules/{task_id}` | Get scheduled task detail | Required |
+| PATCH | `/schedules/{task_id}` | Update task fields | Required |
+| DELETE | `/schedules/{task_id}` | Delete task + run history | Required |
+| POST | `/schedules/{task_id}/pause` | Pause task (keep config) | Required |
+| POST | `/schedules/{task_id}/resume` | Resume task | Required |
+| POST | `/schedules/{task_id}/trigger` | Trigger immediately | Required |
+| GET | `/schedules/{task_id}/runs` | Query run history | Required |
+| GET | `/calendar` | List calendar events (filterable) | Required |
+| POST | `/calendar` | Create calendar event | Required |
+| GET | `/calendar/stats` | Aggregate calendar statistics | Required |
+| GET | `/calendar/upcoming` | Upcoming events | Required |
+| GET | `/calendar/{event_id}` | Get event detail | Required |
+| PATCH | `/calendar/{event_id}` | Update event fields | Required |
+| DELETE | `/calendar/{event_id}` | Delete event | Required |
+| GET | `/system-config` | List runtime config items | Required |
+| PUT | `/system-config/{key}` | Upsert config item (hot reload) | Required |
+| GET | `/system-config/stats` | Config statistics | Required |
+| GET | `/system-config/public` | Public config entries only | Required |
+| POST | `/system-config/batch-get` | Batch get config values | Required |
+| GET | `/system-config/{key}` | Get config item detail | Required |
+| DELETE | `/system-config/{key}` | Delete config item | Required |
+| GET | `/rbac/roles` | List roles (system + custom) | Required |
+| POST | `/rbac/roles` | Create custom role | Required |
+| GET | `/rbac/roles/stats` | RBAC statistics | Required |
+| GET | `/rbac/roles/{name}` | Get role detail | Required |
+| PATCH | `/rbac/roles/{name}` | Update role permissions | Required |
+| DELETE | `/rbac/roles/{name}` | Delete custom role | Required |
+| GET | `/rbac/roles/{name}/users` | List users assigned to role | Required |
+| GET | `/rbac/users/{username}/roles` | User roles + effective permissions | Required |
+| POST | `/rbac/users/{username}/roles/{role_name}` | Assign role to user | Required |
+| DELETE | `/rbac/users/{username}/roles/{role_name}` | Revoke role from user | Required |
+| POST | `/rbac/check` | Permission check | Required |
+| GET | `/alerts/rules` | List alert rules (filterable) | Required |
+| POST | `/alerts/rules` | Create alert rule | Required |
+| GET | `/alerts/rules/stats` | Alert statistics | Required |
+| GET | `/alerts/metrics` | Metric names + current values | Required |
+| GET | `/alerts/rules/{rule_id}` | Get rule detail | Required |
+| PATCH | `/alerts/rules/{rule_id}` | Update rule fields | Required |
+| DELETE | `/alerts/rules/{rule_id}` | Delete rule | Required |
+| POST | `/alerts/rules/{rule_id}/evaluate` | Evaluate single rule | Required |
+| GET | `/alerts/events` | Alert event history | Required |
+| POST | `/alerts/tick` | Run full evaluation pass | Required |
 | GET | `/docs` | OpenAPI docs (Swagger) | Public |
 | GET | `/redoc` | API docs (ReDoc) | Public |
 
@@ -388,6 +434,11 @@ Key files:
 | `AGENTBASE_REDACTION__ENABLED` | `false` | Enable PII/secrets masking |
 | `AGENTBASE_SECRETS__ENABLED` | `false` | Enable secrets encryption at rest |
 | `AGENTBASE_DB_QUERY__ENABLED` | `false` | Enable read-only DB query tool |
+| `AGENTBASE_SCHEDULER__ENABLED` | `false` | Enable scheduled task dispatch (interval/cron) |
+| `AGENTBASE_CALENDAR__ENABLED` | `false` | Enable calendar event management |
+| `AGENTBASE_SYSTEM_CONFIG__ENABLED` | `false` | Enable runtime hot-reloadable config |
+| `AGENTBASE_RBAC__ENABLED` | `false` | Enable runtime RBAC role/permission management |
+| `AGENTBASE_ALERT__ENABLED` | `false` | Enable alert rules (metric thresholds) |
 | `AGENTBASE_MIGRATION__ENABLED` | `true` | Enable Alembic migration CLI |
 | `AGENTBASE_APP__ENV` | `dev` | Environment label |
 | `AGENTBASE_APP__LOG_LEVEL` | `INFO` | Log level |
@@ -419,11 +470,16 @@ Key files:
 | Secrets Encryption | Null (disabled) | `secrets.provider: fernet` |
 | Checkpointer | SQLite | `checkpointer.type: postgres` / `memory` / `mysql` |
 | OAuth2 Login | Disabled | `oauth2.enabled: true` (Google/GitHub) |
+| Scheduled Tasks | Null (disabled) | `scheduler.provider: memory` |
+| Calendar | Null (disabled) | `calendar.provider: memory` |
+| System Config | Null (disabled) | `system_config.provider: memory` |
+| RBAC | Null (disabled) | `rbac.provider: memory` |
+| Alert Rules | Null (disabled) | `alert.provider: memory` |
 | Workspace | Filesystem | `WorkspaceManager` |
 
 See [docs/core-services.md](docs/core-services.md) for details.
 
-## Built-in Tools (37)
+## Built-in Tools (48)
 
 | Tool | Description |
 |------|-------------|
@@ -439,6 +495,10 @@ See [docs/core-services.md](docs/core-services.md) for details.
 | `code_execute` | Sandboxed Python execution (timeout, env isolation) |
 | `transcribe` | Audio/video transcription (Whisper API/local) |
 | `email_sender` | SMTP email (text/HTML, multi-recipient, SSL/TLS) |
+| `calendar_*` (5) | Calendar event CRUD + upcoming (needs `calendar.enabled=true`) |
+| `system_config_get` / `system_config_list` | Runtime config read-only queries |
+| `rbac_check_permission` / `rbac_list_roles` | RBAC read-only queries |
+| `alert_list_rules` / `alert_list_events` | Alert rules/events read-only queries |
 
 ## Built-in Middleware (9)
 
@@ -475,15 +535,15 @@ agentbase/
 │   ├── default.yaml       # App config (model, storage, embedding, search, mcp, queue, tracer)
 │   └── agents/            # Agent profiles
 ├── src/agentbase/
-│   ├── api.py             # FastAPI service layer (110 routes, auth, CORS, rate limit, metrics)
+│   ├── api.py             # FastAPI service layer (144 routes, auth, CORS, rate limit, metrics)
 │   ├── cli.py             # CLI entry point (20 commands)
 │   ├── config/            # Config loading & schema
-│   ├── core/              # 30 core modules (memory, knowledge, queue, queue_celery, skills, workspace, storage, storage_mongodb, mcp, tracer, graph, audit, redaction, secrets, experiment, migration, model_manager, prompt, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation, evaluation, parsers, embeddings, search)
+│   ├── core/              # 35 core modules (memory, knowledge, queue, queue_celery, skills, workspace, storage, storage_mongodb, mcp, tracer, graph, audit, redaction, secrets, experiment, migration, model_manager, prompt, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation, scheduler, calendar, system_config, rbac, alert, evaluation, parsers, embeddings, search)
 │   ├── factories/         # Component factories
-│   ├── registry/          # Extension registries (25 pluggable providers)
+│   ├── registry/          # Extension registries (30 pluggable providers)
 │   ├── runtime/           # AgentRunner, events, errors, logging
 │   └── extensions/        # Built-in extensions (tools, middleware, subagents, parsers, auth)
-├── tests/                 # 2,686 tests, 79% coverage
+├── tests/                 # 3,831 tests, 90% coverage
 ├── Dockerfile             # Container image
 ├── docker-compose.yml     # PostgreSQL (pgvector) + API
 ├── .env.example           # Environment variable template
@@ -509,8 +569,8 @@ AGENTBASE_API_KEY="secret" docker compose up -d
 |-------|---------|
 | [Quick Start](docs/quickstart.md) | End-to-end setup & first agent in 11 steps |
 | [Configuration](docs/configuration.md) | Full config reference (YAML + env vars) |
-| [Core Services](docs/core-services.md) | 30 core modules & pluggable provider swaps |
-| [Extensions](docs/extensions.md) | 25 extension registries, tools, middleware |
+| [Core Services](docs/core-services.md) | 35 core modules & pluggable provider swaps |
+| [Extensions](docs/extensions.md) | 30 extension registries, tools, middleware |
 | [Error Codes](docs/error-codes.md) | `agentbase_<domain>_<nnn>` structured errors |
 | [Backend Boundaries](docs/backend-boundaries.md) | Architecture & separation of concerns |
 | [Project Positioning](docs/project-positioning.md) | Why agentbase exists, design principles |
