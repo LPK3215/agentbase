@@ -555,6 +555,22 @@ class CalendarConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class SystemConfigConfig(BaseModel):
+    """Runtime system config service configuration.
+
+    - ``enabled = false`` (default) → runtime config disabled (NullSystemConfigProvider)
+    - ``enabled = true``            → hot-reloadable key/value config entries
+    - ``provider = memory`` (default) → in-memory storage (zero-config, thread-safe)
+    - ``max_items``: max stored entries before FIFO eviction (default 1,000)
+    - Register custom providers with ``@register_system_config_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    max_items: int = 1_000
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MigrationConfig(BaseModel):
     """Database migration (Alembic) configuration.
 
@@ -691,6 +707,7 @@ class AppConfig(BaseModel):
     conversation: ConversationConfig = Field(default_factory=ConversationConfig)
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     calendar: CalendarConfig = Field(default_factory=CalendarConfig)
+    system_config: SystemConfigConfig = Field(default_factory=SystemConfigConfig)
 
 
 class PermissionRule(BaseModel):

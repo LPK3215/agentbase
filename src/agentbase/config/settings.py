@@ -104,6 +104,9 @@ class EnvSettings(BaseSettings):
     calendar__enabled: bool | None = None
     calendar__provider: str | None = None
 
+    system_config__enabled: bool | None = None
+    system_config__provider: str | None = None
+
     migration__enabled: bool | None = None
 
     @property
@@ -349,6 +352,14 @@ class EnvSettings(BaseSettings):
     @property
     def calendar_provider(self) -> str | None:
         return self.calendar__provider
+
+    @property
+    def system_config_enabled(self) -> bool | None:
+        return self.system_config__enabled
+
+    @property
+    def system_config_provider(self) -> str | None:
+        return self.system_config__provider
 
     @property
     def migration_enabled(self) -> bool | None:

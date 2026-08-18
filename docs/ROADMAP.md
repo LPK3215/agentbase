@@ -10,12 +10,12 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 核心服务（32） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / scheduler / calendar / evaluation / parsers / embeddings / search |
-| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation / schedule / calendar + tool / subagent / middleware（27 个注册表） |
-| 扩展体系 | done | tools(42) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 117 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / schedules / calendar / admin(rate-limit) |
+| 核心服务（33） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / scheduler / calendar / system_config / evaluation / parsers / embeddings / search |
+| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation / schedule / calendar / system_config + tool / subagent / middleware（28 个注册表） |
+| 扩展体系 | done | tools(44) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| API 层 | done | 124 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / schedules / calendar / system-config / admin(rate-limit) |
 | CLI 层 | done | 20 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
-| 测试基座 | done | 3464 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 3640 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -268,6 +268,19 @@
 - **错误码**：`AGENTBASE_CONVERSATION_001`/`002`/`003`。
 - **测试**：90+ 核心 + 25+ API = 115+ 测试。
 
+#### G14. 定时任务调度服务（ScheduleProvider）
+- **状态**：done ｜ **优先级**：P2
+- **定位**：按 interval 秒级或 cron 5 字段表达式定时调用 Agent（定时早报/巡检/同步）——对标标准后台系统的定时任务模块。
+- **接口**：`ScheduleProvider` Protocol（`create_task` / `get_task` / `list_tasks` / `update_task` / `delete_task` / `pause_task` / `resume_task` / `trigger_task` / `list_runs` / `get_stats` / `set_executor` / `start` / `stop`）。
+- **默认实现**：`InMemoryScheduleProvider`（零配置，后台 tick 线程 + ThreadPoolExecutor worker 池，任务/运行记录 FIFO 淘汰）；`NullScheduleProvider`（禁用时 no-op）。
+- **注册**：`schedule_registry`，`@register_schedule_provider("name")`。
+- **开关**：config `scheduler.enabled=false`（默认关）。
+- **特性**：纯 Python cron 解析（`*` / `*/n` / `a-b` / `a-b/n` / 列表，Vixie dom/dow OR 语义，7=周日）；暂停/恢复（恢复重算 next_run_at 防止补发风暴）；手动触发（暂停任务可触发）；运行历史（状态/耗时/错误/输出摘要，schedule/manual 触发来源）；调度规则变更后自动重算 next_run_at；tick 中发现的坏规则自动暂停任务。
+- **集成**：API 层 `_get_schedule_manager()` 自动接线 executor → `rt.runner.invoke()` 真实调用 Agent。
+- **API**：`/schedules` CRUD + `/schedules/stats` + `/{task_id}/pause` / `resume` / `trigger` / `runs`（10 条路由）。
+- **错误码**：`AGENTBASE_SCHEDULE_001`/`002`/`003`/`004`。
+- **测试**：95 核心（cron 解析/模型/Null/InMemory/注册表/Manager/单例/并发）+ 36 API = 131 测试。
+
 #### G15. 日程管理服务（CalendarProvider）
 - **状态**：done ｜ **优先级**：P2
 - **定位**：日程事件（会议/提醒/个人日程）CRUD + 过滤查询 + 统计——对标标准后台系统的日程模块，同时补齐工具层"日程管理工具"缺口。
@@ -282,18 +295,19 @@
 - **错误码**：`AGENTBASE_CALENDAR_001`/`002`/`003`/`004`。
 - **测试**：61 核心（时间解析/模型/Null/InMemory/过滤/淘汰/统计/注册表/Manager 校验/单例/并发/Protocol）+ 25 API + 13 工具 = 99 测试。
 
-#### G14. 定时任务调度服务（ScheduleProvider）
+#### G16. 系统参数配置服务（SystemConfigProvider）
 - **状态**：done ｜ **优先级**：P2
-- **定位**：按 interval 秒级或 cron 5 字段表达式定时调用 Agent（定时早报/巡检/同步）——对标标准后台系统的定时任务模块。
-- **接口**：`ScheduleProvider` Protocol（`create_task` / `get_task` / `list_tasks` / `update_task` / `delete_task` / `pause_task` / `resume_task` / `trigger_task` / `list_runs` / `get_stats` / `set_executor` / `start` / `stop`）。
-- **默认实现**：`InMemoryScheduleProvider`（零配置，后台 tick 线程 + ThreadPoolExecutor worker 池，任务/运行记录 FIFO 淘汰）；`NullScheduleProvider`（禁用时 no-op）。
-- **注册**：`schedule_registry`，`@register_schedule_provider("name")`。
-- **开关**：config `scheduler.enabled=false`（默认关）。
-- **特性**：纯 Python cron 解析（`*` / `*/n` / `a-b` / `a-b/n` / 列表，Vixie dom/dow OR 语义，7=周日）；暂停/恢复（恢复重算 next_run_at 防止补发风暴）；手动触发（暂停任务可触发）；运行历史（状态/耗时/错误/输出摘要，schedule/manual 触发来源）；调度规则变更后自动重算 next_run_at；tick 中发现的坏规则自动暂停任务。
-- **集成**：API 层 `_get_schedule_manager()` 自动接线 executor → `rt.runner.invoke()` 真实调用 Agent。
-- **API**：`/schedules` CRUD + `/schedules/stats` + `/{task_id}/pause` / `resume` / `trigger` / `runs`（10 条路由）。
-- **错误码**：`AGENTBASE_SCHEDULE_001`/`002`/`003`/`004`。
-- **测试**：95 核心（cron 解析/模型/Null/InMemory/注册表/Manager/单例/并发）+ 36 API = 131 测试。
+- **定位**：运行时热更新键值配置（功能开关/限额/调优参数），无需重启——对标标准后台系统的"参数管理"模块，补齐静态 YAML+env 配置之外的动态配置缺口。
+- **接口**：`SystemConfigProvider` Protocol（`set_item` / `get_item` / `list_items` / `delete_item` / `get_stats` / `close`）。
+- **默认实现**：`InMemorySystemConfigProvider`（零配置，线程安全，FIFO 淘汰，upsert 版本递增）；`NullSystemConfigProvider`（禁用时 no-op）。
+- **注册**：`system_config_registry`，`@register_system_config_provider("name")`。
+- **开关**：config `system_config.enabled=false`（默认关）。
+- **特性**：key 规范（小写字母数字._-，长度 ≤128，自动小写归一化）；value 任意 JSON（序列化 ≤64KB）；`category` 分组 + `is_public` 公开标记（公开项仅暴露 key/value/category）；`on_change` 变更回调（set/delete 触发，回调异常不阻塞）；upsert 保留 created_at、version 递增；过滤查询（category/key_prefix/public_only/updated_since + 分页）；聚合统计（总数/公开数/按分类/24h 内更新数）。
+- **集成**：AgentFactory 注入 `system_config_manager` 上下文；API 层 `_get_system_config_manager()` 单例接线。
+- **API**：`/system-config` list + `/stats` + `/public` + `/batch-get` + `/{key}` PUT/GET/DELETE（7 条路由）。
+- **工具**：`system_config_get` / `system_config_list`（2 个只读工具，Agent 可读不可写，`default_enabled=false`）。
+- **错误码**：`AGENTBASE_SYSCONFIG_001`/`002`/`003`/`004`。
+- **测试**：44 核心（模型/Null/InMemory/淘汰/过滤/统计/注册表/Manager 校验/回调/单例/并发/Protocol）+ 22 API + 11 工具 = 77 测试。
 
 ---
 

@@ -135,6 +135,8 @@ services:
       - AGENTBASE_SCHEDULER__ENABLED=${AGENTBASE_SCHEDULER__ENABLED:-false}
       # Calendar / event management
       - AGENTBASE_CALENDAR__ENABLED=${AGENTBASE_CALENDAR__ENABLED:-false}
+      # System config (runtime hot-reloadable settings)
+      - AGENTBASE_SYSTEM_CONFIG__ENABLED=${AGENTBASE_SYSTEM_CONFIG__ENABLED:-false}
       # Database migration
       - AGENTBASE_MIGRATION__ENABLED=${AGENTBASE_MIGRATION__ENABLED:-true}
     ports:

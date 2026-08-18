@@ -1315,6 +1315,41 @@ def _reset_calendar_manager() -> None:
     _calendar_manager = None
 
 
+# System config manager singleton (lazily built from app config)
+_system_config_manager: Any = None
+_system_config_manager_lock = threading.Lock()
+
+
+def _get_system_config_manager() -> Any:
+    """Get or create the SystemConfigManager singleton from app config."""
+    global _system_config_manager
+    if _system_config_manager is None:
+        with _system_config_manager_lock:
+            if _system_config_manager is None:
+                from agentbase.core.system_config import (
+                    SystemConfigManager,
+                    set_system_config_manager,
+                )
+
+                rt = get_runtime()
+                cfg = rt.app_config.system_config
+                mgr = SystemConfigManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    max_items=cfg.max_items,
+                    **cfg.options,
+                )
+                set_system_config_manager(mgr)
+                _system_config_manager = mgr
+    return _system_config_manager
+
+
+def _reset_system_config_manager() -> None:
+    """Reset system config manager singleton (for testing)."""
+    global _system_config_manager
+    _system_config_manager = None
+
+
 def _make_error_response(
     error: str,
     code: str,
@@ -4329,6 +4364,136 @@ def create_app(*, runtime=None) -> FastAPI:
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Calendar event not found: {event_id}")
         return {"deleted": True, "event_id": event_id}
+
+    # ------------------------------------------------------------------ #
+    # System config — runtime hot-reloadable settings                    #
+    # ------------------------------------------------------------------ #
+    @app.get("/system-config", tags=["system-config"])
+    def list_system_config_entries(
+        category: str | None = Query(None),
+        key_prefix: str | None = Query(None),
+        public_only: bool = Query(False),
+        updated_since: str | None = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List runtime config entries (sorted by key asc) with filters.
+
+        Requires authentication. Filterable by category, key prefix,
+        public-only, and updated-since (ISO-8601). Returns empty list
+        when the system config service is disabled.
+        """
+        mgr = _get_system_config_manager()
+        offset = (page - 1) * page_size
+        items = mgr.list_items(
+            category=category,
+            key_prefix=key_prefix,
+            public_only=public_only,
+            updated_since=updated_since,
+            limit=page_size,
+            offset=offset,
+        )
+        return {
+            "items": [it.to_dict() for it in items],
+            "total": len(items),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    @app.get("/system-config/stats", tags=["system-config"])
+    def get_system_config_stats():
+        """Get aggregate system config statistics.
+
+        Requires authentication. Includes total/public counts and
+        breakdowns by category and recent updates (24h).
+        """
+        mgr = _get_system_config_manager()
+        return mgr.get_stats().to_dict()
+
+    @app.get("/system-config/public", tags=["system-config"])
+    def list_public_system_config_entries():
+        """List public config entries only (``is_public=true``).
+
+        Intended for feature-flag style settings that are safe to expose
+        to unauthenticated frontend readers. Returns only key/value/category.
+        """
+        mgr = _get_system_config_manager()
+        items = mgr.list_items(public_only=True)
+        return {
+            "items": [
+                {"key": it.key, "value": it.value, "category": it.category}
+                for it in items
+            ],
+            "total": len(items),
+        }
+
+    @app.post("/system-config/batch-get", tags=["system-config"])
+    def batch_get_system_config_entries(body: dict[str, Any]):
+        """Batch-fetch values for a list of keys.
+
+        Requires authentication. Body: ``{"keys": ["a.b", "c.d"]}``.
+        Missing keys map to None. Returns key/value pairs.
+        """
+        mgr = _get_system_config_manager()
+        keys = body.get("keys")
+        if not isinstance(keys, list) or not keys:
+            raise HTTPException(status_code=400, detail="Body must contain a non-empty 'keys' list")
+        if len(keys) > 100:
+            raise HTTPException(status_code=400, detail="Too many keys (max 100)")
+        result = {k: mgr.get(k) for k in keys if isinstance(k, str)}
+        return {"items": result, "total": len(result)}
+
+    @app.put("/system-config/{key}", tags=["system-config"])
+    def set_system_config_entry(key: str, body: dict[str, Any]):
+        """Create or update a runtime config entry (upsert, hot-reload).
+
+        Requires authentication. Body: ``value`` (any JSON, required),
+        optional ``category`` / ``description`` / ``is_public`` / ``updated_by``.
+        Returns 400 for invalid keys or oversized values.
+        """
+        mgr = _get_system_config_manager()
+        if "value" not in body:
+            raise HTTPException(status_code=400, detail="Body must contain 'value'")
+        try:
+            item = mgr.set(
+                key,
+                body["value"],
+                category=body.get("category", "general"),
+                description=body.get("description", ""),
+                is_public=bool(body.get("is_public", False)),
+                updated_by=str(body.get("updated_by", "")),
+            )
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        return item.to_dict()
+
+    @app.get("/system-config/{key}", tags=["system-config"])
+    def get_system_config_entry(key: str):
+        """Get a full config entry (with metadata) by key.
+
+        Requires authentication. Returns 404 if the key is not found.
+        """
+        mgr = _get_system_config_manager()
+        item = mgr.get_item(key)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"Config key not found: {key}")
+        return item.to_dict()
+
+    @app.delete("/system-config/{key}", tags=["system-config"])
+    def delete_system_config_entry(key: str):
+        """Delete a runtime config entry.
+
+        Requires authentication. Returns 404 if the key is not found.
+        """
+        mgr = _get_system_config_manager()
+        deleted = mgr.delete(key)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Config key not found: {key}")
+        return {"deleted": True, "key": key}
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

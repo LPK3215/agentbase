@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（117 个路由 + 1 个 WebSocket + 3 个自动文档端点）
+### 已实现（124 个路由 + 1 个 WebSocket + 3 个自动文档端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -83,6 +83,13 @@
 | `/calendar/{event_id}` | GET | 需要 | 获取日程事件详情 |
 | `/calendar/{event_id}` | PATCH | 需要 | 更新事件字段（合并后校验时间/状态/限额） |
 | `/calendar/{event_id}` | DELETE | 需要 | 删除日程事件 |
+| `/system-config` | GET | 需要 | 列出运行时配置项（按分类/前缀/公开/更新时间过滤，分页） |
+| `/system-config` | PUT | 需要 | 创建/更新配置项（upsert 热生效，version 递增） |
+| `/system-config/stats` | GET | 需要 | 聚合配置统计（总数/公开数/按分类/24h 更新数） |
+| `/system-config/public` | GET | 需要 | 仅公开配置项（key/value/category，功能开关场景） |
+| `/system-config/batch-get` | POST | 需要 | 批量获取配置值（最多 100 个 key） |
+| `/system-config/{key}` | GET | 需要 | 获取配置项详情（含元数据） |
+| `/system-config/{key}` | DELETE | 需要 | 删除配置项 |
 | `/experiments` | GET | 需要 | 列出所有 A/B 测试实验 |
 | `/experiments` | POST | 需要 | 创建 A/B 测试实验 |
 | `/experiments/{name}` | GET | 需要 | 获取实验详情 |
@@ -264,7 +271,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 5. Agent 工具（42 个）
+## 5. Agent 工具（44 个）
 
 ### 已实现
 
@@ -283,6 +290,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 音频转录 | 1 | `transcribe` — Whisper API/本地转录 |
 | 邮件发送 | 1 | `email_sender` — SMTP 邮件发送（纯文本/HTML/多收件人/CC/BCC/SSL/TLS 认证/超时控制/结构化返回） |
 | 日程管理 | 5 | `calendar_create_event`, `calendar_list_events`, `calendar_upcoming`, `calendar_update_event`, `calendar_delete_event` — 日程事件 CRUD + 过滤查询 + 未来事件（需 `calendar.enabled=true`） |
+| 系统配置 | 2 | `system_config_get`, `system_config_list` — 运行时配置只读查询（Agent 可读不可写，需 `system_config.enabled=true`） |
 
 ### 未实现
 
@@ -310,7 +318,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（27 个注册表）
+## 7. 可插拔 Provider（28 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -334,11 +342,12 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 对话历史 | InMemoryConversationProvider / NullConversationProvider | ✅ | `@register_conversation_provider("name")` |
 | 定时任务调度 | InMemoryScheduleProvider / NullScheduleProvider | ✅ | `@register_schedule_provider("name")` |
 | 日程管理 | InMemoryCalendarProvider / NullCalendarProvider | ✅ | `@register_calendar_provider("name")` |
+| 系统配置 | InMemorySystemConfigProvider / NullSystemConfigProvider | ✅ | `@register_system_config_provider("name")` |
 | 审计日志 | SQLiteAuditProvider / NullAuditProvider | ✅ | `@register_audit_provider("name")` |
 | A/B 实验 | InMemoryExperimentProvider / NullExperimentProvider | ✅ | `@register_experiment_provider("name")` |
 | 敏感信息脱敏 | RuleRedactionProvider / NullRedactionProvider | ✅ | `@register_redaction_provider("name")` |
 | 密钥加密存储 | FernetSecretsProvider / NullSecretsProvider | ✅ | `@register_secrets_provider("name")` |
-| 工具（扩展注册表） | 42 个内置工具 | ✅ | `@register_tool("name")` |
+| 工具（扩展注册表） | 44 个内置工具 | ✅ | `@register_tool("name")` |
 | 子代理（扩展注册表） | researcher, general_helper | ✅ | `@register_subagent("name")` |
 | 中间件（扩展注册表） | 9 个内置中间件 | ✅ | `@register_middleware("name")` |
 
@@ -372,6 +381,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 对话历史 | ✅ 已验证 | `conversation.enabled: true` + `conversation.provider: memory` |
 | 定时任务调度 | ✅ 已验证 | `scheduler.enabled: true` + `scheduler.provider: memory` |
 | 日程管理 | ✅ 已验证 | `calendar.enabled: true` + `calendar.provider: memory` |
+| 系统配置 | ✅ 已验证 | `system_config.enabled: true` + `system_config.provider: memory` |
 
 ### 未实现
 
@@ -492,6 +502,7 @@ pip install agentbase[all]          # 全部安装
 | 对话历史 | ✅ 已实现 | `conversation.enabled=true`，自动记录 invoke/stream/resume 对话消息，按用户/Agent/时间过滤，支持标题/标签/归档管理 |
 | 定时任务调度 | ✅ 已实现 | `scheduler.enabled=true`，interval/cron 定时调用 Agent，暂停/恢复/手动触发/运行历史 |
 | 日程管理 | ✅ 已实现 | `calendar.enabled=true`，日程事件 CRUD + 过滤查询 + 统计 + Agent 工具（calendar_* 5 个） |
+| 系统配置 | ✅ 已实现 | `system_config.enabled=true`，运行时热更新键值配置（功能开关/限额），on_change 变更回调 + 只读 Agent 工具（system_config_* 2 个） |
 
 ### 未实现
 

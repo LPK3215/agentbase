@@ -149,6 +149,14 @@ extensions:
 #   provider: memory  # memory (default) | custom via @register_calendar_provider
 #   max_events: 10000 # max stored events before FIFO eviction
 
+# System config service (runtime hot-reloadable key/value settings)
+# Enable to manage feature flags / tunables at runtime without restart.
+# Provides /system-config/* API endpoints and system_config_* agent tools (read-only).
+# system_config:
+#   enabled: true
+#   provider: memory  # memory (default) | custom via @register_system_config_provider
+#   max_items: 1000   # max stored entries before FIFO eviction
+
 # Audit log service
 # Enable to record structured audit events (who/when/what/result).
 # Provides /audit/events/* query + export API. Supports JSON/CSV/YAML export.

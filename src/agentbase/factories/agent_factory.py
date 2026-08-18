@@ -36,6 +36,7 @@ class AgentFactory:
         self._audit_manager = None
         self._experiment_manager = None
         self._calendar_manager = None
+        self._system_config_manager = None
 
     @property
     def backend(self) -> Any:
@@ -280,6 +281,21 @@ class AgentFactory:
             )
         return self._calendar_manager
 
+    @property
+    def system_config_manager(self) -> Any:
+        """SystemConfigManager for system config tools (lazy, config-driven)."""
+        if self._system_config_manager is None:
+            from agentbase.core.system_config import SystemConfigManager
+
+            cfg = self.app_config.system_config
+            self._system_config_manager = SystemConfigManager(
+                provider=cfg.provider,
+                enabled=cfg.enabled,
+                max_items=cfg.max_items,
+                **cfg.options,
+            )
+        return self._system_config_manager
+
     def build(self, agent_config: AgentConfig) -> Any:
         try:
             from deepagents import create_deep_agent
@@ -303,6 +319,7 @@ class AgentFactory:
             "tracer": self.tracer,
             "queue": self.queue,
             "calendar_manager": self.calendar_manager,
+            "system_config_manager": self.system_config_manager,
         }
 
         tools = build_tools(agent_config.tools, context=context)
