@@ -101,6 +101,9 @@ class EnvSettings(BaseSettings):
     scheduler__provider: str | None = None
     scheduler__tick_seconds: float | None = None
 
+    calendar__enabled: bool | None = None
+    calendar__provider: str | None = None
+
     migration__enabled: bool | None = None
 
     @property
@@ -338,6 +341,14 @@ class EnvSettings(BaseSettings):
     @property
     def scheduler_tick_seconds(self) -> float | None:
         return self.scheduler__tick_seconds
+
+    @property
+    def calendar_enabled(self) -> bool | None:
+        return self.calendar__enabled
+
+    @property
+    def calendar_provider(self) -> str | None:
+        return self.calendar__provider
 
     @property
     def migration_enabled(self) -> bool | None:

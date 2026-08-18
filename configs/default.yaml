@@ -140,6 +140,15 @@ extensions:
 #   max_tasks: 1000    # max stored tasks before FIFO eviction
 #   max_runs: 10000    # max stored run records before FIFO eviction
 
+# Calendar / event management service
+# Enable to create, query, update, and delete calendar events
+# (meetings, reminders, personal schedules). Provides /calendar/* API
+# endpoints and calendar_* agent tools (add to agent config `tools:`).
+# calendar:
+#   enabled: true
+#   provider: memory  # memory (default) | custom via @register_calendar_provider
+#   max_events: 10000 # max stored events before FIFO eviction
+
 # Audit log service
 # Enable to record structured audit events (who/when/what/result).
 # Provides /audit/events/* query + export API. Supports JSON/CSV/YAML export.

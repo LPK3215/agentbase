@@ -7,7 +7,7 @@
 
 ## 1. API 服务层
 
-### 已实现（110 个路由 + 1 个 WebSocket + 3 个自动文档端点）
+### 已实现（117 个路由 + 1 个 WebSocket + 3 个自动文档端点）
 
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
@@ -76,6 +76,13 @@
 | `/schedules/{task_id}/resume` | POST | 需要 | 恢复任务（重算 next_run_at） |
 | `/schedules/{task_id}/trigger` | POST | 需要 | 手动立即触发（暂停任务也可触发） |
 | `/schedules/{task_id}/runs` | GET | 需要 | 查询运行历史（按状态/触发方式/时间过滤，分页） |
+| `/calendar` | GET | 需要 | 列出日程事件（按状态/标签/地点/参与者/时间过滤，分页） |
+| `/calendar` | POST | 需要 | 创建日程事件（ISO-8601 起止时间，end > start 校验） |
+| `/calendar/stats` | GET | 需要 | 聚合日程统计（总数/未来/过去/按状态/按标签） |
+| `/calendar/upcoming` | GET | 需要 | 查询最近的未来事件（start_time ≥ now，按开始时间升序） |
+| `/calendar/{event_id}` | GET | 需要 | 获取日程事件详情 |
+| `/calendar/{event_id}` | PATCH | 需要 | 更新事件字段（合并后校验时间/状态/限额） |
+| `/calendar/{event_id}` | DELETE | 需要 | 删除日程事件 |
 | `/experiments` | GET | 需要 | 列出所有 A/B 测试实验 |
 | `/experiments` | POST | 需要 | 创建 A/B 测试实验 |
 | `/experiments/{name}` | GET | 需要 | 获取实验详情 |
@@ -137,7 +144,7 @@
 | 定时任务调度 | ✅ 已实现 | `scheduler` 配置段：interval 秒级 / cron 5 字段表达式定时调用 Agent，暂停/恢复/手动触发/运行历史，后台 tick 线程 + worker 池 |
 | 全局异常处理 | ✅ 已实现 | 返回 `{"error": "...", "code": "...", "http_status": N, "request_id": "..."}` |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，自动生成 UUID，传播到日志和 tracer |
-| 分页 | ✅ 已实现 | `/queue`、`/documents`、`/audit/events`、`/feedback`、`/notifications`、`/conversations`、`/schedules`、`/schedules/{task_id}/runs`、`/webhooks/deliveries`、`/usage/records` 支持 `page`/`page_size` 参数 |
+| 分页 | ✅ 已实现 | `/queue`、`/documents`、`/audit/events`、`/feedback`、`/notifications`、`/conversations`、`/schedules`、`/schedules/{task_id}/runs`、`/calendar`、`/webhooks/deliveries`、`/usage/records` 支持 `page`/`page_size` 参数 |
 | WebSocket 心跳 | ✅ 已实现 | 30 秒心跳间隔，防止连接超时 |
 
 ### 未实现
@@ -257,7 +264,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 5. Agent 工具（37 个）
+## 5. Agent 工具（42 个）
 
 ### 已实现
 
@@ -275,10 +282,11 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 代码执行 | 1 | `code_execute` — 沙箱 Python 执行（代码/输出大小限制+代理新env+超时上限） |
 | 音频转录 | 1 | `transcribe` — Whisper API/本地转录 |
 | 邮件发送 | 1 | `email_sender` — SMTP 邮件发送（纯文本/HTML/多收件人/CC/BCC/SSL/TLS 认证/超时控制/结构化返回） |
+| 日程管理 | 5 | `calendar_create_event`, `calendar_list_events`, `calendar_upcoming`, `calendar_update_event`, `calendar_delete_event` — 日程事件 CRUD + 过滤查询 + 未来事件（需 `calendar.enabled=true`） |
 
 ### 未实现
 
-- 日程管理工具
+（无）
 
 ---
 
@@ -302,7 +310,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 
 ---
 
-## 7. 可插拔 Provider（26 个注册表）
+## 7. 可插拔 Provider（27 个注册表）
 
 | Provider 类型 | 默认实现 | 可替换 | 替换方式 |
 |--------------|---------|--------|---------|
@@ -325,11 +333,12 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 通知中心 | InMemoryNotificationProvider / NullNotificationProvider | ✅ | `@register_notification_provider("name")` |
 | 对话历史 | InMemoryConversationProvider / NullConversationProvider | ✅ | `@register_conversation_provider("name")` |
 | 定时任务调度 | InMemoryScheduleProvider / NullScheduleProvider | ✅ | `@register_schedule_provider("name")` |
+| 日程管理 | InMemoryCalendarProvider / NullCalendarProvider | ✅ | `@register_calendar_provider("name")` |
 | 审计日志 | SQLiteAuditProvider / NullAuditProvider | ✅ | `@register_audit_provider("name")` |
 | A/B 实验 | InMemoryExperimentProvider / NullExperimentProvider | ✅ | `@register_experiment_provider("name")` |
 | 敏感信息脱敏 | RuleRedactionProvider / NullRedactionProvider | ✅ | `@register_redaction_provider("name")` |
 | 密钥加密存储 | FernetSecretsProvider / NullSecretsProvider | ✅ | `@register_secrets_provider("name")` |
-| 工具（扩展注册表） | 37 个内置工具 | ✅ | `@register_tool("name")` |
+| 工具（扩展注册表） | 42 个内置工具 | ✅ | `@register_tool("name")` |
 | 子代理（扩展注册表） | researcher, general_helper | ✅ | `@register_subagent("name")` |
 | 中间件（扩展注册表） | 9 个内置中间件 | ✅ | `@register_middleware("name")` |
 
@@ -362,6 +371,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 通知中心 | ✅ 已验证 | `notification.enabled: true` + `notification.provider: memory` |
 | 对话历史 | ✅ 已验证 | `conversation.enabled: true` + `conversation.provider: memory` |
 | 定时任务调度 | ✅ 已验证 | `scheduler.enabled: true` + `scheduler.provider: memory` |
+| 日程管理 | ✅ 已验证 | `calendar.enabled: true` + `calendar.provider: memory` |
 
 ### 未实现
 
@@ -480,6 +490,8 @@ pip install agentbase[all]          # 全部安装
 | 用户反馈收集 | ✅ 已实现 | `feedback.enabled=true`，用户评分（1-5 星或 ±1 thumbs）+ 评论 + 标签，按 Agent/线程/情感聚合统计 |
 | 通知中心 | ✅ 已实现 | `notification.enabled=true`，应用内通知（创建/查询/标记已读/广播），按用户/分类/严重度聚合统计，支持过期自动过滤 |
 | 对话历史 | ✅ 已实现 | `conversation.enabled=true`，自动记录 invoke/stream/resume 对话消息，按用户/Agent/时间过滤，支持标题/标签/归档管理 |
+| 定时任务调度 | ✅ 已实现 | `scheduler.enabled=true`，interval/cron 定时调用 Agent，暂停/恢复/手动触发/运行历史 |
+| 日程管理 | ✅ 已实现 | `calendar.enabled=true`，日程事件 CRUD + 过滤查询 + 统计 + Agent 工具（calendar_* 5 个） |
 
 ### 未实现
 

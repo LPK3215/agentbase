@@ -10,12 +10,12 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 核心服务（30） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / evaluation / parsers / embeddings / search |
-| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation + tool / subagent / middleware（25 个注册表） |
-| 扩展体系 | done | tools(37) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
-| API 层 | done | 100 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / admin(rate-limit) |
+| 核心服务（32） | done | memory / knowledge / queue / queue_celery / skills / workspace / storage / storage_mongodb / mcp / tracer / graph / audit / redaction / secrets / experiment / migration / model_manager / prompt / user_manager / apikey_manager / oauth2 / usage / webhook / feedback / notification / conversation / scheduler / calendar / evaluation / parsers / embeddings / search |
+| 可插拔注册表 | done | parser / embedding / search / mcp / queue / tracer / graph / storage / checkpointer / audit / redaction / secrets / experiment / model_manager / prompt_manager / user_manager / apikey_manager / usage / webhook / feedback / notification / conversation / schedule / calendar + tool / subagent / middleware（27 个注册表） |
+| 扩展体系 | done | tools(42) / middleware(9) / subagents / parsers(9)，装饰器注册 + 自动发现 |
+| API 层 | done | 117 条路由，含 agents / memory / kb / queue / skills / workspace / health / audit / experiments / models / prompts / users / auth / sessions / apikeys / usage / webhooks / feedback / notifications / conversations / schedules / calendar / admin(rate-limit) |
 | CLI 层 | done | 20 条命令，含 run / stream / resume / serve / doctor / version / config(validate/show) / backup / restore / worker / db(init/upgrade/downgrade/current/heads/history/stamp) |
-| 测试基座 | done | 2686 测试全绿，conftest 统一 fixture |
+| 测试基座 | done | 3464 测试全绿，conftest 统一 fixture |
 | 部署 | done | Docker / K8s Helm / Nginx / Bare metal 四套方案 |
 
 ---
@@ -267,6 +267,20 @@
 - **API**：`/conversations` list + `/conversations/stats` + `/conversations/{thread_id}` GET/PATCH/DELETE（5 条路由）。
 - **错误码**：`AGENTBASE_CONVERSATION_001`/`002`/`003`。
 - **测试**：90+ 核心 + 25+ API = 115+ 测试。
+
+#### G15. 日程管理服务（CalendarProvider）
+- **状态**：done ｜ **优先级**：P2
+- **定位**：日程事件（会议/提醒/个人日程）CRUD + 过滤查询 + 统计——对标标准后台系统的日程模块，同时补齐工具层"日程管理工具"缺口。
+- **接口**：`CalendarProvider` Protocol（`create_event` / `get_event` / `list_events` / `update_event` / `delete_event` / `get_stats` / `close`）。
+- **默认实现**：`InMemoryCalendarProvider`（零配置，线程安全，FIFO 淘汰，按 start_time 排序返回）；`NullCalendarProvider`（禁用时 no-op）。
+- **注册**：`calendar_registry`，`@register_calendar_provider("name")`。
+- **开关**：config `calendar.enabled=false`（默认关）。
+- **特性**：ISO-8601 时间校验（naive 按 UTC 处理，end > start 强制）；状态白名单（confirmed/tentative/cancelled）；安全限额（标题 200/描述 8000/参与者 100/提醒提前 ≤30 天）；过滤查询（状态/标签/地点子串/参与者/时间区间/upcoming_only + 分页）；聚合统计（总数/未来/过去/按状态/按标签）；更新合并校验（改单字段也校验最终一致性）。
+- **集成**：AgentFactory 注入 `calendar_manager` 上下文；API 层 `_get_calendar_manager()` 单例接线。
+- **API**：`/calendar` CRUD + `/calendar/stats` + `/calendar/upcoming`（7 条路由）。
+- **工具**：`calendar_create_event` / `calendar_list_events` / `calendar_upcoming` / `calendar_update_event` / `calendar_delete_event`（5 个，`default_enabled=false`）。
+- **错误码**：`AGENTBASE_CALENDAR_001`/`002`/`003`/`004`。
+- **测试**：61 核心（时间解析/模型/Null/InMemory/过滤/淘汰/统计/注册表/Manager 校验/单例/并发/Protocol）+ 25 API + 13 工具 = 99 测试。
 
 #### G14. 定时任务调度服务（ScheduleProvider）
 - **状态**：done ｜ **优先级**：P2

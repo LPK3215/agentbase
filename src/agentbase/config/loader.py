@@ -126,6 +126,8 @@ def _settings_overlay(settings: EnvSettings) -> dict[str, Any]:
         ("scheduler", "enabled"): settings.scheduler_enabled,
         ("scheduler", "provider"): settings.scheduler_provider,
         ("scheduler", "tick_seconds"): settings.scheduler_tick_seconds,
+        ("calendar", "enabled"): settings.calendar_enabled,
+        ("calendar", "provider"): settings.calendar_provider,
         ("migration", "enabled"): settings.migration_enabled,
     }
     for (section, key), value in mapping.items():

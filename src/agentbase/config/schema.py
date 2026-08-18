@@ -539,6 +539,22 @@ class SchedulerConfig(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class CalendarConfig(BaseModel):
+    """Calendar / event management service configuration.
+
+    - ``enabled = false`` (default) → calendar disabled (NullCalendarProvider)
+    - ``enabled = true``            → event CRUD + filtered queries + stats
+    - ``provider = memory`` (default) → in-memory storage (zero-config, thread-safe)
+    - ``max_events``: max stored events before FIFO eviction (default 10,000)
+    - Register custom providers with ``@register_calendar_provider``.
+    """
+
+    enabled: bool = False
+    provider: str = "memory"
+    max_events: int = 10_000
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
 class MigrationConfig(BaseModel):
     """Database migration (Alembic) configuration.
 
@@ -674,6 +690,7 @@ class AppConfig(BaseModel):
     notification: NotificationConfig = Field(default_factory=NotificationConfig)
     conversation: ConversationConfig = Field(default_factory=ConversationConfig)
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
+    calendar: CalendarConfig = Field(default_factory=CalendarConfig)
 
 
 class PermissionRule(BaseModel):

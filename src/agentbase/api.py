@@ -1283,6 +1283,38 @@ def _reset_schedule_manager() -> None:
     _schedule_manager = None
 
 
+# Calendar manager singleton (lazily built from app config)
+_calendar_manager: Any = None
+_calendar_manager_lock = threading.Lock()
+
+
+def _get_calendar_manager() -> Any:
+    """Get or create the CalendarManager singleton from app config."""
+    global _calendar_manager
+    if _calendar_manager is None:
+        with _calendar_manager_lock:
+            if _calendar_manager is None:
+                from agentbase.core.calendar import CalendarManager, set_calendar_manager
+
+                rt = get_runtime()
+                cfg = rt.app_config.calendar
+                mgr = CalendarManager(
+                    provider=cfg.provider,
+                    enabled=cfg.enabled,
+                    max_events=cfg.max_events,
+                    **cfg.options,
+                )
+                set_calendar_manager(mgr)
+                _calendar_manager = mgr
+    return _calendar_manager
+
+
+def _reset_calendar_manager() -> None:
+    """Reset calendar manager singleton (for testing)."""
+    global _calendar_manager
+    _calendar_manager = None
+
+
 def _make_error_response(
     error: str,
     code: str,
@@ -4147,6 +4179,156 @@ def create_app(*, runtime=None) -> FastAPI:
 
     # Note: /schedules/stats is declared before /schedules/{task_id}
     # to avoid path parameter capture.
+
+    # ------------------------------------------------------------------ #
+    # Calendar — event management                                        #
+    # ------------------------------------------------------------------ #
+    @app.get("/calendar", tags=["calendar"])
+    def list_calendar_events(
+        status: str | None = Query(None),
+        tag: str | None = Query(None),
+        location: str | None = Query(None),
+        attendee: str | None = Query(None),
+        since: str | None = Query(None),
+        until: str | None = Query(None),
+        upcoming_only: bool = Query(False),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        """List calendar events (sorted by start_time asc) with filters.
+
+        Requires authentication. Filterable by status, tag, location
+        (substring), attendee, and time range (``since``/``until``).
+        Returns empty list when the calendar service is disabled.
+        """
+        mgr = _get_calendar_manager()
+        offset = (page - 1) * page_size
+        events = mgr.list_events(
+            status=status,
+            tag=tag,
+            location=location,
+            attendee=attendee,
+            since=since,
+            until=until,
+            upcoming_only=upcoming_only,
+            limit=page_size,
+            offset=offset,
+        )
+        return {
+            "items": [e.to_dict() for e in events],
+            "total": len(events),
+            "page": page,
+            "page_size": page_size,
+        }
+
+    @app.post("/calendar", tags=["calendar"])
+    def create_calendar_event(
+        title: str = Body(..., embed=True),
+        start_time: str = Body(..., embed=True),
+        end_time: str = Body(..., embed=True),
+        location: str = Body("", embed=True),
+        attendees: list[str] = Body(default_factory=list, embed=True),  # noqa: B008
+        description: str = Body("", embed=True),
+        tags: list[str] = Body(default_factory=list, embed=True),  # noqa: B008
+        status: str = Body("confirmed", embed=True),
+        reminder_minutes: int | None = Body(None, embed=True),
+        metadata: dict[str, Any] = Body(default_factory=dict, embed=True),  # noqa: B008
+    ):
+        """Create a calendar event.
+
+        Requires authentication. ``start_time``/``end_time`` are ISO-8601
+        UTC timestamps with ``end > start``. ``status`` is
+        ``confirmed``/``tentative``/``cancelled``. Returns 400 for invalid
+        specs (bad time format, end <= start, bad status, over limits).
+        """
+        mgr = _get_calendar_manager()
+        try:
+            event = mgr.create_event(
+                title=title,
+                start_time=start_time,
+                end_time=end_time,
+                location=location,
+                attendees=attendees,
+                description=description,
+                tags=tags,
+                status=status,
+                reminder_minutes=reminder_minutes,
+                metadata=metadata,
+            )
+            return event.to_dict()
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+
+    @app.get("/calendar/stats", tags=["calendar"])
+    def get_calendar_stats():
+        """Get aggregate calendar statistics.
+
+        Requires authentication. Includes total/upcoming/past counts and
+        breakdowns by status and tag.
+        """
+        mgr = _get_calendar_manager()
+        return mgr.get_stats().to_dict()
+
+    @app.get("/calendar/upcoming", tags=["calendar"])
+    def list_upcoming_calendar_events(
+        limit: int = Query(10, ge=1, le=100),
+    ):
+        """List the next upcoming events (start_time >= now).
+
+        Requires authentication. Sorted by start_time ascending;
+        ``limit`` caps the number of returned events (default 10).
+        """
+        mgr = _get_calendar_manager()
+        events = mgr.list_events(upcoming_only=True, limit=limit)
+        return {"items": [e.to_dict() for e in events], "total": len(events)}
+
+    @app.get("/calendar/{event_id}", tags=["calendar"])
+    def get_calendar_event(event_id: str):
+        """Get a calendar event by ID.
+
+        Returns 404 if the event is not found.
+        """
+        mgr = _get_calendar_manager()
+        event = mgr.get_event(event_id)
+        if event is None:
+            raise HTTPException(status_code=404, detail=f"Calendar event not found: {event_id}")
+        return event.to_dict()
+
+    @app.patch("/calendar/{event_id}", tags=["calendar"])
+    def update_calendar_event(event_id: str, body: dict[str, Any]):
+        """Update a calendar event (all fields optional).
+
+        Validates the merged result (end > start, valid status, limits).
+        Returns 404 if not found, 400 for invalid specs.
+        """
+        mgr = _get_calendar_manager()
+        try:
+            event = mgr.update_event(event_id, body)
+        except Exception as exc:
+            from agentbase.runtime.errors import RegistryError
+
+            if isinstance(exc, RegistryError):
+                raise HTTPException(status_code=400, detail=str(exc))
+            raise
+        if event is None:
+            raise HTTPException(status_code=404, detail=f"Calendar event not found: {event_id}")
+        return event.to_dict()
+
+    @app.delete("/calendar/{event_id}", tags=["calendar"])
+    def delete_calendar_event(event_id: str):
+        """Delete a calendar event.
+
+        Returns 404 if the event is not found.
+        """
+        mgr = _get_calendar_manager()
+        deleted = mgr.delete_event(event_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Calendar event not found: {event_id}")
+        return {"deleted": True, "event_id": event_id}
 
     # ------------------------------------------------------------------ #
     # Rate-limit admin — quota management                                #

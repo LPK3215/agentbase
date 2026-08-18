@@ -35,6 +35,7 @@ class AgentFactory:
         self._storage = None
         self._audit_manager = None
         self._experiment_manager = None
+        self._calendar_manager = None
 
     @property
     def backend(self) -> Any:
@@ -264,6 +265,21 @@ class AgentFactory:
                 items.append(payload)
         return items
 
+    @property
+    def calendar_manager(self) -> Any:
+        """CalendarManager for calendar tools (lazy, config-driven)."""
+        if self._calendar_manager is None:
+            from agentbase.core.calendar import CalendarManager
+
+            cfg = self.app_config.calendar
+            self._calendar_manager = CalendarManager(
+                provider=cfg.provider,
+                enabled=cfg.enabled,
+                max_events=cfg.max_events,
+                **cfg.options,
+            )
+        return self._calendar_manager
+
     def build(self, agent_config: AgentConfig) -> Any:
         try:
             from deepagents import create_deep_agent
@@ -286,6 +302,7 @@ class AgentFactory:
             "workspace_manager": self.workspace_manager,
             "tracer": self.tracer,
             "queue": self.queue,
+            "calendar_manager": self.calendar_manager,
         }
 
         tools = build_tools(agent_config.tools, context=context)

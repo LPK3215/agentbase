@@ -19,6 +19,7 @@ Error codes follow the pattern ``AGENTBASE_<DOMAIN>_<NNN>`` where:
 - ``NOTIFICATION`` — notification center operations (001–020)
 - ``CONVERSATION`` — conversation history operations (001–020)
 - ``SCHEDULE``     — scheduled task operations (001–020)
+- ``CALENDAR``     — calendar event operations (001–020)
 
 Every error carries:
 - ``code``: stable machine-readable string
@@ -269,6 +270,12 @@ class ErrorCode:
     SCHEDULE_NOT_INITIALIZED = "AGENTBASE_SCHEDULE_003"
     SCHEDULE_INVALID_SPEC = "AGENTBASE_SCHEDULE_004"
 
+    # Calendar errors (001–020)
+    CALENDAR_EVENT_FAILED = "AGENTBASE_CALENDAR_001"
+    CALENDAR_EVENT_NOT_FOUND = "AGENTBASE_CALENDAR_002"
+    CALENDAR_NOT_INITIALIZED = "AGENTBASE_CALENDAR_003"
+    CALENDAR_INVALID_SPEC = "AGENTBASE_CALENDAR_004"
+
 
 # HTTP status code mapping for known error codes
 _CODE_TO_HTTP: dict[str, int] = {
@@ -326,6 +333,10 @@ _CODE_TO_HTTP: dict[str, int] = {
     ErrorCode.SCHEDULE_TASK_NOT_FOUND: 404,
     ErrorCode.SCHEDULE_NOT_INITIALIZED: 503,
     ErrorCode.SCHEDULE_INVALID_SPEC: 400,
+    ErrorCode.CALENDAR_EVENT_FAILED: 500,
+    ErrorCode.CALENDAR_EVENT_NOT_FOUND: 404,
+    ErrorCode.CALENDAR_NOT_INITIALIZED: 503,
+    ErrorCode.CALENDAR_INVALID_SPEC: 400,
 }
 
 
