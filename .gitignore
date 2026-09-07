@@ -31,6 +31,8 @@ htmlcov/
 workspace/outputs/
 workspace/uploads/
 workspace/workspace/
+# ===== 本机 compose 覆盖（勿入库：会自动合并并改掉端口映射）=====
+docker-compose.override.yml
 # ===== IDE / Agent 工具数据 =====
 .codebuddy/
 .codeartsdoer/

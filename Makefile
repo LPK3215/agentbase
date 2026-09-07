@@ -2,7 +2,7 @@
        dev server worker test test-fast test-cov lint format type-check \
        docker-up docker-down docker-logs docker-ps \
        backup restore clean clean-cache clean-db \
-       doctor migrate
+       doctor migrate docs-check
 
 # Default Python interpreter
 PYTHON ?= python
@@ -80,13 +80,16 @@ backup: ## Backup database to backup.sql
 restore: ## Restore database from backup.sql
 	$(PYTHON) -m agentbase restore backup.sql --format sql
 
-migrate: ## Run database migrations (if available)
-	$(PYTHON) -m agentbase migrate || echo "No migrations configured."
+migrate: ## Run database migrations (Alembic)
+	$(PYTHON) -m agentbase db upgrade
 
 # ─── Utilities ───────────────────────────────────────────────
 
 doctor: ## Run health checks
 	$(PYTHON) -m agentbase doctor
+
+docs-check: ## Check README CLI examples and internal doc links
+	$(PYTHON) scripts/check_docs.py
 
 
 clean: ## Remove build artifacts and cache files
