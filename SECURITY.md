@@ -8,13 +8,17 @@ Report vulnerabilities privately to the maintainer listed in [README](README.md)
 
 | Mode | How to enable | What happens if missing |
 |------|----------------|-------------------------|
-| API key | `AGENTBASE_API_KEY` non-empty | `app.env` in `{prod, production}` → process **refuses to start** (`AGENTBASE_CONFIG_004`) |
-| JWT | `auth.type: jwt` + `AGENTBASE_AUTH__SECRET` | Empty secret → **refuses to start** (`AGENTBASE_CONFIG_002`) |
-| Dev open API | leave `AGENTBASE_API_KEY` empty **and** `app.env` not prod | Intentional fail-open for local clone-and-run |
+| API key | Non-empty `AGENTBASE_API_KEY`, **or** YAML `auth.api_key` (non-empty YAML **overrides** env) | `app.env` in `{prod, production}` with neither key nor JWT → process **refuses to start** (`AGENTBASE_CONFIG_004`) |
+| JWT | `auth.type: jwt` + non-empty `AGENTBASE_AUTH__SECRET` / `auth.secret` | Empty secret → API **refuses to start** (`AGENTBASE_CONFIG_002`); `JWTAuth(secret="")` raises `ValueError` (no ephemeral key) |
+| Dev open API | both keys empty **and** `app.env` not prod | Intentional fail-open for local clone-and-run |
 
-Compose sets `AGENTBASE_APP__ENV=prod` by default. Set `AGENTBASE_API_KEY` (or JWT secret) before `docker compose up`.
+`auth.type: none` turns JWT off. It does **not** skip HTTP/WebSocket checks when an env or YAML API key is set.
 
-Public paths (no auth even when auth is on): `/health`, `/docs`, `/redoc`, `/openapi.json`, `/`, `/metrics`, `/auth/oauth2/*`. **`/metrics` is unauthenticated** — put a gateway in front in production.
+Compose sets `AGENTBASE_APP__ENV=prod` by default. Set `AGENTBASE_API_KEY` (or YAML `auth.api_key`, or JWT secret) before `docker compose up`.
+
+Public paths (no auth even when auth is on): `/health`, `/docs`, `/redoc`, `/openapi.json`, `/`. Middleware also skips `/auth/oauth2/*` (authorize/callback must run before login). **`/metrics` is not a public path.** When API key or JWT is on, `GET /metrics` needs the same credentials as other routes (401 without them). `metrics.enabled: false` → 404. Fail-open local-dev (no key, not JWT) still serves `/metrics` without credentials — do not publish that process on the internet.
+
+HTTP and WebSocket share `_verify_auth`. On the socket, query `token` is mapped to `Authorization: Bearer` when neither `Authorization` nor `X-API-Key` is present. Handshake failure closes with code **4001** (Starlette HTTP middleware does not run for WebSocket scope).
 
 ## 安全红线清单（fail-closed）
 
@@ -22,7 +26,7 @@ Public paths (no auth even when auth is on): `/health`, `/docs`, `/redoc`, `/ope
 
 | # | 红线项 | 检测方式 | 触发后行为 | 适用范围 |
 |---|---|---|---|---|
-| R1 | 策略绕过/越权 | Agent YAML `permissions` allow/deny/interrupt；默发 deny `.env` / `*.key` / `*.pem` / `secrets/**`。API：`_is_auth_enabled()` 仅在 `AGENTBASE_API_KEY` 非空时为真；`app.env=prod` 且无 API key / JWT 则启动失败。JWT 空 secret 启动失败。工作区 `resolve_within_workspace` 拒绝目录穿越。`db_query` 仅 SELECT。 | 工具路径 deny = 拒绝调用；目录穿越 = `ValueError`；生产无鉴权 = 拒绝启动；JWT 无 secret = 拒绝启动 | 所有工具调用与 HTTP API |
+| R1 | 策略绕过/越权 | Agent YAML `permissions` allow/deny/interrupt；默发 deny `.env` / `*.key` / `*.pem` / `secrets/**`。API：`_is_auth_enabled(app_config)` 在 YAML `auth.api_key` **或** `AGENTBASE_API_KEY` 非空时为真（YAML 覆盖 env）。`app.env=prod` 且无 API key / JWT secret 则启动失败。JWT 空 secret 启动失败。WebSocket 走同一套 `_verify_auth`，失败 `close(4001)`。工作区 `resolve_within_workspace` 拒绝目录穿越。`db_query` 仅 SELECT。 | 工具路径 deny = 拒绝调用；目录穿越 = `ValueError`；生产无鉴权 = 拒绝启动；JWT 无 secret = 拒绝启动；WS 无凭证 = 4001 | 所有工具调用、HTTP API 与 WebSocket |
 | R2 | 危险操作无确认 | `interrupt_on.tool_call` 列表（见 `configs/agents/interrupt_demo.yaml`）。默发 `default` / `coder` 的 `interrupt_on: {}`（空）。只读画像见 `configs/agents/readonly.yaml`。触发点总表见 [docs/guardrails.md](docs/guardrails.md)。 | 配置了 interrupt 的工具在执行前暂停，须 `resume`（approve/edit/reject）；未配置则自动执行 | 写操作 / 外发 / 删除 / 代码执行 |
 | R3 | 审计日志缺失 | `audit.enabled`（默认 `false`）+ `audit_log` 中间件。生产应打开并接存储。 | 开启后写入审计事件；未开启不阻断运行（脚手架默认关 = 由使用者启用） | 所有会话 |
 | R4 | 跨租户数据泄漏 | 当前记忆按 `agent_name` 隔离，**无 `tenant_id`**。单用户零配置可接受。多租户必须自行在服务端注入身份并过滤存储键，不得信任 invoke metadata 中的 user 字段。 | 未实现多租户时不得按多租户上线；误用 = 数据面串读风险，须停用或自行加隔离 | 多租户场景 |
@@ -35,8 +39,8 @@ Zero-config local loop: `app.env: dev`, empty API key, empty `interrupt_on`, `au
 
 Production minimum:
 
-1. `app.env: prod` (or `production`) + `AGENTBASE_API_KEY` or JWT secret.
-2. Restrict CORS origins; do not expose `/metrics` to the public internet.
+1. `app.env: prod` (or `production`) + `AGENTBASE_API_KEY` or YAML `auth.api_key` or JWT secret.
+2. Restrict CORS origins (`AGENTBASE_CORS_ORIGINS` wins when set; `*` disables credentials). `/metrics` follows API auth when a key/JWT is configured; scrape with credentials or keep it off the public internet. Set `metrics.enabled: false` if you do not need the endpoint.
 3. Turn on `audit.enabled` and `redaction.enabled`; add `audit_log` / `redact_output` to the agent middleware list.
 4. Point write/delete/email/code tools at `interrupt_on`, or run `readonly`.
 5. Do not treat this scaffold as multi-tenant until you inject server-side identity.

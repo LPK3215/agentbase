@@ -76,7 +76,7 @@ class RuntimeConfig(BaseModel):
     stream_modes: list[str] = Field(default_factory=lambda: ["messages", "updates"])
     recursion_limit: int = 50
     max_concurrency: int = 4
-    session_ttl_seconds: float | None = None  # None = no TTL (never expire)
+    session_ttl_seconds: float | None = None  # None = no TTL; Runner passes into Session.create
 
     @field_validator("recursion_limit")
     @classmethod
@@ -148,10 +148,14 @@ class AuthConfig(BaseModel):
 
     - ``type = api_key`` (default) → simple Bearer / X-API-Key auth
     - ``type = jwt``                → JWT with RBAC roles
-    - ``type = none``               → auth disabled (dev mode)
+    - ``type = none``               → JWT off. HTTP/WS still check env/YAML
+      API key; ``type=none`` is not a skip when a key is set.
 
-    When ``type = jwt``, set ``secret`` and optional ``token_expiry_hours``.
+    When ``type = jwt``, set ``secret`` (``AGENTBASE_AUTH__SECRET``) and
+    optional ``token_expiry_hours``. Empty secret refuses start.
     Role-permission mapping can be customised via ``role_permissions``.
+    Non-empty ``api_key`` overrides ``AGENTBASE_API_KEY`` and counts for
+    production ``AGENTBASE_CONFIG_004``.
     """
 
     type: Literal["api_key", "jwt", "none"] = "api_key"

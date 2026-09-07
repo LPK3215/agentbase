@@ -79,7 +79,7 @@ agentbase run --agent coder "Write a Python function"
 agentbase eval --suite examples/eval_suite.yaml -o eval_report.json
 ```
 
-The `default` profile can write and delete files with `interrupt_on` empty. That is local-dev, not a production HITL gate. For a read-only image use `configs/agents/readonly.yaml`; to require confirmation before writes, start from `configs/agents/interrupt_demo.yaml`. Production (`app.env: prod`) will not start without `AGENTBASE_API_KEY` or a JWT secret.
+The `default` profile can write and delete files with `interrupt_on` empty. That is local-dev, not a production HITL gate. For a read-only image use `configs/agents/readonly.yaml`; to require confirmation before writes, start from `configs/agents/interrupt_demo.yaml`. Production (`app.env: prod`) will not start without `AGENTBASE_API_KEY`, YAML `auth.api_key`, or a JWT secret.
 
 ## 7. Start the API Server
 
@@ -96,6 +96,8 @@ agentbase serve --host 0.0.0.0 --port 8000 --reload
 ```
 
 ## 8. Use the API
+
+These curls assume local fail-open (`app.env: dev` and empty API key). If `AGENTBASE_API_KEY` or YAML `auth.api_key` is set, add `-H "Authorization: Bearer <key>"` or `-H "X-API-Key: <key>"`. JWT mode uses `Authorization: Bearer <jwt>`. WebSocket uses the same credentials (query `token` only when those headers are absent); failure closes with 4001.
 
 ```bash
 # List agents
@@ -134,6 +136,8 @@ docker compose logs -f api
 
 # API available at http://localhost:8000
 ```
+
+Compose sets `AGENTBASE_APP__ENV=prod`. Set `AGENTBASE_API_KEY` (or YAML `auth.api_key`, or JWT secret) in `.env` before `docker compose up`, otherwise the API process exits with `AGENTBASE_CONFIG_004`. After that, `/metrics` requires the same credentials as other non-public routes.
 
 ## 10. Develop a Custom Agent
 

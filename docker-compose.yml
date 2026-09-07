@@ -75,6 +75,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       # API security — compose defaults APP__ENV=prod below, so this MUST be
       # set or the API container refuses to start (AGENTBASE_CONFIG_004).
+      # YAML auth.api_key also counts. After the key is set, /metrics uses it too.
       # Local zero-config still uses configs/default.yaml env: dev.
       - AGENTBASE_API_KEY=${AGENTBASE_API_KEY:-}
       - AGENTBASE_CORS_ORIGINS=${AGENTBASE_CORS_ORIGINS:-*}

@@ -23,13 +23,17 @@ Usage::
 Config::
 
     auth:
-      type: jwt  # or api_key (default)
-      secret: ${AGENTBASE_JWT_SECRET}
+      type: jwt  # api_key (default) | jwt | none
+      secret: ${AGENTBASE_AUTH__SECRET}  # required when type=jwt; empty raises
       token_expiry_hours: 24
-      roles:
+      role_permissions:
         admin: ["*"]
         user: ["read", "write", "invoke"]
         readonly: ["read"]
+      api_key: null  # non-empty overrides AGENTBASE_API_KEY
+
+    JWTAuth(secret="") raises ValueError (no ephemeral uuid secret).
+    The API path maps an empty JWT secret to AGENTBASE_CONFIG_002.
 """
 from __future__ import annotations
 

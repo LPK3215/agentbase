@@ -97,8 +97,8 @@ Isomorphic hook: **middleware + eval suite + audit = onFailure / reflectionTrigg
 | `audit.enabled` | `false` | turn on; pair with `audit_log` middleware |
 | `redaction.enabled` | `false` | turn on; pair with `redact_output` |
 | `secrets.enabled` | `false` | optional envelope for stored secrets |
-| `GET /metrics` | enabled, **public** | gateway-restrict; not behind API key |
-| `session_ttl_seconds` | `null` (never expire) | set a TTL in prod |
+| `GET /metrics` | enabled; **not** a public path | Auth on → same credentials as other routes (401 without). `metrics.enabled=false` → 404. Fail-open local-dev still serves it. |
+| `session_ttl_seconds` | `null` (never expire) | `AgentRunner` invoke/stream/resume pass it into `Session.create`. Set a TTL in prod; expired sessions still need `POST /sessions/cleanup` (no background sweeper). |
 
 ---
 

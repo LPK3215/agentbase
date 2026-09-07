@@ -61,6 +61,10 @@ runtime:
     - updates
   recursion_limit: 50
   max_concurrency: 4
+  # Session TTL in seconds. Unset / null = never expire.
+  # AgentRunner invoke/stream/resume pass this into Session.create.
+  # Expired sessions still need POST /sessions/cleanup (no background sweeper).
+  # session_ttl_seconds: 3600
 
 extensions:
   autodiscover:

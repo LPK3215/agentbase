@@ -42,6 +42,10 @@ MigrationManager      ───────►       Alembic (database schema mi
                             └─────────────────────────┘
 ```
 
+## Memory namespace
+
+`MemoryManager` stores records under `agent_name`. `AgentFactory` injects `"agent_name": agent_config.name` into tool context. Bound tools (`memory_save` / `get` / `list` / `search` / `delete` / `count` / `batch_save`) always use that name and ignore the model-supplied `agent=` argument. Search / list / count never omit `agent_name` (no cross-agent scan). Unbound unit fixtures fall back to the requested name or `"default"`. This is an Agent namespace, **not** multi-tenant isolation — there is no `tenant_id`. See [SECURITY.md](../SECURITY.md) R4.
+
 ## 1. Storage Backend
 
 **Default**: SQLite (zero-config, file-based, code default)
@@ -188,7 +192,7 @@ Built-in metrics: `KeywordMatchMetric`, `ExactMatchMetric`, `SubstringMatchMetri
 | Graph | null | `@register_graph_provider()` | — (code) |
 | Checkpointer | sqlite | `MemorySaver` / `SqliteSaver` / `PostgresSaver` / `MySQLSaver` | `checkpointer` |
 | Skills | files | No (always file-based) | — |
-| Memory | sqlite (via storage) | Via storage backend | `storage` |
+| Memory | sqlite (via storage) | Via storage backend | `storage`. Tools bind to factory `agent_name`; model `agent=` ignored when bound. Not tenancy. |
 | Knowledge | sqlite (via storage) | Via storage + parsers + embeddings | `storage` + `embedding` |
 | Workspace | filesystem | `WorkspaceManager` | — |
 | Evaluation | built-in | `Metric` protocol | — |

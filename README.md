@@ -68,7 +68,7 @@ graph TD
 The shipped `default` agent profile includes write/delete tools and an empty `interrupt_on` map. That is the local-dev picture, not a production default. Before exposing the API:
 
 - Use `configs/agents/readonly.yaml`, or copy `configs/agents/interrupt_demo.yaml` and list irreversible tools under `interrupt_on`.
-- Production compose refuses to start without `AGENTBASE_API_KEY` or a JWT secret (`app.env: prod` / `production`).
+- Production compose refuses to start without `AGENTBASE_API_KEY`, YAML `auth.api_key`, or a JWT secret (`app.env: prod` / `production`).
 - Read [docs/guardrails.md](docs/guardrails.md) and [SECURITY.md](SECURITY.md).
 
 ## Requirements
@@ -170,10 +170,10 @@ agentbase serve --host 0.0.0.0 --port 8000 --reload
 
 ### Authentication
 
-Set `AGENTBASE_API_KEY` to enable API Key authentication:
+API key is on when **either** `AGENTBASE_API_KEY` **or** YAML `auth.api_key` is non-empty. A non-empty YAML value **overrides** the env var. `app.env: prod` / `production` refuses to start without that key or a JWT secret (`AGENTBASE_CONFIG_004`). `auth.type: none` does not skip checks if a key is set.
 
 ```bash
-# Enable auth
+# Enable auth (env). Or set auth.api_key in YAML — that wins when non-empty.
 export AGENTBASE_API_KEY="your-secret-key"
 
 # Call API with key
@@ -182,11 +182,15 @@ curl -H "Authorization: Bearer your-secret-key" http://localhost:8000/agents
 # Or use X-API-Key header
 curl -H "X-API-Key: your-secret-key" http://localhost:8000/agents
 
-# Disable auth (dev mode)
+# Disable auth (dev fail-open only — not prod)
 export AGENTBASE_API_KEY=""
 ```
 
-Endpoints marked **public** don't require authentication.
+JWT mode: `auth.type: jwt` plus `AGENTBASE_AUTH__SECRET` / `auth.secret`. Empty secret refuses start (`AGENTBASE_CONFIG_002`); constructing `JWTAuth` with an empty secret raises `ValueError`.
+
+WebSocket `/ws/agents/{name}` uses the same `_verify_auth` as HTTP (`Authorization` / `X-API-Key`, or query `token` mapped to Bearer). Failure closes with code **4001**.
+
+Endpoints marked **Public** skip auth even when a key is set: `/health`, `/docs`, `/redoc`, `/openapi.json`, `/`, and `/auth/oauth2/*`. `/metrics` is **not** public when auth is on.
 
 ### Endpoints (145 total)
 
@@ -196,7 +200,7 @@ Endpoints marked **public** don't require authentication.
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | GET | `/health` | Health check | Public |
-| GET | `/metrics` | Prometheus metrics | Public |
+| GET | `/metrics` | Prometheus metrics | Required when auth on; 404 if `metrics.enabled=false` |
 | GET | `/agents` | List all agents | Required |
 | GET | `/agents/{name}` | Get agent config | Required |
 | GET | `/agents/{name}/configurable` | Get configurable items | Required |
@@ -278,7 +282,7 @@ Endpoints marked **public** don't require authentication.
 | GET | `/feedback/{record_id}` | Get feedback record detail | Required |
 | PATCH | `/feedback/{record_id}` | Update feedback fields | Required |
 | DELETE | `/feedback/{record_id}` | Delete feedback record | Required |
-| WS | `/ws/agents/{name}` | WebSocket real-time agent | Token |
+| WS | `/ws/agents/{name}` | WebSocket real-time agent | Same as HTTP (4001 on fail) |
 | GET | `/notifications` | List notifications | Required |
 | POST | `/notifications` | Create notification | Required |
 | GET | `/notifications/stats` | Notification statistics | Required |
@@ -376,7 +380,7 @@ Requires `user_manager.enabled=true` for auto-registration.
 
 ### WebSocket
 
-Real-time bidirectional agent communication:
+Same credentials as HTTP. Query `token` is used only when `Authorization` and `X-API-Key` are absent (mapped to `Bearer`). JWT-only production must send a JWT; missing/invalid credentials close the socket with **4001** before `accept`.
 
 ```javascript
 const ws = new WebSocket("ws://localhost:8000/ws/agents/default?token=your-key");
@@ -397,7 +401,9 @@ curl -X POST http://localhost:8000/documents/upload \
 
 ### Prometheus Metrics
 
-Metrics available at `GET /metrics` (Prometheus format):
+`GET /metrics` (Prometheus format). When API key or JWT is on, send the same credentials as other non-public routes. `metrics.enabled: false` returns 404. Fail-open local-dev (no key, not JWT) serves the endpoint without credentials — do not publish that process.
+
+Counters include:
 
 - `agentbase_requests_total` — Total HTTP requests
 - `agentbase_agent_invocations_total` — Agent invocations
@@ -421,8 +427,8 @@ Key files:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AGENTBASE_API_KEY` | (empty) | API Key for authentication (empty = disabled) |
-| `AGENTBASE_CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
+| `AGENTBASE_API_KEY` | (empty) | HTTP/WS API key. Empty = fail-open **only** when `app.env` is not prod. Non-empty YAML `auth.api_key` overrides this. |
+| `AGENTBASE_CORS_ORIGINS` | `*` | Wins over YAML `cors.allow_origins` when non-empty. `*` disables credentials; explicit origins enable them. |
 | `AGENTBASE_STORAGE__TYPE` | `sqlite` | Storage backend (`sqlite`/`postgres`/`mysql`/`mongodb`) |
 | `AGENTBASE_STORAGE__DSN` | from config | PostgreSQL/MySQL/MongoDB connection string |
 | `AGENTBASE_CHECKPOINTER__TYPE` | `sqlite` | Checkpointer type (`sqlite`/`postgres`/`memory`/`mysql`) |

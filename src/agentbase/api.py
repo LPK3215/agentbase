@@ -23,14 +23,16 @@ Usage::
 
 Authentication::
 
-    # API Key mode (default)
+    # API Key: AGENTBASE_API_KEY, or YAML auth.api_key (non-empty overrides env)
     export AGENTBASE_API_KEY="your-secret-key"
 
-    # JWT mode
-    # In config:
+    # JWT mode (empty secret refuses start — AGENTBASE_CONFIG_002)
     #   auth:
     #     type: jwt
-    #     secret: "your-jwt-secret"
+    #     secret: "your-jwt-secret"   # or AGENTBASE_AUTH__SECRET
+
+    # WebSocket: same _verify_auth; query token -> Bearer; fail close 4001
+    # /metrics is not a public path when API key/JWT is on
 
 Endpoints::
 

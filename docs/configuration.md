@@ -11,7 +11,7 @@
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `name` | string | `agentbase` | Application name |
-| `env` | string | `dev` | Environment label. `prod` / `production` refuse to start without `AGENTBASE_API_KEY` or JWT secret (`AGENTBASE_CONFIG_004`). |
+| `env` | string | `dev` | Environment label. `prod` / `production` refuse to start without `AGENTBASE_API_KEY`, YAML `auth.api_key`, or JWT secret (`AGENTBASE_CONFIG_004`). |
 | `log_level` | string | `INFO` | Logging level (DEBUG/INFO/WARNING/ERROR) |
 
 ### `model` Section
@@ -152,7 +152,7 @@ Controls tracing and observability.
 | `stream_modes` | list | `["messages", "updates"]` | LangGraph stream modes |
 | `recursion_limit` | int | `50` | Max recursion depth (clamped to 1–200) |
 | `max_concurrency` | int | `4` | Max concurrent operations (clamped to 1–32) |
-| `session_ttl_seconds` | float\|null | `null` | Session TTL in seconds (null = never expire) |
+| `session_ttl_seconds` | float\|null | `null` | Session TTL in seconds (`null` = never expire). `AgentRunner` invoke/stream/resume pass this into `Session.create`. Expired sessions are not auto-deleted; call `POST /sessions/cleanup`. |
 
 ### `extensions` Section
 
@@ -195,11 +195,13 @@ items = config.get_configurable_items()
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | `api_key` \| `jwt` \| `none` | `api_key` | Auth type |
-| `secret` | string | (empty) | JWT signing secret (required when `type=jwt`) |
+| `type` | `api_key` \| `jwt` \| `none` | `api_key` | Auth type. `none` turns JWT off; it does **not** skip HTTP/WS checks when an env or YAML API key is set. |
+| `secret` | string | (empty) | JWT signing secret. Required when `type=jwt` (`AGENTBASE_CONFIG_002` / `JWTAuth` `ValueError` if empty). Prefer `AGENTBASE_AUTH__SECRET`. |
 | `token_expiry_hours` | int | `24` | JWT token expiry |
-| `role_permissions` | dict | `{}` | Role-permission mapping |
-| `api_key` | string\|null | `null` | Override env-based API key |
+| `role_permissions` | dict | `{}` | Role-permission mapping (empty → built-in admin/user/readonly defaults) |
+| `api_key` | string\|null | `null` | Non-empty value **overrides** `AGENTBASE_API_KEY` and counts for prod `CONFIG_004`. |
+
+Live HTTP/WS order: managed API keys (`apikey_manager`) → JWT (`type=jwt`) → global API key (YAML then env) → fail-open if nothing is set and env is not prod. WebSocket reuses `_verify_auth`; query `token` maps to Bearer when headers are absent; failure `close(4001)`.
 
 ### `rate_limit` Section
 
@@ -220,12 +222,14 @@ items = config.get_configurable_items()
 | `allow_headers` | list | `["*"]` | Allowed headers |
 | `allow_credentials` | bool | `false` | Send credentials (forced false when origins contain `*`) |
 
+Resolution: non-empty `AGENTBASE_CORS_ORIGINS` wins (comma-separated; explicit origins enable credentials, `*` does not). If the env var is unset, schema `cors` is used. If that is missing, defaults (`["*"]`, credentials off). Compose injects `AGENTBASE_CORS_ORIGINS=*`.
+
 ### `metrics` Section
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable Prometheus metrics |
-| `path` | string | `/metrics` | Metrics endpoint path |
+| `enabled` | bool | `true` | Enable Prometheus metrics. `false` → `GET /metrics` returns 404. |
+| `path` | string | `/metrics` | Metrics endpoint path (not in `_PUBLIC_PATHS`; auth on → 401 without credentials) |
 | `collect_latency` | bool | `true` | Record request latency |
 | `collect_agent_metrics` | bool | `true` | Record per-agent counts |
 
@@ -238,6 +242,8 @@ items = config.get_configurable_items()
 | `check_embedding` | bool | `false` | Check embedding availability |
 | `check_search` | bool | `false` | Check search availability |
 | `check_tracer` | bool | `false` | Check tracer connectivity |
+
+`GET /health` stays public. The payload includes `auth_enabled` (`true` when an API key is set or `auth.type=jwt`).
 
 ### `audit` Section
 

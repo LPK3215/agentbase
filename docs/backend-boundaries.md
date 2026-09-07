@@ -12,7 +12,7 @@
 | 端点 | 方法 | 认证 | 说明 |
 |------|------|------|------|
 | `/health` | GET | 公开 | 健康检查，返回版本、Agent 列表、认证状态 |
-| `/metrics` | GET | 公开 | Prometheus 格式指标 |
+| `/metrics` | GET | 鉴权开启时需要 | Prometheus 格式指标。`metrics.enabled=false` → 404。dev 无 key / 非 JWT 时与其它接口同样 fail-open |
 | `/agents` | GET | 需要 | 列出所有 Agent 配置 |
 | `/agents/{name}` | GET | 需要 | 获取 Agent 配置详情 |
 | `/agents/{name}/configurable` | GET | 需要 | 获取可配置字段（Context Schema） |
@@ -155,7 +155,7 @@
 | `/apikeys/{key_id}` | DELETE | 需要 | 删除 API Key |
 | `/apikeys/{key_id}/revoke` | POST | 需要 | 吊销（禁用）API Key |
 | `/apikeys/verify` | POST | 需要 | 验证 API Key 有效性 |
-| `/ws/agents/{name}` | WebSocket | Token | 实时双向 Agent 对话 |
+| `/ws/agents/{name}` | WebSocket | 与 HTTP 同一套 `_verify_auth` | 失败 `close(4001)`；无 `Authorization`/`X-API-Key` 时 query `token` 映射为 Bearer |
 | `/docs` | GET | 公开 | Swagger UI |
 | `/redoc` | GET | 公开 | ReDoc 文档 |
 
@@ -163,10 +163,10 @@
 
 | 功能 | 状态 | 配置方式 |
 |------|------|---------|
-| API Key 认证 | ✅ 已实现 | `AGENTBASE_API_KEY` 环境变量，空值=禁用 |
-| JWT 认证 | ✅ 已实现 | `auth.type: jwt`，HMAC-SHA256 签名，支持 Token 过期，已集成到 API 中间件 |
+| API Key 认证 | ✅ 已实现 | `AGENTBASE_API_KEY` 或 YAML `auth.api_key`（非空 YAML **覆盖** env）。两者皆空且非 prod = fail-open。`auth.type=none` **不会**在已配置 key 时跳过 HTTP/WS 鉴权 |
+| JWT 认证 | ✅ 已实现 | `auth.type: jwt`，HMAC-SHA256，Token 过期。空 secret 拒绝启动（`AGENTBASE_CONFIG_002`）；`JWTAuth(secret="")` 抛 `ValueError`。已接到 HTTP 中间件与 WebSocket |
 | RBAC 角色权限 | ✅ 已实现 | admin/user/readonly 三级角色，路径级权限控制，JWT payload 自动校验 |
-| CORS 中间件 | ✅ 已实现 | `cors.allow_origins` 配置，默认 `*`；支持 `AGENTBASE_CORS_ORIGINS` 环境变量 |
+| CORS 中间件 | ✅ 已实现 | 解析顺序：非空 `AGENTBASE_CORS_ORIGINS`（显式 origin 开 credentials，含 `*` 则关）→ schema `cors` → 默认 `*` |
 | 速率限制 | ✅ 已实现 | `rate_limit` 配置段：`max_requests`/`window_seconds`/`burst`，可配置 |
 | OAuth2 第三方登录 | ✅ 已实现 | `oauth2` 配置段：Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户 |
 | 定时任务调度 | ✅ 已实现 | `scheduler` 配置段：interval 秒级 / cron 5 字段表达式定时调用 Agent，暂停/恢复/手动触发/运行历史，后台 tick 线程 + worker 池 |
@@ -202,6 +202,8 @@
 | 知识库 (KB) | MongoDB | ✅ | ✅ | ✅ | ✅ | `storage.type: mongodb` |
 | 技能 (Skills) | 文件系统 | ✅ | — | — | — | `workspace/skills/*.md` |
 | 工作区文件 | 文件系统 | ✅ | — | — | — | `workspace/` 目录 |
+
+记忆工具（`memory_save` / `get` / `list` / `search` / `delete` / `count` / `batch_save`）在工厂已绑定 `agent_name` 时**始终**写入当前 Agent，忽略模型传入的 `agent=`；search/list/count 不会省略 `agent_name` 做全库扫描。这是 Agent 命名空间，**不是** `tenant_id` 多租户。
 
 ### 自动 SQL 方言转换
 
@@ -421,7 +423,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 |------|------|------|
 | 结构化 JSON 日志 | ✅ 已实现 | 7 个必填字段（timestamp/level/event/thread_id/agent/duration_ms/request_id），含 `duration_ms` 执行时长追踪 |
 | 密钥脱敏 | ✅ 已实现 | 日志中自动脱敏 API Key 和 DSN 密码 |
-| Prometheus 指标 | ✅ 已实现 | `GET /metrics` — 请求计数/状态分布/延迟直方图/Agent 调用计数/错误码分布/WS 连接数。**始终公开**（`_PUBLIC_PATHS`），生产须网关限制 |
+| Prometheus 指标 | ✅ 已实现 | `GET /metrics` — 请求计数/状态分布/延迟直方图/Agent 调用计数/错误码分布/WS 连接数。**不在** `_PUBLIC_PATHS`：鉴权开启后无凭证 401；`metrics.enabled=false` → 404 |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，传播到 runner 日志和 tracer span |
 | 追踪 (Tracing) | ✅ 已实现 | NullTracer + InMemoryTracer + LangfuseTracer + OpenTelemetryTracer，已集成到 invoke/stream/resume |
 | 健康检查 | ✅ 已实现 | `GET /health` — 组件级探活（storage/queue/embedding/search/tracer），受 `health_check` 配置开关控制，返回 `status`/`components`/`storage_connected`/`queue_connected`/`embedding_connected`/`search_connected`/`tracer_connected` |
@@ -520,10 +522,10 @@ pip install agentbase[all]          # 全部安装
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| API Key 认证 | ✅ 已实现 | Bearer Token / X-API-Key，常数时间比较（`hmac.compare_digest`）。`AGENTBASE_API_KEY` 为空时 **dev fail-open**；`app.env` 为 `prod`/`production` 时拒绝启动（`AGENTBASE_CONFIG_004`） |
-| JWT 认证 | ✅ 已实现 | HMAC-SHA256，Token 过期，自定义 claims，secret 为空时 fail-fast（`AGENTBASE_CONFIG_002`） |
+| API Key 认证 | ✅ 已实现 | Bearer Token / X-API-Key，长度不匹配也安全的常数时间比较（`_constant_time_equals`）。非空 YAML `auth.api_key` 覆盖 `AGENTBASE_API_KEY`。两者皆空时 **dev fail-open**；`app.env` 为 `prod`/`production` 时拒绝启动（`AGENTBASE_CONFIG_004`，config-only key 算已鉴权） |
+| JWT 认证 | ✅ 已实现 | HMAC-SHA256，Token 过期，自定义 claims。空 secret 启动失败（`AGENTBASE_CONFIG_002`）；类路径 `JWTAuth(secret="")` 抛 `ValueError`，不再发临时 uuid 密钥 |
 | RBAC 权限控制 | ✅ 已实现 | admin/user/readonly 三级角色，路径级权限 |
-| CORS | ✅ 已实现 | 可配置 origins，通配符 `*` 时自动禁用 credentials（CORS 规范） |
+| CORS | ✅ 已实现 | 非空 env `AGENTBASE_CORS_ORIGINS` 优先；通配符 `*` 时自动禁用 credentials（CORS 规范）。schema `cors` 在 env 未设时生效 |
 | 速率限制 | ✅ 已实现 | 每 IP 60 req/min，支持按角色动态配额（`quotas` 配置 + `/admin/rate-limit` API） |
 | API Key 多 Key 管理 | ✅ 已实现 | `apikey_manager.enabled=true`，多 Key 生成/CRUD/吊销/验证/过期/使用统计，与 Bearer Token 认证集成 |
 | Token 用量追踪 | ✅ 已实现 | `usage.enabled=true`，自动记录 prompt/completion/total tokens + 成本估算，按 Agent/模型/用户/时间聚合统计 |
@@ -542,7 +544,7 @@ pip install agentbase[all]          # 全部安装
 - ~~OAuth2 第三方登录~~ → 已实现（Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户，签发 JWT）
 - ~~API 限流配额管理（只有固定阈值）~~ → 已实现（按角色动态配额 + `/admin/rate-limit` 管理端点）
 
-书面红线表与生产最小清单：[SECURITY.md](../SECURITY.md)。HITL / eval / 失败钩子映射：[docs/guardrails.md](guardrails.md)。`audit.enabled` / `redaction.enabled` 默认关；默发 Agent `interrupt_on: {}`。`/metrics` 始终公开。多租户 `tenant_id` 未实现。
+书面红线表与生产最小清单：[SECURITY.md](../SECURITY.md)。HITL / eval / 失败钩子映射：[docs/guardrails.md](guardrails.md)。`audit.enabled` / `redaction.enabled` 默认关；默发 Agent `interrupt_on: {}`。鉴权开启后 `/metrics` 走同一套凭证（不是始终公开）。WebSocket 与 HTTP 同一套 `_verify_auth`，失败 close 4001。记忆工具绑定当前 `agent_name`（不是租户隔离）。多租户 `tenant_id` 未实现。
 
 ---
 

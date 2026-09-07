@@ -36,7 +36,7 @@ All user-facing errors carry a stable error code in the format `agentbase_<domai
 | `AGENTBASE_CONFIG_001` | Configuration missing or invalid | Config file not found, invalid YAML, missing required field |
 | `AGENTBASE_CONFIG_002` | Configuration validation error | Invalid config value (e.g., empty JWT secret when `type=jwt`) |
 | `AGENTBASE_CONFIG_003` | Required environment variable missing | Expected env var (e.g. API key) not set |
-| `AGENTBASE_CONFIG_004` | Production requires authentication | `app.env` is `prod`/`production` and neither `AGENTBASE_API_KEY` nor JWT secret is set |
+| `AGENTBASE_CONFIG_004` | Production requires authentication | `app.env` is `prod`/`production` and none of `AGENTBASE_API_KEY`, YAML `auth.api_key`, or JWT secret is set |
 
 ### Registry Domain
 
@@ -71,7 +71,7 @@ All user-facing errors carry a stable error code in the format `agentbase_<domai
 
 | Code | Meaning | Trigger |
 |------|---------|---------|
-| `AGENTBASE_AUTH_001` | API key missing | No API key provided |
+| `AGENTBASE_AUTH_001` | Invalid or missing credentials | HTTP 401 when `_verify_auth` fails (missing/wrong API key or JWT) |
 | `AGENTBASE_AUTH_002` | Invalid token | JWT signature invalid or malformed |
 | `AGENTBASE_AUTH_003` | Expired token | JWT token past expiry |
 | `AGENTBASE_AUTH_004` | Forbidden | Insufficient role/permissions |
@@ -112,6 +112,8 @@ All user-facing errors carry a stable error code in the format `agentbase_<domai
 |------|---------|---------|
 | `AGENTBASE_WS_001` | Agent not found | WebSocket requested unknown agent |
 | `AGENTBASE_WS_002` | Empty message | WebSocket received empty/null message |
+
+Handshake failure is **not** an `AGENTBASE_WS_*` JSON body: the socket is closed with code **4001** (`Unauthorized`) before `accept`. HTTP middleware does not run for WebSocket scope; `/ws/agents/{name}` calls the same `_verify_auth` as HTTP.
 
 ### Migration Domain
 

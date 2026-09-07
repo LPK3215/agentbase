@@ -134,15 +134,17 @@ Document parsers (`agentbase.extensions.parsers`) are loaded during bootstrap au
 | `get_time` / `now_local` | Current UTC/local timestamp |
 | `read_file` / `write_file` / `grep` / `list_workspace` | File operations |
 | `skill_list` / `skill_get` / `skill_create` / `skill_update` / `skill_delete` / `skill_search` | Skill CRUD |
-| `memory_save` / `memory_get` / `memory_list` / `memory_search` / `memory_delete` / `memory_count` / `memory_batch_save` | Memory CRUD + count + batch save |
+| `memory_save` / `memory_get` / `memory_list` / `memory_search` / `memory_delete` / `memory_count` / `memory_batch_save` | Memory CRUD + count + batch save. Factory binds `agent_name`; bound tools ignore model `agent=` and never search unbound |
 | `kb_add` / `kb_get` / `kb_list` / `kb_search` / `kb_update` / `kb_delete` / `kb_ingest` / `kb_batch_ingest` | Knowledge base |
 | `web_search` / `web_fetch` | Web search and fetch |
 | `http_request` | Make HTTP requests (GET/POST/PUT/PATCH/DELETE) with timeout, redirect limits, and structured response |
 | `db_query` | Execute read-only SELECT queries with table whitelist, row limit, and timeout (default disabled) |
 | `mcp_list_tools` / `mcp_call_tool` | MCP server tools |
-| `code_execute` | Execute Python code in a sandboxed subprocess |
+| `code_execute` | Execute Python in a subprocess with timeout and output cap (**not** a jail; see SECURITY.md R6) |
 | `transcribe` | Transcribe audio/video to text (Whisper API/local) |
 | `email_sender` | Send SMTP email (text/HTML, multi-recipient, SSL/TLS) |
+
+`AgentFactory` puts `agent_name` (the YAML agent name) into tool context. Bound memory tools always use that name. The `agent` argument stays on the tool schema for compatibility but is ignored when the context is bound. Unbound unit fixtures fall back to the requested name or `"default"`. This is **not** multi-tenant isolation (no `tenant_id`); see [SECURITY.md](../SECURITY.md) R4.
 
 ## Built-in Document Parsers (9)
 
