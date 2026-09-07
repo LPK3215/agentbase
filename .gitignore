@@ -33,6 +33,9 @@ workspace/uploads/
 workspace/workspace/
 # ===== 本机 compose 覆盖（勿入库：会自动合并并改掉端口映射）=====
 docker-compose.override.yml
+# ===== 本地验收过程稿（产出不是证据源，勿入库）=====
+acceptance/
+
 # ===== IDE / Agent 工具数据 =====
 .codebuddy/
 .codeartsdoer/
