@@ -27,8 +27,13 @@ build/
 .coverage
 coverage.json
 htmlcov/
+# ===== 运行时工作区产出（种子文件仍入库）=====
+workspace/outputs/
+workspace/uploads/
+workspace/workspace/
 # ===== IDE / Agent 工具数据 =====
 .codebuddy/
+.codeartsdoer/
 # ===== CI workflows（本地保留；推送需 token 含 workflow scope，
 # 授权后删除本行并 git add .github 即可上线 CI）=====
 .github/

@@ -90,15 +90,17 @@ doctor: ## Run health checks
 
 
 clean: ## Remove build artifacts and cache files
-	rm -rf build/ dist/ *.egg-info src/*.egg-info
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
+	rm -rf build/ dist/*.tar.gz dist/*.whl *.egg-info src/*.egg-info
+	rm -rf htmlcov/ coverage.json .coverage .mypy_cache
+	find . -path ./.venv -prune -o -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -path ./.venv -prune -o -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
+	find . -path ./.venv -prune -o -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
 
 clean-cache: ## Clear all Python caches
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
+	rm -rf .mypy_cache htmlcov coverage.json .coverage
+	find . -path ./.venv -prune -o -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -path ./.venv -prune -o -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
+	find . -path ./.venv -prune -o -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
 
 clean-db: ## Remove local SQLite databases (dev only!)
 	rm -f data/*.db data/*.db-journal 2>/dev/null || true
