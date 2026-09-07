@@ -1,0 +1,24 @@
+# Example agent evaluation suite for `agentbase eval`.
+#
+# Run against your default agent:
+#   agentbase eval --suite examples/eval_suite.yaml -o eval_report.json
+#
+# Each case is scored by the selected metrics (default: keyword + substring
+# match). A case passes when the average metric score is >= 0.5. The command
+# exits with code 1 if any case fails, so suites can gate CI.
+name: demo-suite
+cases:
+  - id: identity
+    query: "Who are you and what are you able to do?"
+    expected_keywords: ["agent", "tool"]
+  - id: arithmetic
+    query: "What is 7 multiplied by 8?"
+    expected: "56"
+    expected_keywords: ["56"]
+  - id: capability_overview
+    query: "What are your main capabilities?"
+    expected_keywords: ["memory", "knowledge", "search"]
+  - id: capital_city
+    query: "What is the capital of France?"
+    expected: "Paris"
+    expected_keywords: ["Paris"]

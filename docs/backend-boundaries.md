@@ -421,7 +421,7 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 |------|------|------|
 | 结构化 JSON 日志 | ✅ 已实现 | 7 个必填字段（timestamp/level/event/thread_id/agent/duration_ms/request_id），含 `duration_ms` 执行时长追踪 |
 | 密钥脱敏 | ✅ 已实现 | 日志中自动脱敏 API Key 和 DSN 密码 |
-| Prometheus 指标 | ✅ 已实现 | `GET /metrics` — 请求计数/状态分布/延迟直方图/Agent 调用计数/错误码分布/WS 连接数 |
+| Prometheus 指标 | ✅ 已实现 | `GET /metrics` — 请求计数/状态分布/延迟直方图/Agent 调用计数/错误码分布/WS 连接数。**始终公开**（`_PUBLIC_PATHS`），生产须网关限制 |
 | 请求 ID 关联 | ✅ 已实现 | `X-Request-ID` 头，传播到 runner 日志和 tracer span |
 | 追踪 (Tracing) | ✅ 已实现 | NullTracer + InMemoryTracer + LangfuseTracer + OpenTelemetryTracer，已集成到 invoke/stream/resume |
 | 健康检查 | ✅ 已实现 | `GET /health` — 组件级探活（storage/queue/embedding/search/tracer），受 `health_check` 配置开关控制，返回 `status`/`components`/`storage_connected`/`queue_connected`/`embedding_connected`/`search_connected`/`tracer_connected` |
@@ -440,10 +440,14 @@ PostgreSQL 和 MySQL 后端会自动将 SQLite 风格的 SQL 转换（`AUTOINCRE
 | 指标：LLM 评分 | ✅ 已实现 | `LLMJudgeMetric` |
 | 指标：BLEU | ✅ 已实现 | `BLEUMetric`，纯 Python BLEU-4 |
 | 指标：ROUGE-L | ✅ 已实现 | `ROUGEMetric`，LCS-based F1 |
+| CLI 评估接线 | ✅ 已实现 | `agentbase eval` — 从 `--case "q||expected||kw"` 或 `--suite`（YAML/JSON）加载用例，跑真实 Agent（每用例独立 thread），默认 keyword+substring 指标，可 `--metric` 选 llm_judge/bleu/rouge_l/exact_match 等，`-o` 输出 JSON/YAML 报告，失败返回码 1（可作 CI 回归门禁） |
+| 内置示例套件 | ✅ 已实现 | `examples/eval_suite.yaml`（能力冒烟，**不是**拒答/安全套件；安全红线见 `SECURITY.md` + `tests/security/`） |
+| CI 接线 | ⏳ ROADMAP N2 | 命令可作门禁；仓库 `.github/` 可能因 token 范围未跟踪 |
 
 ### 未实现
 
 - ~~A/B 测试框架~~ → 已实现（Experiment Provider + `/experiments` API）
+- Agent 行为级评估（transcript/工具轨迹/环境状态 outcome grader、能力 vs 回归评估集、失败用例自动沉淀回放）→ 待推进
 
 ---
 
@@ -494,6 +498,7 @@ pip install agentbase[all]          # 全部安装
 | `agentbase run` | ✅ 已实现 | 同步调用 Agent |
 | `agentbase stream` | ✅ 已实现 | 流式调用 Agent |
 | `agentbase resume` | ✅ 已实现 | 恢复中断的 Agent |
+| `agentbase eval` | ✅ 已实现 | 运行评估套件（`--case`/`--suite`，可 `--metric`/`-o`，失败退出码 1，可作 CI 门禁） |
 | `agentbase serve` | ✅ 已实现 | 启动 API 服务 |
 | `agentbase worker` | ✅ 已实现 | 启动队列 worker 进程 |
 | `agentbase version` | ✅ 已实现 | 打印版本信息（Python 版本、平台） |
@@ -515,7 +520,7 @@ pip install agentbase[all]          # 全部安装
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| API Key 认证 | ✅ 已实现 | Bearer Token / X-API-Key，常数时间比较（`hmac.compare_digest`） |
+| API Key 认证 | ✅ 已实现 | Bearer Token / X-API-Key，常数时间比较（`hmac.compare_digest`）。`AGENTBASE_API_KEY` 为空时 **dev fail-open**；`app.env` 为 `prod`/`production` 时拒绝启动（`AGENTBASE_CONFIG_004`） |
 | JWT 认证 | ✅ 已实现 | HMAC-SHA256，Token 过期，自定义 claims，secret 为空时 fail-fast（`AGENTBASE_CONFIG_002`） |
 | RBAC 权限控制 | ✅ 已实现 | admin/user/readonly 三级角色，路径级权限 |
 | CORS | ✅ 已实现 | 可配置 origins，通配符 `*` 时自动禁用 credentials（CORS 规范） |
@@ -537,7 +542,7 @@ pip install agentbase[all]          # 全部安装
 - ~~OAuth2 第三方登录~~ → 已实现（Google/GitHub 授权码流程，State CSRF 防护，自动注册/匹配用户，签发 JWT）
 - ~~API 限流配额管理（只有固定阈值）~~ → 已实现（按角色动态配额 + `/admin/rate-limit` 管理端点）
 
-> 安全与认证功能已全部实现。
+书面红线表与生产最小清单：[SECURITY.md](../SECURITY.md)。HITL / eval / 失败钩子映射：[docs/guardrails.md](guardrails.md)。`audit.enabled` / `redaction.enabled` 默认关；默发 Agent `interrupt_on: {}`。`/metrics` 始终公开。多租户 `tenant_id` 未实现。
 
 ---
 
@@ -576,6 +581,9 @@ pip install agentbase[all]          # 全部安装
 | docs/core-services.md | ✅ 26 项核心服务/组件概览 + 10 个详细说明 |
 | docs/extensions.md | ✅ 扩展开发指南 |
 | docs/error-codes.md | ✅ 错误码注册表 |
+| docs/guardrails.md | ✅ HITL / eval / 失败钩子接入位 |
+| SECURITY.md | ✅ 7.5.1 书面红线 + 生产鉴权 |
+| tests/security/ | ✅ 防御性红线单测骨架 |
 | docs/backend-boundaries.md | ✅ 本文档 |
 | examples/ | ✅ Cookbook 示例库（11 个可运行脚本，覆盖 7 个基础注册表 + 2 个扩展类型 + 2 个配置切换） |
 | deploy/k8s/ | ✅ K8s Helm Chart + Manifests |

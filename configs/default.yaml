@@ -1,5 +1,7 @@
 app:
   name: agentbase
+  # Zero-config default. `prod` / `production` refuse to start without
+  # AGENTBASE_API_KEY or JWT secret (AGENTBASE_CONFIG_004). See SECURITY.md.
   env: dev
   log_level: INFO
 

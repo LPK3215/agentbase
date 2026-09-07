@@ -2,7 +2,7 @@
 
 > **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document explains how to build tools, middleware, subagents, and parsers.
 
-**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
+**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Error Codes](error-codes.md) · [Guardrails](guardrails.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md) · [SECURITY](../SECURITY.md)
 
 `agentbase` supports four extension types: **tools**, **middleware**, **subagents**, and **parsers**. All extensions are registered via decorators and automatically discovered from configured modules.
 
@@ -188,6 +188,8 @@ Beyond tools/middleware/subagents, `agentbase` provides 22 pluggable provider re
 | `secrets_registry` | FernetSecretsProvider / NullSecretsProvider | `@register_secrets_provider("name")` |
 
 ## Interrupt and Resume
+
+HITL trigger table, eval hook, and failure/middleware mapping: [docs/guardrails.md](guardrails.md). Fail-closed redlines: [SECURITY.md](../SECURITY.md). The default agent ships with `interrupt_on: {}` (development profile).
 
 ```yaml
 # configs/agents/interrupt_demo.yaml

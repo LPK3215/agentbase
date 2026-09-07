@@ -2,7 +2,7 @@
 
 > **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架 built on deepagents + LangChain + LangGraph. This guide gets a working agent from zero to deployed in 10 steps.
 
-**Documentation index:** [README](../README.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
+**Documentation index:** [README](../README.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Guardrails](guardrails.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md) · [SECURITY](../SECURITY.md)
 
 ## 1. Prerequisites
 
@@ -74,6 +74,9 @@ agentbase stream "Explain the project structure"
 
 # Use a specific agent profile
 agentbase run --agent coder "Write a Python function"
+
+# Assess the agent against an eval suite (template: examples/eval_suite.yaml)
+agentbase eval --suite examples/eval_suite.yaml -o eval_report.json
 ```
 
 ## 7. Start the API Server

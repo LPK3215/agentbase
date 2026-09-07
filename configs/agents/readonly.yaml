@@ -1,0 +1,60 @@
+name: readonly
+description: Read-only agent profile — no write/delete tools, empty interrupt map is therefore safe
+
+model: null
+
+system_prompt: |
+  You are a read-only deep agent runtime.
+  Inspect files, memory, and the knowledge base. Do not invent unavailable tools.
+  You have no write or delete tools; report findings instead of mutating state.
+
+memory:
+  - workspace/memory/AGENTS.md
+
+skills:
+  - workspace/skills
+
+tools:
+  - echo
+  - list_workspace
+  - get_time
+  - read_file
+  - grep
+  - now_local
+  - skill_list
+  - skill_get
+  - skill_search
+  - memory_get
+  - memory_list
+  - memory_search
+  - kb_get
+  - kb_list
+  - kb_search
+  - web_search
+  - web_fetch
+
+middleware:
+  - request_logger
+
+subagents: []
+
+permissions:
+  - operations: [read]
+    paths: ["workspace/**"]
+    mode: allow
+  - operations: [read, write, delete]
+    paths: ["**/.env", "**/*.key", "**/*.pem", "**/secrets/**"]
+    mode: deny
+
+interrupt_on: {}
+
+response_format: null
+
+metadata:
+  owner: platform
+  tags:
+    - harness
+    - readonly
+
+capabilities:
+  - files

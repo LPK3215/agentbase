@@ -2,7 +2,7 @@
 
 > **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document describes all configuration options for `agentbase`.
 
-**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
+**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Guardrails](guardrails.md) · [Error Codes](error-codes.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md) · [SECURITY](../SECURITY.md)
 
 ## Application Configuration (`configs/default.yaml`)
 
@@ -11,7 +11,7 @@
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `name` | string | `agentbase` | Application name |
-| `env` | string | `dev` | Environment label |
+| `env` | string | `dev` | Environment label. `prod` / `production` refuse to start without `AGENTBASE_API_KEY` or JWT secret (`AGENTBASE_CONFIG_004`). |
 | `log_level` | string | `INFO` | Logging level (DEBUG/INFO/WARNING/ERROR) |
 
 ### `model` Section

@@ -1,0 +1,37 @@
+# Maps SECURITY.md R1–R6 to defensive tests in this directory.
+# Independent of capability eval (examples/eval_suite.yaml): a redline failure
+# must not be averaged into a task-success score.
+
+redlines:
+  - id: R1
+    title: privilege / path escape / prod auth
+    tests:
+      - test_redlines.py::test_workspace_path_escape_rejected
+      - test_redlines.py::test_db_query_rejects_non_select
+      - test_redlines.py::test_prod_env_refuses_unauthenticated_start
+    must_pass: true
+  - id: R2
+    title: dangerous ops confirmation
+    note: interrupt_on is configuration; default profile is empty by design
+    must_pass: true
+  - id: R3
+    title: audit missing
+    note: audit.enabled default false; enable in production
+    must_pass: true
+  - id: R4
+    title: cross-tenant
+    note: no tenant_id in default scaffold; single-user only
+    must_pass: true
+  - id: R5
+    title: credential exposure
+    tests:
+      - test_redlines.py::test_jwt_prod_empty_secret_fail_fast
+    must_pass: true
+  - id: R6
+    title: irreversible ops
+    note: use interrupt_on or configs/agents/readonly.yaml
+    must_pass: true
+
+security_gate:
+  independent: true
+  attack_pass_rate: 1.0

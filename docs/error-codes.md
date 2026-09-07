@@ -2,7 +2,7 @@
 
 > **AgentBase** — a configuration-driven AI Agent backend / LLM agent framework / 智能体脚手架. This document lists all stable error codes.
 
-**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md)
+**Documentation index:** [README](../README.md) · [Quick Start](quickstart.md) · [Configuration](configuration.md) · [Core Services](core-services.md) · [Extensions](extensions.md) · [Guardrails](guardrails.md) · [Backend Boundaries](backend-boundaries.md) · [Project Positioning](project-positioning.md) · [SECURITY](../SECURITY.md)
 
 All user-facing errors carry a stable error code in the format `agentbase_<domain>_<nnn>`.
 
@@ -36,6 +36,7 @@ All user-facing errors carry a stable error code in the format `agentbase_<domai
 | `AGENTBASE_CONFIG_001` | Configuration missing or invalid | Config file not found, invalid YAML, missing required field |
 | `AGENTBASE_CONFIG_002` | Configuration validation error | Invalid config value (e.g., empty JWT secret when `type=jwt`) |
 | `AGENTBASE_CONFIG_003` | Required environment variable missing | Expected env var (e.g. API key) not set |
+| `AGENTBASE_CONFIG_004` | Production requires authentication | `app.env` is `prod`/`production` and neither `AGENTBASE_API_KEY` nor JWT secret is set |
 
 ### Registry Domain
 

@@ -154,6 +154,7 @@ import threading
 import time
 import uuid
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import (
@@ -176,6 +177,7 @@ from pydantic import BaseModel, Field
 from agentbase.bootstrap import build_runtime
 from agentbase.runtime.errors import (
     AgentbaseError,
+    ConfigError,
     ErrorCode,
     NotFoundError,
     QueueError,
@@ -209,6 +211,48 @@ def _is_auth_enabled() -> bool:
     """Check if API key authentication is enabled."""
     key = _get_api_key()
     return key is not None and key != ""
+
+
+_PROD_ENVS = frozenset({"prod", "production"})
+
+
+def _ensure_prod_auth(app_config: Any) -> None:
+    """Refuse production start when the HTTP API would be fail-open.
+
+    ``app.env: dev`` (the zero-config default) still allows an empty
+    ``AGENTBASE_API_KEY``. Production requires a non-empty API key, or
+    ``auth.type=jwt`` with a non-empty secret. An empty JWT secret is
+    ``AGENTBASE_CONFIG_002`` (same as ``_get_jwt_auth``). Missing API key
+    in prod is ``AGENTBASE_CONFIG_004``.
+    """
+    env = (getattr(getattr(app_config, "app", None), "env", "") or "").strip().lower()
+    if env not in _PROD_ENVS:
+        return
+
+    auth_cfg = getattr(app_config, "auth", None)
+    auth_type = getattr(auth_cfg, "type", "") if auth_cfg is not None else ""
+    secret = getattr(auth_cfg, "secret", "") if auth_cfg is not None else ""
+
+    if auth_type == "jwt":
+        if not secret:
+            raise ConfigError(
+                "JWT auth type is 'jwt' but no secret is configured. "
+                "Set AGENTBASE_AUTH__SECRET to a strong random value.",
+                code="AGENTBASE_CONFIG_002",
+                detail={"field": "auth.secret"},
+            )
+        return
+
+    if _is_auth_enabled():
+        return
+
+    raise ConfigError(
+        "Production environment requires authentication. "
+        "Set AGENTBASE_API_KEY or configure auth.type=jwt with "
+        "AGENTBASE_AUTH__SECRET.",
+        code="AGENTBASE_CONFIG_004",
+        detail={"field": "app.env", "env": env},
+    )
 
 
 def _verify_api_key(request: Request) -> bool:
@@ -925,7 +969,9 @@ def get_runtime():
     """Get or create the singleton RuntimeContext."""
     global _runtime
     if _runtime is None:
-        _runtime = build_runtime()
+        rt = build_runtime()
+        _ensure_prod_auth(rt.app_config)
+        _runtime = rt
     return _runtime
 
 
@@ -1565,21 +1611,35 @@ def _check_tracer(factory: Any) -> tuple[bool, str]:
         return (False, f"tracer error: {exc}")
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Fail closed before the server binds.
+
+    Docker CMD is ``uvicorn agentbase.api:app``, not ``agentbase serve``.
+    ``get_runtime()`` runs the production-auth guard so a prod process
+    never serves an open API until the first ``/health`` probe.
+    """
+    get_runtime()
+    yield
+
+
 def create_app(*, runtime=None) -> FastAPI:
     """Create a FastAPI app instance.
 
     Args:
-        runtime: Optional pre-built RuntimeContext. If None, will be
-            lazily created on first request via ``build_runtime()``.
+        runtime: Optional pre-built RuntimeContext. If None, created on
+            FastAPI startup (and on first request) via ``build_runtime()``.
     """
     global _runtime
     if runtime is not None:
+        _ensure_prod_auth(runtime.app_config)
         _runtime = runtime
 
     app = FastAPI(
         title="agentbase",
         description="Deep Agents backend harness — API layer",
         version="0.4.0",
+        lifespan=_lifespan,
         openapi_tags=[
             {"name": "health", "description": "Health check and metrics"},
             {"name": "agents", "description": "Agent listing and configuration"},

@@ -6,7 +6,7 @@ import sys
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 # Force UTF-8 for stdout/stderr to avoid GBK encoding errors on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
@@ -26,10 +26,15 @@ from agentbase.registry.checkpointers import checkpointer_registry
 from agentbase.registry.middleware import middleware_registry
 from agentbase.registry.subagents import subagent_registry
 from agentbase.registry.tools import tool_registry
+from agentbase.core.evaluation import EvalCase, EvaluationRunner
 from agentbase.runtime.errors import AgentbaseError
 from agentbase.runtime.events import EventType
 
 console = Console(force_terminal=True, legacy_windows=False)
+
+# Metric names selectable via `agentbase eval --metric`; mirrors the metric
+# classes exposed by agentbase.core.evaluation.
+EVAL_METRIC_NAMES = ("keyword_match", "exact_match", "substring_match", "bleu", "rouge_l", "llm_judge")
 
 
 class CheckStatus(str, Enum):
@@ -308,6 +313,141 @@ def cmd_resume(args: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_inline_case(text: str) -> EvalCase:
+    """Parse an inline eval case of the form ``query||expected||kw1,kw2``."""
+    parts = text.split("||")
+    query = parts[0].strip()
+    expected = parts[1].strip() if len(parts) > 1 else ""
+    keywords = [kw.strip() for kw in parts[2].split(",") if kw.strip()] if len(parts) > 2 else []
+    return EvalCase(query=query, expected=expected, expected_keywords=keywords)
+
+
+def _build_eval_runner(metric_names: list[str] | None) -> EvaluationRunner:
+    """Build an EvaluationRunner from CLI metric selection.
+
+    Empty selection keeps the runner defaults (keyword + substring match).
+    Unknown metric names raise ValueError.
+    """
+    from agentbase.core.evaluation import (
+        BLEUMetric,
+        ExactMatchMetric,
+        KeywordMatchMetric,
+        LLMJudgeMetric,
+        ROUGEMetric,
+        SubstringMatchMetric,
+    )
+
+    factories: dict[str, Callable[[], Any]] = {
+        "keyword_match": KeywordMatchMetric,
+        "exact_match": ExactMatchMetric,
+        "substring_match": SubstringMatchMetric,
+        "llm_judge": LLMJudgeMetric,
+        "bleu": BLEUMetric,
+        "rouge_l": ROUGEMetric,
+    }
+    if not metric_names:
+        return EvaluationRunner()
+    metrics = []
+    for name in metric_names:
+        factory = factories.get(name)
+        if factory is None:
+            raise ValueError(
+                f"Unknown metric '{name}'. Available: {', '.join(EVAL_METRIC_NAMES)}"
+            )
+        metrics.append(factory())
+    return EvaluationRunner(metrics=metrics)
+
+
+def _make_eval_agent_fn(runtime: Any, agent: Any, agent_name: str) -> Callable[[str], str]:
+    """Wrap runtime.runner.invoke into a per-case isolated agent function."""
+    import uuid
+
+    def agent_fn(query: str) -> str:
+        result = runtime.runner.invoke(
+            agent=agent,
+            agent_name=agent_name,
+            message=query,
+            thread_id=uuid.uuid4().hex,  # fresh thread per case keeps evals isolated
+        )
+        return result.get("output_text") or ""
+
+    return agent_fn
+
+
+def cmd_eval(args: argparse.Namespace) -> int:
+    """Run an agent evaluation suite against a real agent (self-assessment).
+
+    Cases come from repeatable ``--case "query||expected||kw1,kw2"`` inline
+    arguments and/or a ``--suite`` YAML/JSON file. Exit code is 1 when any
+    case fails, which makes it usable as a CI regression gate.
+    """
+    from pathlib import Path
+
+    if not getattr(args, "cases", None) and not getattr(args, "suite", None):
+        console.print("[red]ERROR[/red] Provide at least one --case or a --suite file.")
+        return 2
+
+    root = resolve_root_dir(args.root)
+    runtime = build_runtime(root)
+    agent_name = args.agent or runtime.app_config.runtime.default_agent
+    agent = runtime.get_agent(agent_name)
+
+    try:
+        runner = _build_eval_runner(getattr(args, "metric", None))
+    except ValueError as exc:
+        console.print(f"[red]ERROR[/red] {exc}")
+        return 2
+
+    agent_fn = _make_eval_agent_fn(runtime, agent, agent_name)
+
+    if args.suite:
+        suite_path = Path(args.suite)
+        if not suite_path.exists():
+            console.print(f"[red]ERROR[/red] Suite file not found: {suite_path}")
+            return 2
+        suffix = suite_path.suffix.lower()
+        name = args.name or suite_path.stem
+        if suffix == ".json":
+            report = runner.evaluate_from_file(str(suite_path), agent_fn, name=name)
+        elif suffix in (".yaml", ".yml"):
+            report = runner.evaluate_from_yaml(str(suite_path), agent_fn, name=name)
+        else:
+            console.print("[red]ERROR[/red] Suite file must be .json/.yaml/.yml (or use --case).")
+            return 2
+    else:
+        cases = [_parse_inline_case(text) for text in args.cases]
+        report = runner.evaluate(cases, agent_fn, name=args.name or "cli-eval")
+
+    results_table = Table(title=f"Evaluation: {report.name} (agent={agent_name})")
+    results_table.add_column("Case", style="cyan", no_wrap=False)
+    results_table.add_column("Passed", justify="center")
+    results_table.add_column("Score", justify="right")
+    results_table.add_column("Latency", justify="right")
+    for result in report.results:
+        status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
+        results_table.add_row(
+            result.case.id or result.case.query[:40],
+            status,
+            f"{result.score:.2f}" if result.error is None else "error",
+            f"{result.latency_ms:.0f}ms" if result.latency_ms > 0 else "—",
+        )
+    console.print(results_table)
+
+    summary_color = "green" if report.failed_count == 0 else "red"
+    console.print(
+        f"[{summary_color}]{'PASSED' if report.failed_count == 0 else 'FAILED'}[/{summary_color}] "
+        f"total={report.total} passed={report.passed_count} failed={report.failed_count} "
+        f"pass_rate={report.pass_rate:.1%} avg_score={report.avg_score:.2f} "
+        f"avg_latency={report.avg_latency_ms:.0f}ms"
+    )
+
+    if args.output:
+        runner.save_report(report, args.output, format=args.format)
+        console.print(f"[green]Report saved:[/green] {args.output}")
+
+    return 1 if report.failed_count > 0 else 0
+
+
 def _safe_json(value: Any) -> Any:
     try:
         json.dumps(value, default=str)
@@ -322,7 +462,14 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     root = resolve_root_dir(args.root)
     # Build runtime before starting server so config errors surface early
-    build_runtime(root)
+    rt = build_runtime(root)
+    try:
+        from agentbase.api import _ensure_prod_auth
+
+        _ensure_prod_auth(rt.app_config)
+    except AgentbaseError as exc:
+        console.print(f"[red]{exc.code}[/red] {exc}")
+        return 1
 
     console.print(f"[green]Starting agentbase server on {args.host}:{args.port}[/green]")
     console.print(f"  API docs: http://{args.host}:{args.port}/docs")
@@ -465,6 +612,31 @@ def build_parser() -> argparse.ArgumentParser:
 
     version = sub.add_parser("version", help="Print version information")
     version.set_defaults(func=cmd_version)
+
+    eval_cmd = sub.add_parser("eval", help="Run an agent evaluation suite (self-assessment)")
+    _add_root_arg(eval_cmd)
+    eval_cmd.add_argument("--agent", default=None, help="Agent profile name (default: runtime default)")
+    eval_cmd.add_argument(
+        "--case",
+        action="append",
+        dest="cases",
+        default=None,
+        metavar="QUERY||EXPECTED||KW1,KW2",
+        help="Inline eval case; repeatable (keywords optional)",
+    )
+    eval_cmd.add_argument("--suite", default=None, help="Suite file (.json/.yaml/.yml) with a 'cases' list")
+    eval_cmd.add_argument(
+        "--metric",
+        action="append",
+        dest="metric",
+        default=None,
+        choices=EVAL_METRIC_NAMES,
+        help="Metric(s) to compute (default: keyword_match + substring_match)",
+    )
+    eval_cmd.add_argument("--name", default=None, help="Evaluation report name (default: suite stem)")
+    eval_cmd.add_argument("--output", "-o", default=None, help="Write the report to this file")
+    eval_cmd.add_argument("--format", default="json", choices=["json", "yaml"], help="Report output format")
+    eval_cmd.set_defaults(func=cmd_eval)
 
     validate = sub.add_parser("config", help="Configuration management")
     config_sub = validate.add_subparsers(dest="config_command", required=True)

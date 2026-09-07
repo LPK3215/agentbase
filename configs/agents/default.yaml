@@ -66,6 +66,8 @@ permissions:
     paths: ["**/.env", "**/*.key", "**/*.pem", "**/secrets/**"]
     mode: deny
 
+# Empty = no HITL. This is a development profile with write/delete tools.
+# Production: copy interrupt_demo.yaml or switch to readonly.yaml. See docs/guardrails.md.
 interrupt_on: {}
 
 response_format: null

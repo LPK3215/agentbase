@@ -73,7 +73,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      # API security
+      # API security — compose defaults APP__ENV=prod below, so this MUST be
+      # set or the API container refuses to start (AGENTBASE_CONFIG_004).
+      # Local zero-config still uses configs/default.yaml env: dev.
       - AGENTBASE_API_KEY=${AGENTBASE_API_KEY:-}
       - AGENTBASE_CORS_ORIGINS=${AGENTBASE_CORS_ORIGINS:-*}
       # JWT auth (optional)
@@ -99,7 +101,7 @@ services:
       - AGENTBASE_QUEUE__OPTIONS__PORT=6379
       # Metrics
       - AGENTBASE_METRICS__ENABLED=${AGENTBASE_METRICS__ENABLED:-true}
-      # Application
+      # Application — default prod. Empty AGENTBASE_API_KEY will fail start.
       - AGENTBASE_APP__ENV=${AGENTBASE_APP__ENV:-prod}
       - AGENTBASE_APP__LOG_LEVEL=${AGENTBASE_APP__LOG_LEVEL:-INFO}
       # ── Optional services (uncomment / set in .env to enable) ──

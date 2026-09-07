@@ -17,7 +17,7 @@
 
 **Configuration-driven AI Agent backend for secondary development** — a production-grade **AI Agent framework / LLM agent scaffold** built on [deepagents](https://pypi.org/project/deepagents/), [LangChain](https://pypi.org/project/langchain/), and [LangGraph](https://pypi.org/project/langgraph/). Assemble and run production-grade **AI agents / intelligent agent systems** from YAML configuration, without writing boilerplate. Use it as an **agent application scaffolding** layer, an **AI agent service framework**, or an **intelligent agent development starter kit**.
 
-`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 20-command CLI, and a FastAPI service layer with 145 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
+`agentbase` provides YAML configuration, pluggable extension registries, component factories, a 21-command CLI, and a FastAPI service layer with 145 REST/WebSocket routes. It wires together the infrastructure every AI Agent backend needs: model configuration, prompt templates, user management, API key management, session management, memory management, knowledge base with RAG, document parsing, task queues, API security, tracing, and evaluation — all with sensible defaults and every component swappable via a one-line config change.
 
 ## Key Features
 
@@ -35,7 +35,7 @@
 ```mermaid
 graph TD
     subgraph "Entry Points (CLI / FastAPI / WebSocket)"
-        A[agentbase CLI<br/>20 commands] --> C[Service Layer<br/>145 REST + WS routes]
+        A[agentbase CLI<br/>21 commands] --> C[Service Layer<br/>145 REST + WS routes]
         B[FastAPI App] --> C
     end
 
@@ -116,9 +116,8 @@ agentbase serve --reload
 ```
 
 > Optional production stack (PostgreSQL + pgvector, Redis): `docker compose up -d`
-> — see [docker-compose.yml](docker-compose.yml) and set
-> `AGENTBASE_STORAGE__DSN` / `AGENTBASE_CHECKPOINTER__DSN` as documented in
-> [configs/default.yaml](configs/default.yaml).
+> — compose defaults `AGENTBASE_APP__ENV=prod`, so set `AGENTBASE_API_KEY` (or a JWT secret) or the API container **refuses to start** (`AGENTBASE_CONFIG_004`). See [SECURITY.md](SECURITY.md). Local clone-and-run keeps `configs/default.yaml` `env: dev` (open API allowed).
+> Storage DSN: [docker-compose.yml](docker-compose.yml) and [configs/default.yaml](configs/default.yaml).
 
 ## CLI Commands
 
@@ -145,6 +144,7 @@ agentbase serve --reload
 | `agentbase db heads` | Show head migration revisions |
 | `agentbase db history` | Show migration history |
 | `agentbase db stamp --revision REV` | Stamp database with a revision |
+| `agentbase eval --suite suite.yaml -o report.json` | Run an agent evaluation suite (self-assessment; exit 1 on failure) |
 
 ### Common Options
 
@@ -538,7 +538,7 @@ agentbase/
 │   └── agents/            # Agent profiles
 ├── src/agentbase/
 │   ├── api.py             # FastAPI service layer (144 routes, auth, CORS, rate limit, metrics)
-│   ├── cli.py             # CLI entry point (20 commands)
+│   ├── cli.py             # CLI entry point (21 commands)
 │   ├── config/            # Config loading & schema
 │   ├── core/              # 35 core modules (memory, knowledge, queue, queue_celery, skills, workspace, storage, storage_mongodb, mcp, tracer, graph, audit, redaction, secrets, experiment, migration, model_manager, prompt, user_manager, apikey_manager, oauth2, usage, webhook, feedback, notification, conversation, scheduler, calendar, system_config, rbac, alert, evaluation, parsers, embeddings, search)
 │   ├── factories/         # Component factories
@@ -555,14 +555,11 @@ agentbase/
 ## Docker Deployment
 
 ```bash
-# Start everything (PostgreSQL + API)
-docker compose up -d
+# Compose defaults AGENTBASE_APP__ENV=prod — API key (or JWT secret) is required
+AGENTBASE_API_KEY="secret" docker compose up -d
 
 # API available at http://localhost:8000
 docker compose logs -f api
-
-# With API key authentication
-AGENTBASE_API_KEY="secret" docker compose up -d
 ```
 
 ## Documentation
@@ -573,9 +570,11 @@ AGENTBASE_API_KEY="secret" docker compose up -d
 | [Configuration](docs/configuration.md) | Full config reference (YAML + env vars) |
 | [Core Services](docs/core-services.md) | 35 core modules & pluggable provider swaps |
 | [Extensions](docs/extensions.md) | 30 extension registries, tools, middleware |
+| [Guardrails](docs/guardrails.md) | HITL / eval / failure hooks (default-off) |
 | [Error Codes](docs/error-codes.md) | `agentbase_<domain>_<nnn>` structured errors |
 | [Backend Boundaries](docs/backend-boundaries.md) | Architecture & separation of concerns |
 | [Project Positioning](docs/project-positioning.md) | Why agentbase exists, design principles |
+| [SECURITY](SECURITY.md) | Fail-closed redlines + production auth |
 
 ## Project Positioning
 
