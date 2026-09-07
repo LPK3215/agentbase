@@ -1,15 +1,16 @@
-"""Code execution tool — runs Python code in a restricted subprocess sandbox.
+"""Code execution tool — runs Python in a subprocess with caps, not a jail.
 
-Executes Python code in an isolated subprocess with timeout, resource limits,
-and output capture. The sandbox has restricted imports and no network access.
+Executes Python via ``subprocess`` on the host interpreter with a wall-clock
+timeout and captured/truncated stdout+stderr. This is **not** a syscall
+sandbox: there is no network jail and no restricted ``PYTHONPATH``.
 
-Safety features:
-- Runs in a separate subprocess (not in-process)
-- Restricted ``PYTHONPATH`` — only stdlib + site-packages
-- No network access (env stripped of proxies)
+Safety features (caps, not isolation):
+- Separate subprocess (not in-process)
 - Configurable timeout (default 10s, max 60s)
 - Output size limit (truncated at 100KB)
 - Code size limit (max 50KB)
+- Proxy-related env vars are cleared; this does **not** block network
+  access from the child process
 
 Usage in config::
 

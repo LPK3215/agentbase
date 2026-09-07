@@ -1,9 +1,8 @@
-"""Security tests for JWT authentication — focuses on the default-secret fix.
+"""Security tests for JWT authentication — empty secret must fail closed.
 
 Covers three paths:
 - normal: JWTAuth with an explicit secret works correctly (create + verify roundtrip)
-- boundary: empty secret generates an ephemeral random key (not a well-known default);
-            tokens from one ephemeral instance cannot be forged by another
+- boundary: empty secret raises ValueError (no ephemeral well-known/random key)
 - error: _get_jwt_auth raises ConfigError when type=jwt but secret is empty
 """
 from __future__ import annotations
@@ -51,28 +50,23 @@ class TestJWTExplicitSecret:
 
 
 class TestJWTEmptySecret:
-    """When no secret is provided, JWTAuth must NOT use a well-known default."""
+    """Empty JWT secret is rejected; the old default must not mint tokens."""
 
-    def test_no_well_known_default_secret(self):
-        """The old default 'agentbase-default-secret' must not verify."""
-        auth_empty = JWTAuth()  # no secret
-        token = auth_empty.create_token(user_id="user1")
-        # An attacker who knows the old default should NOT be able to forge
-        auth_attacker = JWTAuth(secret="agentbase-default-secret")
-        assert auth_attacker.verify_token(token) is None
+    def test_empty_secret_raises(self):
+        with pytest.raises(ValueError, match="secret"):
+            JWTAuth()
 
-    def test_ephemeral_secrets_differ_across_instances(self):
-        """Two JWTAuth instances with no secret must get different keys."""
-        auth_a = JWTAuth()
-        auth_b = JWTAuth()
-        token_a = auth_a.create_token(user_id="user1")
-        # token from A should not verify on B
-        assert auth_b.verify_token(token_a) is None
+    def test_empty_string_secret_raises(self):
+        with pytest.raises(ValueError, match="secret"):
+            JWTAuth(secret="")
 
-    def test_ephemeral_secret_still_works_for_own_tokens(self):
-        """Even with ephemeral secret, create→verify on same instance works."""
-        auth = JWTAuth()
+    def test_old_default_secret_is_just_another_secret(self):
+        """The old well-known default can still be *used* if set explicitly,
+        but empty construction no longer falls back to it."""
+        auth = JWTAuth(secret="agentbase-default-secret")
         token = auth.create_token(user_id="user1")
+        other = JWTAuth(secret="a-different-explicit-secret")
+        assert other.verify_token(token) is None
         assert auth.verify_token(token) is not None
 
 

@@ -1,6 +1,7 @@
 # Maps SECURITY.md R1–R6 to defensive tests in this directory.
 # Independent of capability eval (examples/eval_suite.yaml): a redline failure
 # must not be averaged into a task-success score.
+# must_pass: true requires a non-empty tests list (enforced by test_redlines.py).
 
 redlines:
   - id: R1
@@ -12,16 +13,18 @@ redlines:
     must_pass: true
   - id: R2
     title: dangerous ops confirmation
-    note: interrupt_on is configuration; default profile is empty by design
+    note: interrupt_on is configuration; default profile is empty by design. Gate is the interrupt_demo profile.
+    tests:
+      - test_redlines.py::test_interrupt_demo_gates_write_file
     must_pass: true
   - id: R3
     title: audit missing
-    note: audit.enabled default false; enable in production
-    must_pass: true
+    note: audit.enabled default false; enable in production. Not a CI hard fail until audit ships on by default.
+    must_pass: false
   - id: R4
     title: cross-tenant
-    note: no tenant_id in default scaffold; single-user only
-    must_pass: true
+    note: no tenant_id in default scaffold; single-user only. Do not treat agent_name uniqueness as tenancy.
+    must_pass: false
   - id: R5
     title: credential exposure
     tests:
@@ -30,6 +33,8 @@ redlines:
   - id: R6
     title: irreversible ops
     note: use interrupt_on or configs/agents/readonly.yaml
+    tests:
+      - test_redlines.py::test_readonly_profile_has_no_write_or_delete_tools
     must_pass: true
 
 security_gate:

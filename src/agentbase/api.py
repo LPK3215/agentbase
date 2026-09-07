@@ -35,7 +35,7 @@ Authentication::
 Endpoints::
 
     GET    /health                      — health check (no auth)
-    GET    /metrics                     — Prometheus metrics (no auth)
+    GET    /metrics                     — Prometheus metrics (auth when API key/JWT enabled)
     GET    /agents                      — list available agents (paginated)
     GET    /agents/{name}               — get agent config
     GET    /agents/{name}/configurable  — get configurable items
@@ -188,7 +188,7 @@ from agentbase.runtime.errors import (
 # Constants                                                                   #
 # --------------------------------------------------------------------------- #
 
-_PUBLIC_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/", "/metrics"}
+_PUBLIC_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/"}
 
 # Maximum file upload size (bytes): 100 MB
 _MAX_UPLOAD_SIZE = 100 * 1024 * 1024
@@ -202,14 +202,32 @@ _WS_HEARTBEAT_INTERVAL = 30.0
 # --------------------------------------------------------------------------- #
 
 
-def _get_api_key() -> str | None:
-    """Get the configured API key from environment."""
+def _constant_time_equals(left: str, right: str) -> bool:
+    """Constant-time string compare that never raises on length mismatch."""
+    if not left or not right:
+        return False
+    try:
+        return hmac.compare_digest(left, right)
+    except (TypeError, ValueError):
+        return False
+
+
+def _get_api_key(app_config: Any | None = None) -> str | None:
+    """Return the API key: non-empty ``auth.api_key`` overrides env.
+
+    Never calls ``get_runtime()`` — callers must pass ``app_config`` when
+    the YAML key should participate. ``app_config=None`` is env-only
+    (keeps existing unit tests).
+    """
+    cfg_key = getattr(getattr(app_config, "auth", None), "api_key", None)
+    if isinstance(cfg_key, str) and cfg_key:
+        return cfg_key
     return os.environ.get("AGENTBASE_API_KEY") or None
 
 
-def _is_auth_enabled() -> bool:
-    """Check if API key authentication is enabled."""
-    key = _get_api_key()
+def _is_auth_enabled(app_config: Any | None = None) -> bool:
+    """Check if API key authentication is enabled (config or env)."""
+    key = _get_api_key(app_config)
     return key is not None and key != ""
 
 
@@ -220,10 +238,10 @@ def _ensure_prod_auth(app_config: Any) -> None:
     """Refuse production start when the HTTP API would be fail-open.
 
     ``app.env: dev`` (the zero-config default) still allows an empty
-    ``AGENTBASE_API_KEY``. Production requires a non-empty API key, or
-    ``auth.type=jwt`` with a non-empty secret. An empty JWT secret is
-    ``AGENTBASE_CONFIG_002`` (same as ``_get_jwt_auth``). Missing API key
-    in prod is ``AGENTBASE_CONFIG_004``.
+    API key. Production requires a non-empty API key (env or
+    ``auth.api_key``), or ``auth.type=jwt`` with a non-empty secret.
+    An empty JWT secret is ``AGENTBASE_CONFIG_002`` (same as
+    ``_get_jwt_auth``). Missing API key in prod is ``AGENTBASE_CONFIG_004``.
     """
     env = (getattr(getattr(app_config, "app", None), "env", "") or "").strip().lower()
     if env not in _PROD_ENVS:
@@ -243,38 +261,31 @@ def _ensure_prod_auth(app_config: Any) -> None:
             )
         return
 
-    if _is_auth_enabled():
+    if _is_auth_enabled(app_config):
         return
 
     raise ConfigError(
         "Production environment requires authentication. "
-        "Set AGENTBASE_API_KEY or configure auth.type=jwt with "
-        "AGENTBASE_AUTH__SECRET.",
+        "Set AGENTBASE_API_KEY, auth.api_key, or configure auth.type=jwt "
+        "with AGENTBASE_AUTH__SECRET.",
         code="AGENTBASE_CONFIG_004",
         detail={"field": "app.env", "env": env},
     )
 
 
-def _verify_api_key(request: Request) -> bool:
+def _verify_api_key(request: Request, app_config: Any | None = None) -> bool:
     """Verify the API key from the Authorization header or X-API-Key."""
-    if not _is_auth_enabled():
+    if not _is_auth_enabled(app_config):
         return True
+    expected = _get_api_key(app_config)
+    if expected is None:
+        return False
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        # If JWT auth is configured, the token may be a JWT
-        # The JWT verification is handled separately
-        # Use constant-time comparison to prevent timing side-channel
-        expected = _get_api_key()
-        if expected is not None:
-            return hmac.compare_digest(token, expected)
-        return False
+        return _constant_time_equals(auth_header[7:], expected)
     api_key_header = request.headers.get("X-API-Key", "")
     if api_key_header:
-        expected = _get_api_key()
-        if expected is not None:
-            return hmac.compare_digest(api_key_header, expected)
-        return False
+        return _constant_time_equals(api_key_header, expected)
     return False
 
 
@@ -365,15 +376,15 @@ def _verify_auth(request: Request, app_config: Any) -> tuple[bool, dict[str, Any
             return False, None
         # Also check X-API-Key as fallback (constant-time comparison)
         api_key = request.headers.get("X-API-Key", "")
-        expected = _get_api_key()
-        if api_key and expected is not None and hmac.compare_digest(api_key, expected):
+        expected = _get_api_key(app_config)
+        if api_key and expected is not None and _constant_time_equals(api_key, expected):
             return True, None
         return False, None
 
     # Third: global API Key mode
-    if not _is_auth_enabled():
+    if not _is_auth_enabled(app_config):
         return True, None
-    if _verify_api_key(request):
+    if _verify_api_key(request, app_config):
         return True, None
     return False, None
 
@@ -402,6 +413,52 @@ def _check_rbac(request: Request, payload: dict[str, Any] | None, app_config: An
     if payload is None:
         return True  # No payload = no RBAC check (global API key mode)
     return jwt_auth.check_path_permission(payload, request.method, request.url.path)
+
+
+class _HeaderMap:
+    """Case-insensitive ``headers.get`` adapter for WebSocket auth."""
+
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self._data = {str(k).lower(): str(v) for k, v in mapping.items()}
+
+    def get(self, key: str, default: str = "") -> str:
+        return self._data.get(key.lower(), default)
+
+
+class _WSAuthRequest:
+    """Duck-type a Request so WebSocket auth reuses ``_verify_auth``."""
+
+    def __init__(self, websocket: WebSocket) -> None:
+        raw = {str(k): str(v) for k, v in websocket.headers.items()}
+        token = websocket.query_params.get("token", "") or ""
+        lowered = {k.lower() for k in raw}
+        if token and "authorization" not in lowered and "x-api-key" not in lowered:
+            raw["Authorization"] = f"Bearer {token}"
+        self.headers = _HeaderMap(raw)
+
+
+def _resolve_cors_config(runtime: Any | None) -> Any:
+    """Resolve CORS: env override, then schema, then defaults.
+
+    ``AGENTBASE_CORS_ORIGINS`` wins when set (compose / existing tests).
+    Explicit (non-wildcard) env origins enable credentials, matching the
+    historical env-only middleware. Schema ``CORSConfig`` is used when
+    the env var is unset. No new EnvSettings surface.
+    """
+    from agentbase.config.schema import CORSConfig
+
+    env_raw = os.environ.get("AGENTBASE_CORS_ORIGINS")
+    if env_raw is not None and str(env_raw).strip():
+        origins = [o.strip() for o in str(env_raw).split(",") if o.strip()] or ["*"]
+        return CORSConfig(
+            allow_origins=origins,
+            allow_credentials="*" not in origins,
+        )
+    if runtime is not None:
+        cors = getattr(getattr(runtime, "app_config", None), "cors", None)
+        if cors is not None:
+            return cors
+    return CORSConfig()
 
 
 # --------------------------------------------------------------------------- #
@@ -1667,18 +1724,13 @@ def create_app(*, runtime=None) -> FastAPI:
     # ------------------------------------------------------------------ #
     # CORS middleware                                                    #
     # ------------------------------------------------------------------ #
-    cors_origins = os.environ.get("AGENTBASE_CORS_ORIGINS", "*").split(",")
-    cors_origins = [o.strip() for o in cors_origins if o.strip()]
-    # Per CORS spec, credentials are not allowed with wildcard origin.
-    # When origins is ["*"], force allow_credentials=False to prevent
-    # the browser from reflecting arbitrary Origin headers.
-    allow_credentials = "*" not in cors_origins
+    cors_cfg = _resolve_cors_config(runtime)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_credentials=allow_credentials,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=list(cors_cfg.allow_origins),
+        allow_credentials=cors_cfg.effective_credentials(),
+        allow_methods=list(cors_cfg.allow_methods),
+        allow_headers=list(cors_cfg.allow_headers),
     )
 
     # ------------------------------------------------------------------ #
@@ -1879,7 +1931,7 @@ def create_app(*, runtime=None) -> FastAPI:
             version=rt.app_config.app.version,
             agents=agents,
             default_agent=rt.app_config.runtime.default_agent,
-            auth_enabled=_is_auth_enabled() or auth_type == "jwt",
+            auth_enabled=_is_auth_enabled(rt.app_config) or auth_type == "jwt",
             auth_type=auth_type,
             storage_connected=storage_ok,
             queue_connected=queue_ok,
@@ -5125,15 +5177,13 @@ def create_app(*, runtime=None) -> FastAPI:
         """
         import asyncio
 
-        # Auth check for WebSocket
+        # Same auth as HTTP (_verify_auth): JWT-only must present a token;
+        # API-key mode uses constant-time compare; dev fail-open matches HTTP.
         rt = get_runtime()
-        auth_cfg = getattr(rt.app_config, "auth", None)
-        if auth_cfg is not None and auth_cfg.type != "none":
-            if _is_auth_enabled():
-                token = websocket.query_params.get("token", "")
-                if not token or token != _get_api_key():
-                    await websocket.close(code=4001, reason="Unauthorized")
-                    return
+        auth_ok, _payload = _verify_auth(_WSAuthRequest(websocket), rt.app_config)
+        if not auth_ok:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
 
         await websocket.accept()
         _metrics.ws_connect()
@@ -5201,7 +5251,11 @@ def create_app(*, runtime=None) -> FastAPI:
     # ------------------------------------------------------------------ #
     @app.get("/metrics", tags=["health"])
     def metrics():
-        """Prometheus-format metrics endpoint (public, no auth)."""
+        """Prometheus-format metrics. Auth required when API key/JWT is on."""
+        rt = get_runtime()
+        metrics_cfg = getattr(rt.app_config, "metrics", None)
+        if metrics_cfg is not None and not getattr(metrics_cfg, "enabled", True):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
         return PlainTextResponse(
             _metrics.to_prometheus(),
             media_type="text/plain",

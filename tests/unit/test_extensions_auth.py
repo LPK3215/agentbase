@@ -35,12 +35,11 @@ class TestJWTAuthInit:
         auth = JWTAuth(secret="my-secret")
         assert auth._secret == b"my-secret"
 
-    def test_empty_secret_generates_random(self):
-        auth = JWTAuth(secret="")
-        assert len(auth._secret) > 0
-        # Should be different each time
-        auth2 = JWTAuth(secret="")
-        assert auth._secret != auth2._secret
+    def test_empty_secret_raises(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="secret"):
+            JWTAuth(secret="")
 
     def test_custom_expiry(self):
         auth = JWTAuth(secret="s", token_expiry_hours=2, refresh_expiry_hours=48)

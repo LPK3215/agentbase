@@ -79,6 +79,8 @@ agentbase run --agent coder "Write a Python function"
 agentbase eval --suite examples/eval_suite.yaml -o eval_report.json
 ```
 
+The `default` profile can write and delete files with `interrupt_on` empty. That is local-dev, not a production HITL gate. For a read-only image use `configs/agents/readonly.yaml`; to require confirmation before writes, start from `configs/agents/interrupt_demo.yaml`. Production (`app.env: prod`) will not start without `AGENTBASE_API_KEY` or a JWT secret.
+
 ## 7. Start the API Server
 
 ```bash

@@ -154,6 +154,7 @@ class TestAgentRunnerBuildInput:
         mock_factory = MagicMock()
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.session_ttl_seconds = None
 
         runner = AgentRunner(factory=mock_factory, app_config=mock_config)
         result = runner._build_input("hello world")
@@ -174,6 +175,7 @@ class TestAgentRunnerInvoke:
         mock_factory.tracer = None
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.session_ttl_seconds = None
         mock_config.runtime.recursion_limit = 50
         return AgentRunner(factory=mock_factory, app_config=mock_config)
 
@@ -259,6 +261,7 @@ class TestAgentRunnerStream:
         mock_factory.tracer = None
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.session_ttl_seconds = None
         mock_config.runtime.recursion_limit = 50
         mock_config.runtime.stream_modes = ["messages"]
         return AgentRunner(factory=mock_factory, app_config=mock_config)
@@ -337,6 +340,7 @@ class TestAgentRunnerResume:
         mock_factory.checkpointer = checkpointer or MagicMock()
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.session_ttl_seconds = None
         mock_config.runtime.recursion_limit = 50
         return AgentRunner(factory=mock_factory, app_config=mock_config)
 
@@ -403,6 +407,7 @@ class TestAgentRunnerGetStats:
         mock_factory = MagicMock()
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = 20
+        mock_config.runtime.session_ttl_seconds = None
         mock_config.runtime.recursion_limit = 100
         mock_config.runtime.default_agent = "default"
 
@@ -426,6 +431,7 @@ class TestAgentRunnerNormalizeEvent:
         mock_factory = MagicMock()
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.session_ttl_seconds = None
         return AgentRunner(factory=mock_factory, app_config=mock_config)
 
     def test_normalize_tuple_event(self):
@@ -489,6 +495,7 @@ class TestAgentRunnerFromModePayload:
         mock_factory = MagicMock()
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.session_ttl_seconds = None
         return AgentRunner(factory=mock_factory, app_config=mock_config)
 
     def test_messages_mode(self):
@@ -618,6 +625,7 @@ class TestAgentRunnerStreamSemaphore:
         mock_factory.tracer = None
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = max_conc
+        mock_config.runtime.session_ttl_seconds = None
         mock_config.runtime.recursion_limit = 50
         mock_config.runtime.stream_modes = ["messages"]
         return AgentRunner(factory=mock_factory, app_config=mock_config)
@@ -735,6 +743,7 @@ class TestAgentRunnerFromModePayloadExtra:
         mock_factory.tracer = None
         mock_config = MagicMock()
         mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.session_ttl_seconds = None
         mock_config.runtime.recursion_limit = 50
         mock_config.runtime.stream_modes = ["messages"]
         return AgentRunner(factory=mock_factory, app_config=mock_config)
@@ -749,3 +758,69 @@ class TestAgentRunnerFromModePayloadExtra:
             thread_id="t1", agent_name="a1",
         )
         assert result.type == EventType.RAW
+
+
+class TestAgentRunnerSessionTTL:
+    """Runner must pass runtime.session_ttl_seconds into Session.create."""
+
+    def _make_runner(self, ttl):
+        from agentbase.runtime.runner import AgentRunner
+
+        mock_factory = MagicMock()
+        mock_factory.tracer = None
+        mock_factory.checkpointer = MagicMock()
+        mock_factory.checkpointer.get_tuple.return_value = {"checkpoint": "exists"}
+        mock_config = MagicMock()
+        mock_config.runtime.max_concurrency = 10
+        mock_config.runtime.recursion_limit = 50
+        mock_config.runtime.stream_modes = ["messages"]
+        mock_config.runtime.session_ttl_seconds = ttl
+        return AgentRunner(factory=mock_factory, app_config=mock_config)
+
+    def test_invoke_applies_session_ttl(self):
+        from agentbase.runtime.session import get_session_registry
+
+        runner = self._make_runner(30)
+        mock_agent = MagicMock()
+        mock_agent.invoke.return_value = {"messages": [{"content": "ok"}]}
+        runner.invoke(
+            agent=mock_agent,
+            agent_name="ttl_agent",
+            message="hi",
+            thread_id="ttl-invoke-1",
+        )
+        session = get_session_registry().get("ttl-invoke-1")
+        assert session is not None
+        assert session.ttl_seconds == 30.0
+
+    def test_stream_applies_session_ttl(self):
+        from agentbase.runtime.session import get_session_registry
+
+        runner = self._make_runner(45)
+        mock_agent = MagicMock()
+        mock_agent.stream.return_value = iter([("messages", {"content": "x"})])
+        list(runner.stream(
+            agent=mock_agent,
+            agent_name="ttl_agent",
+            message="hi",
+            thread_id="ttl-stream-1",
+        ))
+        session = get_session_registry().get("ttl-stream-1")
+        assert session is not None
+        assert session.ttl_seconds == 45.0
+
+    def test_resume_applies_session_ttl(self):
+        from agentbase.runtime.session import get_session_registry
+
+        runner = self._make_runner(60)
+        mock_agent = MagicMock()
+        mock_agent.invoke.return_value = {"messages": [{"content": "ok"}]}
+        runner.resume(
+            agent=mock_agent,
+            agent_name="ttl_agent",
+            thread_id="ttl-resume-1",
+            decision={"value": "yes"},
+        )
+        session = get_session_registry().get("ttl-resume-1")
+        assert session is not None
+        assert session.ttl_seconds == 60.0

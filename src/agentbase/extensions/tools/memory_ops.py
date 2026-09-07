@@ -8,6 +8,11 @@ Tools provided:
 - ``memory_delete``     — delete a memory by key
 - ``memory_count``      — count memories (optionally by agent)
 - ``memory_batch_save`` — batch save multiple memories in one transaction
+
+The ``agent`` tool argument is kept for schema compatibility. When the
+factory binds ``agent_name`` / ``agent_config.name`` in context, that name
+always wins and the model-supplied ``agent`` is ignored. Search / list /
+count never omit ``agent_name`` (no cross-agent scan).
 """
 
 from __future__ import annotations
@@ -29,11 +34,39 @@ def _get_mgr(context: dict[str, Any] | None) -> MemoryManager:
     return mgr
 
 
+def _has_agent_binding(context: dict[str, Any] | None) -> bool:
+    ctx = context or {}
+    name = ctx.get("agent_name")
+    if isinstance(name, str) and name.strip():
+        return True
+    cfg_name = getattr(ctx.get("agent_config"), "name", None)
+    return isinstance(cfg_name, str) and bool(cfg_name.strip())
+
+
+def _bound_agent_name(context: dict[str, Any] | None, requested: str = "") -> str:
+    """Resolve the agent namespace for a memory tool call.
+
+    Bound context (factory) always wins over the model-supplied ``agent``.
+    Unbound fixtures (unit tests) fall back to ``requested`` or ``default``.
+    """
+    ctx = context or {}
+    name = ctx.get("agent_name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    cfg_name = getattr(ctx.get("agent_config"), "name", None)
+    if isinstance(cfg_name, str) and cfg_name.strip():
+        return cfg_name.strip()
+    if isinstance(requested, str) and requested.strip():
+        return requested.strip()
+    return "default"
+
+
 @register_tool("memory_save", meta=ExtensionMeta(
     name="memory_save", kind="tool", description="Save or update a persistent memory by key.", requires_context=["memory_manager"]
 ))
 def build_memory_save_tool(context: dict[str, Any] | None = None):
     mgr = _get_mgr(context)
+    bound = _has_agent_binding(context)
 
     @tool
     def memory_save(
@@ -44,6 +77,7 @@ def build_memory_save_tool(context: dict[str, Any] | None = None):
         metadata: str = "",
     ) -> str:
         """Save a memory. ``tags`` is comma-separated. ``metadata`` is a JSON string."""
+        agent_name = _bound_agent_name(context, "" if bound else agent)
         tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
         meta_dict = {}
         if metadata:
@@ -51,7 +85,7 @@ def build_memory_save_tool(context: dict[str, Any] | None = None):
                 meta_dict = json.loads(metadata)
             except json.JSONDecodeError:
                 meta_dict = {"raw": metadata}
-        mem = mgr.save(agent_name=agent, key=key, content=content, tags=tag_list, metadata=meta_dict)
+        mem = mgr.save(agent_name=agent_name, key=key, content=content, tags=tag_list, metadata=meta_dict)
         return f"Saved memory: key={mem.key} agent={mem.agent_name}"
 
     return memory_save
@@ -62,12 +96,14 @@ def build_memory_save_tool(context: dict[str, Any] | None = None):
 ))
 def build_memory_get_tool(context: dict[str, Any] | None = None):
     mgr = _get_mgr(context)
+    bound = _has_agent_binding(context)
 
     @tool
     def memory_get(key: str, agent: str = "default") -> str:
         """Retrieve a memory by key."""
+        agent_name = _bound_agent_name(context, "" if bound else agent)
         try:
-            mem = mgr.get(agent_name=agent, key=key)
+            mem = mgr.get(agent_name=agent_name, key=key)
         except KeyError as exc:
             return str(exc)
         return json.dumps(mem.to_dict(), ensure_ascii=False)
@@ -80,13 +116,13 @@ def build_memory_get_tool(context: dict[str, Any] | None = None):
 ))
 def build_memory_list_tool(context: dict[str, Any] | None = None):
     mgr = _get_mgr(context)
+    bound = _has_agent_binding(context)
 
     @tool
     def memory_list(agent: str = "", tag: str = "") -> str:
-        """List memories. Filter by agent and/or tag. Empty string = no filter."""
-        kwargs: dict[str, Any] = {}
-        if agent:
-            kwargs["agent_name"] = agent
+        """List memories for the bound agent. Filter by tag. ``agent`` is ignored when bound."""
+        agent_name = _bound_agent_name(context, "" if bound else agent)
+        kwargs: dict[str, Any] = {"agent_name": agent_name}
         if tag:
             kwargs["tag"] = tag
         memories = mgr.list(**kwargs)
@@ -103,14 +139,13 @@ def build_memory_list_tool(context: dict[str, Any] | None = None):
 ))
 def build_memory_search_tool(context: dict[str, Any] | None = None):
     mgr = _get_mgr(context)
+    bound = _has_agent_binding(context)
 
     @tool
     def memory_search(query: str, agent: str = "") -> str:
-        """Search memories by text. Optionally filter by agent."""
-        kwargs: dict[str, Any] = {"query": query}
-        if agent:
-            kwargs["agent_name"] = agent
-        results = mgr.search(**kwargs)
+        """Search memories by text within the bound agent. ``agent`` is ignored when bound."""
+        agent_name = _bound_agent_name(context, "" if bound else agent)
+        results = mgr.search(query=query, agent_name=agent_name)
         if not results:
             return f"<no memories matching '{query}'>"
         lines = [f"- [{m.agent_name}/{m.key}] {m.content[:100]}" for m in results]
@@ -124,13 +159,15 @@ def build_memory_search_tool(context: dict[str, Any] | None = None):
 ))
 def build_memory_delete_tool(context: dict[str, Any] | None = None):
     mgr = _get_mgr(context)
+    bound = _has_agent_binding(context)
 
     @tool
     def memory_delete(key: str, agent: str = "default") -> str:
         """Delete a memory by key."""
-        if mgr.delete(agent_name=agent, key=key):
-            return f"Deleted memory: key={key} agent={agent}"
-        return f"Memory not found: key={key} agent={agent}"
+        agent_name = _bound_agent_name(context, "" if bound else agent)
+        if mgr.delete(agent_name=agent_name, key=key):
+            return f"Deleted memory: key={key} agent={agent_name}"
+        return f"Memory not found: key={key} agent={agent_name}"
 
     return memory_delete
 
@@ -140,15 +177,14 @@ def build_memory_delete_tool(context: dict[str, Any] | None = None):
 ))
 def build_memory_count_tool(context: dict[str, Any] | None = None):
     mgr = _get_mgr(context)
+    bound = _has_agent_binding(context)
 
     @tool
     def memory_count(agent: str = "") -> str:
-        """Count memories. Optionally filter by agent name."""
-        kwargs: dict[str, Any] = {}
-        if agent:
-            kwargs["agent_name"] = agent
-        count = mgr.count(**kwargs)
-        return f"Memory count: {count}" + (f" (agent={agent})" if agent else "")
+        """Count memories for the bound agent. ``agent`` is ignored when bound."""
+        agent_name = _bound_agent_name(context, "" if bound else agent)
+        count = mgr.count(agent_name=agent_name)
+        return f"Memory count: {count} (agent={agent_name})"
 
     return memory_count
 
@@ -158,6 +194,7 @@ def build_memory_count_tool(context: dict[str, Any] | None = None):
 ))
 def build_memory_batch_save_tool(context: dict[str, Any] | None = None):
     mgr = _get_mgr(context)
+    bound = _has_agent_binding(context)
 
     @tool
     def memory_batch_save(
@@ -169,13 +206,14 @@ def build_memory_batch_save_tool(context: dict[str, Any] | None = None):
         Args:
             items: JSON array of objects, each with "key", "content",
                    and optional "tags" (comma-separated) and "metadata" (JSON string).
-            agent: Agent name for all memories.
+            agent: Agent name for all memories. Ignored when the runtime binds one.
 
         Example items::
 
             [{"key": "pref1", "content": "likes dark mode"},
              {"key": "pref2", "content": "prefers Python", "tags": "lang,preference"}]
         """
+        agent_name = _bound_agent_name(context, "" if bound else agent)
         try:
             data = json.loads(items)
         except json.JSONDecodeError as exc:
@@ -206,7 +244,7 @@ def build_memory_batch_save_tool(context: dict[str, Any] | None = None):
         if not entries:
             return "No valid entries to save"
 
-        saved = mgr.batch_save(agent_name=agent, entries=entries)
-        return f"Batch saved {saved} memories for agent={agent}"
+        saved = mgr.batch_save(agent_name=agent_name, entries=entries)
+        return f"Batch saved {saved} memories for agent={agent_name}"
 
     return memory_batch_save

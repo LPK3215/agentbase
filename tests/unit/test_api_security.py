@@ -1,6 +1,7 @@
 """Tests for API security: authentication, rate limiting, CORS, error handling."""
 from __future__ import annotations
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -419,3 +420,132 @@ class TestApiKeyConstantTime:
             request = MagicMock()
             request.headers = {}
             assert _verify_api_key(request) is True
+
+
+class TestYamlApiKeyAuth:
+    def test_config_api_key_enforces_http_auth(self, mock_runtime):
+        """Non-empty ``auth.api_key`` enables HTTP auth even with empty env."""
+        reset_runtime()
+        _reset_rate_limiter()
+        mock_runtime.app_config.auth.api_key = "yaml-only-key"
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": ""}, clear=False):
+            app = create_app(runtime=mock_runtime)
+            with TestClient(app, raise_server_exceptions=False) as c:
+                assert c.get("/agents").status_code == 401
+                ok = c.get("/agents", headers={"X-API-Key": "yaml-only-key"})
+                assert ok.status_code == 200
+        reset_runtime()
+        _reset_rate_limiter()
+        mock_runtime.app_config.auth.api_key = None
+
+
+class TestMetricsAuth:
+    def test_metrics_requires_auth(self, client_with_auth):
+        assert client_with_auth.get("/metrics").status_code == 401
+
+    def test_metrics_with_key(self, client_with_auth):
+        response = client_with_auth.get(
+            "/metrics",
+            headers={"Authorization": "Bearer secret-key-123"},
+        )
+        assert response.status_code == 200
+        assert "text/plain" in response.headers.get("content-type", "")
+
+    def test_metrics_fail_open_without_auth(self, client_no_auth):
+        assert client_no_auth.get("/metrics").status_code == 200
+
+    def test_metrics_disabled_returns_404(self, mock_runtime):
+        reset_runtime()
+        _reset_rate_limiter()
+        mock_runtime.app_config.metrics.enabled = False
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": ""}, clear=False):
+            app = create_app(runtime=mock_runtime)
+            with TestClient(app, raise_server_exceptions=False) as c:
+                assert c.get("/metrics").status_code == 404
+        mock_runtime.app_config.metrics.enabled = True
+        reset_runtime()
+        _reset_rate_limiter()
+
+
+class TestWebSocketAuth:
+    def test_ws_rejects_missing_token_when_api_key_on(self, client_with_auth):
+        from starlette.websockets import WebSocketDisconnect
+
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client_with_auth.websocket_connect("/ws/agents/default"):
+                pass
+        assert exc.value.code == 4001
+
+    def test_ws_accepts_query_token(self, client_with_auth):
+        with client_with_auth.websocket_connect(
+            "/ws/agents/default?token=secret-key-123"
+        ):
+            pass
+
+    def test_ws_jwt_only_rejects_without_token(self, mock_runtime):
+        from starlette.websockets import WebSocketDisconnect
+
+        reset_runtime()
+        _reset_rate_limiter()
+        mock_runtime.app_config.auth.type = "jwt"
+        mock_runtime.app_config.auth.secret = "jwt-test-secret-not-real"
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": ""}, clear=False):
+            app = create_app(runtime=mock_runtime)
+            with TestClient(app, raise_server_exceptions=False) as c:
+                with pytest.raises(WebSocketDisconnect) as exc:
+                    with c.websocket_connect("/ws/agents/default"):
+                        pass
+                assert exc.value.code == 4001
+        mock_runtime.app_config.auth.type = "api_key"
+        mock_runtime.app_config.auth.secret = ""
+        reset_runtime()
+        _reset_rate_limiter()
+
+    def test_ws_jwt_only_accepts_valid_token(self, mock_runtime):
+        from agentbase.extensions.auth import JWTAuth
+
+        reset_runtime()
+        _reset_rate_limiter()
+        secret = "jwt-test-secret-not-real"
+        mock_runtime.app_config.auth.type = "jwt"
+        mock_runtime.app_config.auth.secret = secret
+        token = JWTAuth(secret=secret).create_token(user_id="u1")
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": ""}, clear=False):
+            app = create_app(runtime=mock_runtime)
+            with TestClient(app, raise_server_exceptions=False) as c:
+                with c.websocket_connect(f"/ws/agents/default?token={token}"):
+                    pass
+        mock_runtime.app_config.auth.type = "api_key"
+        mock_runtime.app_config.auth.secret = ""
+        reset_runtime()
+        _reset_rate_limiter()
+
+
+class TestCorsSchema:
+    def test_schema_origins_when_env_unset(self, mock_runtime):
+        reset_runtime()
+        _reset_rate_limiter()
+        mock_runtime.app_config.cors.allow_origins = ["https://app.example.com"]
+        mock_runtime.app_config.cors.allow_credentials = True
+        with patch.dict("os.environ", {"AGENTBASE_API_KEY": ""}, clear=False):
+            os.environ.pop("AGENTBASE_CORS_ORIGINS", None)
+            app = create_app(runtime=mock_runtime)
+            with TestClient(app, raise_server_exceptions=False) as c:
+                response = c.options(
+                    "/agents",
+                    headers={
+                        "Origin": "https://app.example.com",
+                        "Access-Control-Request-Method": "GET",
+                    },
+                )
+                assert response.status_code == 200
+                assert response.headers.get(
+                    "access-control-allow-origin"
+                ) == "https://app.example.com"
+                assert response.headers.get(
+                    "access-control-allow-credentials", ""
+                ).lower() == "true"
+        mock_runtime.app_config.cors.allow_origins = ["*"]
+        mock_runtime.app_config.cors.allow_credentials = False
+        reset_runtime()
+        _reset_rate_limiter()

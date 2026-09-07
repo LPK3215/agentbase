@@ -348,6 +348,7 @@ class AgentFactory:
             "root_dir": self.root_dir,
             "app_config": self.app_config,
             "agent_config": agent_config,
+            "agent_name": agent_config.name,
             "workspace_dir": self.root_dir / self.app_config.runtime.workspace_dir,
             "skill_manager": self.skill_manager,
             "memory_manager": self.memory_manager,

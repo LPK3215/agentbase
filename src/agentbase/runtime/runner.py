@@ -181,6 +181,16 @@ class AgentRunner:
             ]
         }
 
+    def _session_ttl_seconds(self) -> float | None:
+        """TTL from config. Ignore non-numeric values (e.g. MagicMock in tests)."""
+        runtime = getattr(self.app_config, "runtime", None)
+        raw = getattr(runtime, "session_ttl_seconds", None)
+        if isinstance(raw, bool) or raw is None:
+            return None
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return None
+
     def invoke(
         self,
         *,
@@ -190,7 +200,12 @@ class AgentRunner:
         thread_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        session = Session.create(agent_name=agent_name, thread_id=thread_id, metadata=metadata)
+        session = Session.create(
+            agent_name=agent_name,
+            thread_id=thread_id,
+            metadata=metadata,
+            ttl_seconds=self._session_ttl_seconds(),
+        )
         config = session.runnable_config(self.app_config.runtime.recursion_limit)
         payload = self._build_input(message)
 
@@ -320,7 +335,12 @@ class AgentRunner:
         thread_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Iterator[RuntimeEvent]:
-        session = Session.create(agent_name=agent_name, thread_id=thread_id, metadata=metadata)
+        session = Session.create(
+            agent_name=agent_name,
+            thread_id=thread_id,
+            metadata=metadata,
+            ttl_seconds=self._session_ttl_seconds(),
+        )
         config = session.runnable_config(self.app_config.runtime.recursion_limit)
         payload = self._build_input(message)
         stream_modes = self.app_config.runtime.stream_modes
@@ -504,7 +524,11 @@ class AgentRunner:
         decision: dict[str, Any] | Any,
     ) -> dict[str, Any]:
         self._check_thread_exists(thread_id)
-        session = Session.create(agent_name=agent_name, thread_id=thread_id)
+        session = Session.create(
+            agent_name=agent_name,
+            thread_id=thread_id,
+            ttl_seconds=self._session_ttl_seconds(),
+        )
         config = session.runnable_config(self.app_config.runtime.recursion_limit)
 
         logger.info(

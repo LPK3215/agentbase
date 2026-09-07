@@ -63,6 +63,14 @@ graph TD
 
 **Why agentbase?** Building an AI Agent backend involves repetitive infrastructure work: model configuration, memory management, knowledge base, document parsing, task queues, API security, tracing, and more. AgentBase handles all of this with sensible defaults — and every component is pluggable via a registry system. Swap databases, embedding models, queues, or tracers by changing one line of config. No rewrite required.
 
+## Defaults are local-dev
+
+The shipped `default` agent profile includes write/delete tools and an empty `interrupt_on` map. That is the local-dev picture, not a production default. Before exposing the API:
+
+- Use `configs/agents/readonly.yaml`, or copy `configs/agents/interrupt_demo.yaml` and list irreversible tools under `interrupt_on`.
+- Production compose refuses to start without `AGENTBASE_API_KEY` or a JWT secret (`app.env: prod` / `production`).
+- Read [docs/guardrails.md](docs/guardrails.md) and [SECURITY.md](SECURITY.md).
+
 ## Requirements
 
 - Python >= 3.11

@@ -300,3 +300,50 @@ class TestMemoryOpsExtras:
         assert "Batch saved 1" in result
         mem = mem_mgr.get(agent_name="default", key="b1")
         assert mem.metadata["raw"] == "bad json"
+
+
+class TestMemoryBoundAgent:
+    """Factory-bound agent_name always wins; no cross-agent scan."""
+
+    def _bound_ctx(self, mem_mgr, name: str = "agent_a"):
+        return {"memory_manager": mem_mgr, "agent_name": name}
+
+    def test_save_ignores_model_agent_param(self, mem_mgr):
+        from agentbase.extensions.tools.memory_ops import build_memory_save_tool
+
+        ctx = self._bound_ctx(mem_mgr, "agent_a")
+        tool_fn = build_memory_save_tool(context=ctx)
+        result = tool_fn.invoke({"key": "k1", "content": "secret-a", "agent": "agent_b"})
+        assert "agent_a" in result
+        mem = mem_mgr.get(agent_name="agent_a", key="k1")
+        assert mem.content == "secret-a"
+        with pytest.raises(KeyError):
+            mem_mgr.get(agent_name="agent_b", key="k1")
+
+    def test_search_without_agent_stays_in_bound_namespace(self, mem_mgr):
+        from agentbase.extensions.tools.memory_ops import build_memory_search_tool
+
+        mem_mgr.save(agent_name="agent_a", key="k1", content="alpha token")
+        mem_mgr.save(agent_name="agent_b", key="k2", content="alpha token")
+        ctx = self._bound_ctx(mem_mgr, "agent_a")
+        tool_fn = build_memory_search_tool(context=ctx)
+        result = tool_fn.invoke({"query": "alpha"})
+        assert "k1" in result
+        assert "k2" not in result
+        assert "agent_b" not in result
+
+    def test_list_and_count_do_not_scan_all_agents(self, mem_mgr):
+        from agentbase.extensions.tools.memory_ops import (
+            build_memory_count_tool,
+            build_memory_list_tool,
+        )
+
+        mem_mgr.save(agent_name="agent_a", key="k1", content="a")
+        mem_mgr.save(agent_name="agent_b", key="k2", content="b")
+        ctx = self._bound_ctx(mem_mgr, "agent_a")
+        listed = build_memory_list_tool(context=ctx).invoke({})
+        assert "k1" in listed
+        assert "k2" not in listed
+        counted = build_memory_count_tool(context=ctx).invoke({})
+        assert "1" in counted
+        assert "agent_a" in counted
