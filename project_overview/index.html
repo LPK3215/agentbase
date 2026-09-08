@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentBase · 项目全景观览</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="scroll-progress"></div>
+
+  <nav class="navbar glass">
+    <div class="nav-brand">🤖 AgentBase</div>
+    <ul class="nav-links">
+      <li><a href="#hero" class="nav-link active">概览</a></li>
+      <li><a href="#intro" class="nav-link">简介</a></li>
+      <li><a href="#architecture" class="nav-link">架构</a></li>
+      <li><a href="#techstack" class="nav-link">技术栈</a></li>
+      <li><a href="#structure" class="nav-link">目录</a></li>
+      <li><a href="#quickstart" class="nav-link">开始</a></li>
+      <li><a href="#features" class="nav-link">功能</a></li>
+    </ul>
+    <button id="theme-toggle" class="theme-toggle">🌙</button>
+  </nav>
+
+  <section id="hero" class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <div class="hero-badge">v0.4.0 · MIT</div>
+      <h1 class="hero-title">AgentBase</h1>
+      <p class="hero-subtitle">配置驱动的 AI Agent 智能体脚手架</p>
+      <div class="hero-tags">
+        <span class="tag">FastAPI</span>
+        <span class="tag">LangGraph</span>
+        <span class="tag">LangChain</span>
+        <span class="tag">DeepAgents</span>
+        <span class="tag">PostgreSQL</span>
+        <span class="tag">pgvector</span>
+        <span class="tag">Docker</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="intro" class="section">
+    <div class="container">
+      <h2 class="section-title">📋 项目简介</h2>
+      <div class="card">
+        <p>AgentBase 是一个生产级 AI Agent 框架 / LLM Agent 脚手架，基于 deepagents、LangChain 和 LangGraph 构建。通过 YAML 配置组装和运行生产级 AI Agent，无需编写样板代码。提供 30 个可插拔扩展注册器、21 命令 CLI、FastAPI 服务层（145 个 REST/WebSocket 路由），覆盖 AI Agent 后端所需的所有基础设施：模型配置、提示词模板、用户管理、API Key 管理、会话管理、记忆管理、RAG 知识库、文档解析、任务队列、API 安全、追踪和评估。</p>
+        <div class="highlights">
+          <div class="hi"><span class="hi-icon">⚙️</span><h4>配置驱动</h4><p>Agent、模型、存储、嵌入在 YAML 中定义</p></div>
+          <div class="hi"><span class="hi-icon">🔌</span><h4>30 个注册器</h4><p>tools/middleware/subagents/parsers 等</p></div>
+          <div class="hi"><span class="hi-icon">🌐</span><h4>145 路由 API</h4><p>REST + WebSocket 全覆盖</p></div>
+          <div class="hi"><span class="hi-icon">📚</span><h4>RAG 知识库</h4><p>9 种文档格式，3 种分块策略</p></div>
+          <div class="hi"><span class="hi-icon">🔧</span><h4>48 内置工具</h4><p>文件操作、搜索、MCP、代码执行</p></div>
+          <div class="hi"><span class="hi-icon">🛡️</span><h4>企业加固</h4><p>API Key + JWT + RBAC + OAuth2</p></div>
+          <div class="hi"><span class="hi-icon">🧪</span><h4>3831 测试</h4><p>90% 覆盖率，GitHub Actions CI</p></div>
+          <div class="hi"><span class="hi-icon">📊</span><h4>可观测</h4><p>Prometheus 指标 + 追踪 + 审计</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="architecture" class="section section-alt">
+    <div class="container">
+      <h2 class="section-title">🏗️ 架构全景</h2>
+      <div class="card">
+        <div class="arch-diagram">
+          <svg viewBox="0 0 920 420" xmlns="http://www.w3.org/2000/svg" class="arch-svg">
+            <defs>
+              <linearGradient id="g-entry" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#42b883"/><stop offset="100%" stop-color="#35495e"/></linearGradient>
+              <linearGradient id="g-core" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#009688"/><stop offset="100%" stop-color="#00695c"/></linearGradient>
+              <linearGradient id="g-infra" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7e57c2"/><stop offset="100%" stop-color="#512da8"/></linearGradient>
+              <linearGradient id="g-data" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff7043"/><stop offset="100%" stop-color="#d84315"/></linearGradient>
+              <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10 Z" fill="#888"/></marker>
+            </defs>
+            <!-- Entry Points -->
+            <rect x="30" y="20" width="250" height="100" rx="14" fill="url(#g-entry)" opacity="0.9"/>
+            <text x="155" y="48" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">入口层</text>
+            <rect x="50" y="60" width="100" height="24" rx="5" fill="rgba(255,255,255,0.2)"/><text x="100" y="76" text-anchor="middle" fill="#fff" font-size="10">CLI (21 命令)</text>
+            <rect x="160" y="60" width="100" height="24" rx="5" fill="rgba(255,255,255,0.15)"/><text x="210" y="76" text-anchor="middle" fill="#fff" font-size="10">FastAPI (145 路由)</text>
+            <!-- Core -->
+            <rect x="330" y="20" width="260" height="160" rx="14" fill="url(#g-core)" opacity="0.9"/>
+            <text x="460" y="48" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">核心层（配置驱动）</text>
+            <rect x="350" y="60" width="220" height="24" rx="5" fill="rgba(255,255,255,0.2)"/><text x="460" y="76" text-anchor="middle" fill="#fff" font-size="10">YAML Config (agentbase doctor)</text>
+            <rect x="350" y="92" width="220" height="24" rx="5" fill="rgba(255,255,255,0.15)"/><text x="460" y="108" text-anchor="middle" fill="#fff" font-size="9">30 Extension Registries</text>
+            <rect x="350" y="124" width="220" height="24" rx="5" fill="rgba(255,255,255,0.15)"/><text x="460" y="140" text-anchor="middle" fill="#fff" font-size="9">Component Factories (deepagents+LC+LG)</text>
+            <rect x="350" y="152" width="100" height="22" rx="5" fill="rgba(255,255,255,0.1)"/><text x="400" y="167" text-anchor="middle" fill="#ddd" font-size="8">9 Middleware</text>
+            <rect x="460" y="152" width="110" height="22" rx="5" fill="rgba(255,255,255,0.1)"/><text x="515" y="167" text-anchor="middle" fill="#ddd" font-size="8">48 Built-in Tools</text>
+            <!-- Infrastructure -->
+            <rect x="640" y="20" width="250" height="160" rx="14" fill="url(#g-infra)" opacity="0.9"/>
+            <text x="765" y="48" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">基础设施服务</text>
+            <rect x="660" y="60" width="100" height="22" rx="5" fill="rgba(255,255,255,0.15)"/><text x="710" y="75" text-anchor="middle" fill="#fff" font-size="9">Agent Runtime</text>
+            <rect x="770" y="60" width="100" height="22" rx="5" fill="rgba(255,255,255,0.15)"/><text x="820" y="75" text-anchor="middle" fill="#fff" font-size="9">Memory</text>
+            <rect x="660" y="90" width="100" height="22" rx="5" fill="rgba(255,255,255,0.15)"/><text x="710" y="105" text-anchor="middle" fill="#fff" font-size="9">Knowledge Base</text>
+            <rect x="770" y="90" width="100" height="22" rx="5" fill="rgba(255,255,255,0.15)"/><text x="820" y="105" text-anchor="middle" fill="#fff" font-size="9">Model Manager</text>
+            <rect x="660" y="120" width="100" height="22" rx="5" fill="rgba(255,255,255,0.15)"/><text x="710" y="135" text-anchor="middle" fill="#fff" font-size="9">User/APIKey</text>
+            <rect x="770" y="120" width="100" height="22" rx="5" fill="rgba(255,255,255,0.15)"/><text x="820" y="135" text-anchor="middle" fill="#fff" font-size="9">Queue</text>
+            <rect x="660" y="150" width="100" height="22" rx="5" fill="rgba(255,255,255,0.1)"/><text x="710" y="165" text-anchor="middle" fill="#ddd" font-size="8">Audit/Trace</text>
+            <rect x="770" y="150" width="100" height="22" rx="5" fill="rgba(255,255,255,0.1)"/><text x="820" y="165" text-anchor="middle" fill="#ddd" font-size="8">Webhook/Notify</text>
+            <!-- Data Layer -->
+            <rect x="330" y="220" width="560" height="80" rx="14" fill="url(#g-data)" opacity="0.9"/>
+            <text x="610" y="248" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">存储与数据层</text>
+            <rect x="350" y="260" width="120" height="24" rx="5" fill="rgba(255,255,255,0.2)"/><text x="410" y="276" text-anchor="middle" fill="#fff" font-size="9">PostgreSQL+pgvector</text>
+            <rect x="480" y="260" width="100" height="24" rx="5" fill="rgba(255,255,255,0.15)"/><text x="530" y="276" text-anchor="middle" fill="#fff" font-size="9">SQLite (dev)</text>
+            <rect x="590" y="260" width="100" height="24" rx="5" fill="rgba(255,255,255,0.15)"/><text x="640" y="276" text-anchor="middle" fill="#fff" font-size="9">Redis</text>
+            <rect x="700" y="260" width="100" height="24" rx="5" fill="rgba(255,255,255,0.15)"/><text x="750" y="276" text-anchor="middle" fill="#fff" font-size="9">MinIO</text>
+            <!-- Security bar -->
+            <rect x="30" y="220" width="250" height="80" rx="14" fill="#37474f" opacity="0.9"/>
+            <text x="155" y="248" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">安全与认证</text>
+            <rect x="50" y="260" width="90" height="24" rx="5" fill="rgba(255,255,255,0.15)"/><text x="95" y="276" text-anchor="middle" fill="#fff" font-size="9">API Key + JWT</text>
+            <rect x="150" y="260" width="110" height="24" rx="5" fill="rgba(255,255,255,0.15)"/><text x="205" y="276" text-anchor="middle" fill="#fff" font-size="9">RBAC + OAuth2</text>
+            <!-- Arrows -->
+            <line x1="280" y1="70" x2="325" y2="70" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+            <line x1="590" y1="70" x2="635" y2="70" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+            <line x1="460" y1="180" x2="460" y2="215" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+            <line x1="280" y1="260" x2="325" y2="260" stroke="#888" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="techstack" class="section">
+    <div class="container">
+      <h2 class="section-title">🧱 技术栈</h2>
+      <div class="card">
+        <table class="tech-table">
+          <thead><tr><th>层</th><th>技术</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td>语言</td><td>Python >= 3.11</td><td>主语言</td></tr>
+            <tr><td>Agent 框架</td><td>deepagents + LangChain + LangGraph</td><td>智能体编排</td></tr>
+            <tr><td>Web 框架</td><td>FastAPI + Uvicorn</td><td>REST API + WebSocket</td></tr>
+            <tr><td>数据验证</td><td>Pydantic 2.7+</td><td>模型验证</td></tr>
+            <tr><td>关系数据库</td><td>PostgreSQL 16 + pgvector</td><td>业务数据 + 向量检索</td></tr>
+            <tr><td>开发数据库</td><td>SQLite</td><td>零配置开发环境</td></tr>
+            <tr><td>缓存</td><td>Redis</td><td>缓存 + 任务队列</td></tr>
+            <tr><td>对象存储</td><td>MinIO</td><td>文件上传</td></tr>
+            <tr><td>部署</td><td>Docker + Docker Compose</td><td>容器化部署</td></tr>
+            <tr><td>CI/CD</td><td>GitHub Actions</td><td>自动化测试与发布</td></tr>
+            <tr><td>测试</td><td>pytest + pytest-asyncio</td><td>3831 测试, 90% 覆盖率</td></tr>
+            <tr><td>代码质量</td><td>ruff + pyright</td><td>Lint + 类型检查</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="structure" class="section section-alt">
+    <div class="container">
+      <h2 class="section-title">📂 目录结构</h2>
+      <div class="card">
+        <div class="tree-container">
+          <details open class="tree-node">
+            <summary>📁 agentbase/</summary>
+            <div class="tree-leaf">📁 src/ — 核心源码（Agent 框架 + FastAPI 服务层）</div>
+            <div class="tree-leaf">📁 tests/ — 单元/集成/E2E 测试 (3831 测试)</div>
+            <div class="tree-leaf">📁 configs/ — YAML 配置（agents/models/storage）</div>
+            <div class="tree-leaf">📁 docs/ — 项目文档（guardrails/扩展指南等）</div>
+            <div class="tree-leaf">📁 examples/ — 使用示例</div>
+            <div class="tree-leaf">📁 migrations/ — 数据库迁移</div>
+            <div class="tree-leaf">📁 scripts/ — 构建/部署脚本</div>
+            <div class="tree-leaf">📁 acceptance/ — 验收测试</div>
+            <div class="tree-leaf">📁 deploy/ — 部署配置</div>
+            <div class="tree-leaf">📁 data/ — 数据文件</div>
+            <div class="tree-leaf">📄 pyproject.toml — 项目配置</div>
+            <div class="tree-leaf">📄 docker-compose.yml — Docker 部署</div>
+            <div class="tree-leaf">📄 Dockerfile — 容器镜像</div>
+            <div class="tree-leaf">📄 Makefile — 构建/测试命令</div>
+            <div class="tree-leaf">📄 LICENSE / README.md / CHANGELOG.md / CONTRIBUTING.md / SECURITY.md</div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="quickstart" class="section">
+    <div class="container">
+      <h2 class="section-title">🚀 快速开始</h2>
+      <div class="card">
+        <h4>安装</h4>
+        <div class="code-block">
+          <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">复制</button></div>
+<pre><code>pip install agentbase
+
+# 或从源码
+git clone https://github.com/LPK3215/agentbase.git
+cd agentbase
+uv sync</code></pre>
+        </div>
+        <h4>初始化与运行</h4>
+        <div class="code-block">
+          <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">复制</button></div>
+<pre><code># 复制配置
+cp .env.example .env
+
+# 验证配置
+agentbase doctor
+
+# 启动 API 服务
+agentbase serve --reload
+
+# 或 Docker 启动
+docker compose up -d</code></pre>
+        </div>
+        <p>API 文档：<code>http://localhost:8000/docs</code></p>
+        <h4>CLI 命令</h4>
+        <div class="code-block">
+          <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">复制</button></div>
+<pre><code>agentbase serve      # 启动 API 服务
+agentbase agent run   # 运行 Agent
+agentbase doctor      # 配置检查
+agentbase migrate     # 数据库迁移
+agentbase --help      # 查看全部 21 个命令</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="section section-alt">
+    <div class="container">
+      <h2 class="section-title">⚡ 核心功能</h2>
+      <div class="card">
+        <table class="tech-table">
+          <thead><tr><th>能力</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>配置驱动 Agent</td><td>Agent、模型、存储、嵌入在 YAML 中定义</td></tr>
+            <tr><td>30 个扩展注册器</td><td>tools/middleware/subagents/parsers/embeddings/search/MCP/queue/tracer 等</td></tr>
+            <tr><td>FastAPI 145 路由</td><td>Agent invoke/stream/resume + WebSocket + 异步任务队列</td></tr>
+            <tr><td>RAG 知识库</td><td>9 种文档格式, 3 种分块策略, pgvector 余弦检索</td></tr>
+            <tr><td>48 内置工具</td><td>文件操作、搜索、MCP 客户端、代码执行、邮件等</td></tr>
+            <tr><td>9 中间件</td><td>retry/timeout/summary/cache/rate_limit/model_router/audit_log</td></tr>
+            <tr><td>企业加固</td><td>API Key + JWT/RBAC + OAuth2 (Google/GitHub) + 限流</td></tr>
+            <tr><td>可观测性</td><td>Prometheus 指标 + 追踪 + 审计 + 使用量统计</td></tr>
+            <tr><td>通知与调度</td><td>Webhook + 通知中心 + 定时任务 + 日历事件</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2 class="section-title">📄 许可证</h2>
+      <div class="card license-card">
+        <p><strong>MIT License</strong></p>
+        <p>Copyright © 2024-2026 LPK3215</p>
+        <p>仓库：<a href="https://github.com/LPK3215/agentbase" target="_blank" style="color:var(--accent)">github.com/LPK3215/agentbase</a></p>
+        <p>PyPI：<a href="https://pypi.org/project/agentbase/" target="_blank" style="color:var(--accent)">pypi.org/project/agentbase</a></p>
+      </div>
+    </div>
+  </section>
+
+  <button id="back-to-top" class="back-to-top">↑</button>
+  <footer class="footer"><p>Generated by CatPaw · 2026-09-09 · AgentBase v0.4.0</p></footer>
+  <script src="./script.js"></script>
+</body>
+</html>
